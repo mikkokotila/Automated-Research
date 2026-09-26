@@ -1,0 +1,213 @@
+import httpx
+import pytest
+
+from autoresearch import rank, report, retrieval, synthesize
+from autoresearch.muse_client import BASE_URL, DEFAULT_MODEL, resolve_api_key
+from autoresearch.papers import Paper
+from autoresearch.spec import ResearchSpec
+
+
+def paper(**kw):
+    base = dict(ref="t:1", title="Mortality factors in advanced cervical cancer", abstract="")
+    base.update(kw)
+    return Paper(**base)
+
+
+# --- spec ---
+
+
+def test_spec_rejects_empty_question():
+    with pytest.raises(ValueError):
+        ResearchSpec(question="   ")
+
+
+def test_spec_rejects_bad_max_papers():
+    with pytest.raises(ValueError):
+        ResearchSpec(question="q", max_papers=0)
+
+
+# --- rank ---
+
+
+def test_rerank_prefers_topical_cited_recent():
+    q = "mortality factors advanced cervical cancer"
+    topical = paper(
+        title="Mortality factors in advanced cervical cancer patients",
+        abstract="cervical cancer mortality analysis",
+        citations=50,
+        year=2024,
+    )
+    off = paper(title="Wheat yields under drought", abstract="agriculture", citations=5000, year=2025)
+    ranked = rank.rerank(q, [off, topical], 2)
+    assert ranked[0].title == topical.title
+    assert ranked[0].score > ranked[1].score
+
+
+def test_rerank_is_deterministic():
+    q = "cervical cancer mortality"
+    papers = [paper(title=f"paper {i} cervical cancer", citations=i) for i in range(10)]
+    assert rank.rerank(q, papers, 5) == rank.rerank(q, papers, 5)
+
+
+# --- retrieval ---
+
+
+def mock_client(routes: dict) -> httpx.Client:
+    def handler(req: httpx.Request) -> httpx.Response:
+        for key, payload in routes.items():
+            if key in str(req.url):
+                return httpx.Response(200, json=payload)
+        return httpx.Response(404, json={})
+
+    return httpx.Client(transport=httpx.MockTransport(handler))
+
+
+def test_openalex_parses_and_inverts_abstract():
+    client = mock_client(
+        {
+            "openalex": {
+                "results": [
+                    {
+                        "id": "W1",
+                        "title": "Cervical cancer mortality",
+                        "doi": "https://doi.org/10.1/x",
+                        "publication_year": 2023,
+                        "cited_by_count": 12,
+                        "authorships": [{"author": {"display_name": "A. Doe"}}],
+                        "primary_location": {"source": {"display_name": "Lancet"}},
+                        "abstract_inverted_index": {"Cervical": [0], "mortality": [2], "rises": [1]},
+                    }
+                ]
+            }
+        }
+    )
+    (p,) = retrieval.openalex_search(ResearchSpec(question="cervical cancer"), client)
+    assert p.abstract == "Cervical rises mortality"
+    assert p.authors == ("A. Doe",) and p.citations == 12 and p.source == "openalex"
+
+
+def test_retrieve_dedupes_by_doi_across_sources():
+    client = mock_client(
+        {
+            "openalex": {
+                "results": [
+                    {
+                        "id": "W1",
+                        "title": "Same study",
+                        "doi": "https://doi.org/10.1/dup",
+                        "publication_year": 2022,
+                        "cited_by_count": 3,
+                        "authorships": [],
+                        "primary_location": {},
+                        "abstract_inverted_index": None,
+                    }
+                ]
+            },
+            "semanticscholar": {
+                "data": [
+                    {
+                        "paperId": "S1",
+                        "title": "Same study",
+                        "doi": "10.1/dup",
+                        "abstract": "richer abstract",
+                        "authors": [],
+                        "year": 2022,
+                        "venue": "",
+                        "url": "",
+                        "citationCount": 3,
+                    }
+                ]
+            },
+        }
+    )
+    papers = retrieval.retrieve(ResearchSpec(question="dup study"), client)
+    assert len(papers) == 1
+    assert papers[0].abstract == "richer abstract"
+
+
+def test_retrieve_degrades_when_one_source_fails():
+    def handler(req: httpx.Request) -> httpx.Response:
+        if "openalex" in str(req.url):
+            raise httpx.ConnectError("down")
+        return httpx.Response(200, json={"data": []})
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    assert retrieval.retrieve(ResearchSpec(question="q"), client) == []
+
+
+def test_retrieve_raises_when_all_fail():
+    def handler(req: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("down")
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    with pytest.raises(RuntimeError, match="retrieval failed"):
+        retrieval.retrieve(ResearchSpec(question="q"), client)
+
+
+def test_semscolar_sends_api_key_when_set(monkeypatch):
+    seen = {}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen.update(req.headers)
+        return httpx.Response(200, json={"data": []})
+
+    monkeypatch.setenv("SEMANTIC_SCHOLAR_API_KEY", "s2key")
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    retrieval.semscholar_search(ResearchSpec(question="q"), client)
+    assert seen.get("x-api-key") == "s2key"
+
+
+# --- muse client ---
+
+
+def test_muse_defaults():
+    assert BASE_URL == "https://api.meta.ai/v1"
+    assert DEFAULT_MODEL == "muse-spark-1.3"
+
+
+def test_resolve_api_key_prefers_muse_first():
+    env = {"MUSE_API_KEY": "a", "MODEL_API_KEY": "b", "META_API_KEY": "c"}
+    assert resolve_api_key(env) == "a"
+    assert resolve_api_key({"META_API_KEY": "c"}) == "c"
+    with pytest.raises(RuntimeError, match="MUSE_API_KEY"):
+        resolve_api_key({})
+
+
+# --- synthesize ---
+
+
+class FakeCompleter:
+    model = "fake"
+
+    def __init__(self, text):
+        self.text = text
+
+    def complete(self, system, user, max_tokens=2000):
+        assert "[1]" in user and "Papers:" in user
+        return self.text
+
+
+def test_synthesize_extracts_valid_citations():
+    papers = [paper(), paper(title="Second paper")]
+    s = synthesize.synthesize("q", papers, FakeCompleter("Claims [1] hold, but [2] differs. [9] ignored."))
+    assert s.text.startswith("Claims") and s.cited == (1, 2) and s.model == "fake"
+
+
+def test_synthesize_rejects_empty():
+    with pytest.raises(ValueError):
+        synthesize.synthesize("q", [], FakeCompleter("x"))
+    with pytest.raises(RuntimeError, match="empty"):
+        synthesize.synthesize("q", [paper()], FakeCompleter("  "))
+
+
+# --- report ---
+
+
+def test_report_bundle(tmp_path):
+    spec = ResearchSpec(question="cervical cancer mortality", max_papers=2)
+    papers = [paper(score=1.5), paper(title="Second", score=0.5, url="http://x")]
+    synth = synthesize.Synthesis(text="Review [1] [2].", cited=(1, 2), model="m")
+    out = report.write_bundle(tmp_path, spec, papers, synth)
+    md = (out / "review.md").read_text()
+    assert "Cited: 2/2" in md and "## Sources" in md
+    assert (out / "provenance.json").exists()

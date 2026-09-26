@@ -1,0 +1,46 @@
+"""CLI: question in, cited review out."""
+
+from __future__ import annotations
+
+import argparse
+import sys
+
+import httpx
+
+from . import rank, report, retrieval, synthesize
+from .muse_client import MuseClient
+from .spec import ResearchSpec
+
+
+def review(question: str, max_papers: int, year_from: int | None, out_dir: str) -> str:
+    spec = ResearchSpec(question=question, max_papers=max_papers, year_from=year_from)
+    with httpx.Client(headers={"User-Agent": "Automated-Research/0.1"}) as http:
+        papers = retrieval.retrieve(spec, http)
+    if not papers:
+        raise RuntimeError("no papers found for this question")
+    top = rank.rerank(spec.question, papers, spec.max_papers)
+    synth = synthesize.synthesize(spec.question, top, MuseClient())
+    path = report.write_bundle(out_dir, spec, top, synth)
+    return str(path / "review.md")
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(prog="autoresearch", description="Automated researcher, milestone 1.")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    r = sub.add_parser("review", help="run a cited literature review")
+    r.add_argument("question", help="research question in plain words")
+    r.add_argument("--max-papers", type=int, default=10)
+    r.add_argument("--year-from", type=int, default=None)
+    r.add_argument("--out", default="./out")
+    args = ap.parse_args(argv)
+    try:
+        path = review(args.question, args.max_papers, args.year_from, args.out)
+    except Exception as e:  # honest failure, never fake output
+        print(f"autoresearch: error: {e}", file=sys.stderr)
+        return 1
+    print(path)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
