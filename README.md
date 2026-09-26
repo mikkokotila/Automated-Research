@@ -35,6 +35,12 @@ autoresearch analyze patients.csv --target mortality --question "what predicts m
 
 Output: `./out/analysis.md` (findings + evidence + warnings) and `./out/provenance.json`.
 
+```bash
+autoresearch loop "does treatment delay raise mortality?" --csv patients.csv --target mortality --max-iterations 3 --out ./out
+```
+
+Output: `./out/synthesis.md` (final report), `./out/iterations/` (per-step bundles), `./out/run.json` (trail + unanswered).
+
 ## Development
 
 ```bash
@@ -46,4 +52,4 @@ pytest
 
 - [x] **M1**: cited literature review
 - [x] **M2**: hypothesis test on user CSV (auto-clean + model zoo + validation + narration)
-- [ ] **M3**: autonomous loop (answers become next questions)
+- [x] **M3**: autonomous loop (answers become next questions, seen-dedup, dry-round stop)

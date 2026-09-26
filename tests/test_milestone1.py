@@ -157,6 +157,11 @@ def test_semscolar_sends_api_key_when_set(monkeypatch):
     assert seen.get("x-api-key") == "s2key"
 
 
+def test_search_text_strips_query_breakers():
+    assert "?" not in retrieval.search_text("does delay raise mortality?")
+    assert retrieval.search_text("cervical cancer: 2023-24") == "cervical cancer: 2023-24"
+
+
 # --- muse client ---
 
 

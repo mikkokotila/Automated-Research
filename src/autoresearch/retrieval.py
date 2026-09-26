@@ -21,6 +21,11 @@ def _clean(text: str | None) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def search_text(question: str) -> str:
+    """Strip characters that break source query syntax (e.g. OpenAlex 400s on '?')."""
+    return re.sub(r"\s+", " ", re.sub(r"[^a-zA-Z0-9\s\-':]", "", question)).strip()
+
+
 def _openalex_abstract(inv_index: dict | None) -> str:
     if not inv_index:
         return ""
@@ -36,7 +41,7 @@ def _openalex_abstract(inv_index: dict | None) -> str:
 
 def openalex_search(spec: ResearchSpec, client: httpx.Client, limit: int = 25) -> list[Paper]:
     params: dict[str, str] = {
-        "search": spec.question,
+        "search": search_text(spec.question),
         "per-page": str(min(limit, 50)),
         "mailto": MAILTO,
     }
@@ -75,7 +80,7 @@ def openalex_search(spec: ResearchSpec, client: httpx.Client, limit: int = 25) -
 
 def semscholar_search(spec: ResearchSpec, client: httpx.Client, limit: int = 25) -> list[Paper]:
     params = {
-        "query": spec.question,
+        "query": search_text(spec.question),
         "limit": str(min(limit, 50)),
         "fields": "title,abstract,authors,year,venue,doi,url,citationCount,externalIds",
     }

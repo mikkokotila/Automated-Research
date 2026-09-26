@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from .analysis import Findings
 from .data import Prepared
@@ -12,6 +13,9 @@ from .modeling import Results
 from .papers import Paper
 from .spec import ResearchSpec
 from .synthesize import Synthesis
+
+if TYPE_CHECKING:
+    from .loop import LoopResult
 
 
 def render_markdown(spec: ResearchSpec, papers: list[Paper], synth: Synthesis) -> str:
@@ -122,4 +126,41 @@ def write_analysis_bundle(
         "data_notes": list(p.notes),
     }
     (out / "provenance.json").write_text(json.dumps(provenance, indent=2), encoding="utf-8")
+    return out
+
+
+def write_loop_bundle(out_dir: str | Path, seed: str, res: "LoopResult") -> Path:
+    out = Path(out_dir)
+    iters = out / "iterations"
+    iters.mkdir(parents=True, exist_ok=True)
+    for i in res.iterations:
+        (iters / f"iter{i.n}-{i.kind}.md").write_text(i.detail, encoding="utf-8")
+    lines = [
+        f"# Autonomous run: {seed}",
+        "",
+        f"_Iterations: {len(res.iterations)} | stopped: {res.stopped} | model: {res.model}_",
+        "",
+        res.synthesis,
+        "",
+        "## Trail",
+        "",
+    ]
+    for i in res.iterations:
+        lines.append(f"- iter {i.n} [{i.kind}]: {i.question}")
+    if res.unanswered:
+        lines += ["", "## Unanswered (carry forward)", ""] + [f"- {q}" for q in res.unanswered]
+    lines.append("")
+    (out / "synthesis.md").write_text("\n".join(lines), encoding="utf-8")
+    provenance = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "kind": "loop",
+        "seed": seed,
+        "stopped": res.stopped,
+        "model": res.model,
+        "unanswered": list(res.unanswered),
+        "iterations": [
+            {"n": i.n, "kind": i.kind, "question": i.question, **i.provenance} for i in res.iterations
+        ],
+    }
+    (out / "run.json").write_text(json.dumps(provenance, indent=2), encoding="utf-8")
     return out

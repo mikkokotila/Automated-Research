@@ -7,7 +7,7 @@ import sys
 
 import httpx
 
-from . import analysis, data as datamod, modeling, rank, report, retrieval, synthesize
+from . import analysis, data as datamod, loop as loopmod, modeling, rank, report, retrieval, synthesize
 from .muse_client import MuseClient
 from .spec import ResearchSpec
 
@@ -37,17 +37,32 @@ def main(argv: list[str] | None = None) -> int:
     a.add_argument("--target", required=True, help="target column to predict")
     a.add_argument("--question", default="", help="research question in plain words")
     a.add_argument("--out", default="./out")
+    lo = sub.add_parser("loop", help="autonomous run: answers become next questions")
+    lo.add_argument("question", help="seed research question in plain words")
+    lo.add_argument("--csv", default=None, help="optional dataset for analyze iterations")
+    lo.add_argument("--target", default=None, help="target column (with --csv)")
+    lo.add_argument("--max-iterations", type=int, default=3)
+    lo.add_argument("--max-papers", type=int, default=5)
+    lo.add_argument("--out", default="./out")
     args = ap.parse_args(argv)
     try:
         if args.cmd == "review":
             path = review(args.question, args.max_papers, args.year_from, args.out)
-        else:
+        elif args.cmd == "analyze":
             path = analyze(args.csv, args.target, args.question, args.out)
+        else:
+            path = loop(args.question, args.csv, args.target, args.max_iterations, args.max_papers, args.out)
     except Exception as e:  # honest failure, never fake output
         print(f"autoresearch: error: {e}", file=sys.stderr)
         return 1
     print(path)
     return 0
+
+
+def loop(question: str, csv: str | None, target: str | None, max_iterations: int, max_papers: int, out_dir: str) -> str:
+    res = loopmod.run_loop(question, csv, target, max_iterations, max_papers, MuseClient())
+    path = report.write_loop_bundle(out_dir, question, res)
+    return str(path / "synthesis.md")
 
 
 def analyze(csv: str, target: str, question: str, out_dir: str) -> str:
