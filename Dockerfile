@@ -4,7 +4,7 @@ ENV LANG=C.UTF-8 \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
-    AUTORESEARCH_SANDBOXED=1
+    CANARY_SANDBOXED=1
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git curl \
@@ -13,7 +13,7 @@ RUN apt-get update \
 WORKDIR /app
 COPY . /app
 RUN pip install --no-cache-dir -e . pytest \
-    && python -c "import autoresearch; print('autoresearch', autoresearch.__file__)"
+    && python -c "import canary; print('canary', canary.__file__)"
 
 COPY scripts/container_entrypoint.sh /usr/local/bin/container_entrypoint.sh
 ENTRYPOINT ["/usr/local/bin/container_entrypoint.sh"]

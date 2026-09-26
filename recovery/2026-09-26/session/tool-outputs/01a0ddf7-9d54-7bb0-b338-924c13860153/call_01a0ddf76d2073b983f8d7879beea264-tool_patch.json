@@ -1,1 +1,0 @@
-{"files":[{"path":"/Users/mikkokotila/Automated-Research/src/autoresearch/loop.py","hunks":[{"oldStart":9,"oldLines":6,"newStart":9,"newLines":7,"lines":[" import httpx"," "," from . import analysis, data as datamod, modeling, rank, report, retrieval, synthesize","+from .journal import Journal, emit"," from .spec import ResearchSpec"," from .synthesize import Completer"," "]}]}]}

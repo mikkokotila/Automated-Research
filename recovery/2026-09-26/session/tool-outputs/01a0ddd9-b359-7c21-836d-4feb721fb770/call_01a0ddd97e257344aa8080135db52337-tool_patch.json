@@ -1,1 +1,0 @@
-{"files":[{"path":"/Users/mikkokotila/Automated-Research/src/autoresearch/__init__.py","hunks":[{"oldStart":1,"oldLines":0,"newStart":1,"newLines":6,"lines":["+\"\"\"Automated researcher: explain a question, get a cited answer (milestone 1).\"\"\"","+","+from .spec import ResearchSpec","+from .papers import Paper","+","+__all__ = [\"ResearchSpec\", \"Paper\"]"]}]}]}

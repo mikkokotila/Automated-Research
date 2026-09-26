@@ -1,10 +1,10 @@
 import httpx
 import pytest
 
-from autoresearch import rank, report, retrieval, synthesize
-from autoresearch.muse_client import BASE_URL, DEFAULT_MODEL, resolve_api_key
-from autoresearch.papers import Paper
-from autoresearch.spec import ResearchSpec
+from canary import rank, report, retrieval, synthesize
+from canary.muse_client import BASE_URL, DEFAULT_MODEL, resolve_api_key
+from canary.papers import Paper
+from canary.spec import ResearchSpec
 
 
 def paper(**kw):
@@ -244,7 +244,7 @@ def test_muse_retries_transient(monkeypatch):
     monkeypatch.setattr(_t, "sleep", lambda s: None)
     err = openai.APIConnectionError(message="boom", request=httpx.Request("POST", "https://x"))
     stub = _StubClient([err, err, _resp("hello")])
-    from autoresearch.muse_client import MuseClient
+    from canary.muse_client import MuseClient
 
     assert MuseClient(api_key="k", client=stub).complete("s", "u") == "hello"
     assert stub.chat.completions.calls == 3
@@ -259,7 +259,7 @@ def test_muse_no_retry_on_auth(monkeypatch):
     resp = httpx.Response(401, request=httpx.Request("POST", "https://x"))
     err = openai.AuthenticationError("bad key", response=resp, body=None)
     stub = _StubClient([err])
-    from autoresearch.muse_client import MuseClient
+    from canary.muse_client import MuseClient
 
     with pytest.raises(openai.AuthenticationError):
         MuseClient(api_key="k", client=stub).complete("s", "u")
@@ -268,7 +268,7 @@ def test_muse_no_retry_on_auth(monkeypatch):
 
 def test_muse_empty_reports_finish_reason():
     stub = _StubClient([_resp("  ", finish="length")])
-    from autoresearch.muse_client import MuseClient
+    from canary.muse_client import MuseClient
 
     with pytest.raises(RuntimeError, match="finish=length"):
         MuseClient(api_key="k", client=stub).complete("s", "u")

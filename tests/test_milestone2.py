@@ -3,7 +3,7 @@ import pandas as pd
 import pytest
 from sklearn.datasets import make_classification, make_regression
 
-from autoresearch import analysis, data as datamod, modeling, report
+from canary import analysis, data as datamod, modeling, report
 
 
 class FakeCompleter:

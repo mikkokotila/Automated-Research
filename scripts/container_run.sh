@@ -1,16 +1,16 @@
 #!/bin/bash
-# Run autoresearch in a hardened container. No host mounts: outputs come out via `docker cp`.
-# Usage: ./scripts/container_run.sh loop "question?" --self-improve --repo /work --out /work/out
+# Run canary in a hardened container. No host mounts: outputs come out via `docker cp`.
+# Usage: ./scripts/container_run.sh cycle "question?" --maintenance --repo /work --out /work/out
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-IMG="${IMG:-autoresearch:local}"
+IMG="${IMG:-canary:local}"
 NAME="ar-run-$(date +%s)"
 VOL="ar-out-$NAME"
 OUT="${OUT:-./container-out}"
 
-# Self-improvement demands a clean tree; a dirty image would abort every patch.
-# Pass ALLOW_DIRTY=1 only for research runs that never self-patch.
+# Maintenance demands a clean tree; a dirty image would abort every patch.
+# Pass ALLOW_DIRTY=1 only for research runs that never patch.
 if [ -z "${ALLOW_DIRTY:-}" ] && [ -n "$(git status --porcelain -- src tests runs 2>/dev/null)" ]; then
   echo "refusing: uncommitted changes under src/ tests/ runs/ (set ALLOW_DIRTY=1 to override)" >&2
   exit 2
@@ -28,7 +28,7 @@ docker run --name "$NAME" \
   -v "$VOL:/work/out" \
   -e MUSE_API_KEY -e GITHUB_TOKEN -e GITHUB_REPO \
   -e SEMANTIC_SCHOLAR_API_KEY -e OPENALEX_MAILTO \
-  "$IMG" autoresearch "$@"
+  "$IMG" canary "$@"
 RC=$?
 set -e
 

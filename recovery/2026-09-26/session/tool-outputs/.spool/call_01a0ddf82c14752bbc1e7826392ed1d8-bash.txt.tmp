@@ -1,3 +1,0 @@
-39:def write_bundle(out_dir: str | Path, spec: ResearchSpec, papers: list[Paper], synth: Synthesis) -> Path:
-94:def write_analysis_bundle(
-132:def write_loop_bundle(out_dir: str | Path, seed: str, res: "LoopResult") -> Path:

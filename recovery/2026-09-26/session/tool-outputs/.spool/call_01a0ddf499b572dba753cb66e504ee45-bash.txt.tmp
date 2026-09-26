@@ -1,6 +1,0 @@
-NAME              DESCRIPTION                               DOCKER ENDPOINT                                     ERROR
-default           Current DOCKER_HOST based configuration   unix:///var/run/docker.sock                         
-desktop-linux *   Docker Desktop                            unix:///Users/mikkokotila/.docker/run/docker.sock   
----
-Docker.app
-/bin/sh: colima: command not found

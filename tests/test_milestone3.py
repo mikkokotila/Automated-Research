@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from autoresearch import loop as loopmod, report
+from canary import cycle as cyclemod, report
 
 
 class ScriptedMuse:
@@ -67,31 +67,31 @@ def test_parse_followups_valid_and_capped():
     items = [{"question": f"q{i}?", "kind": "review", "rationale": "r"} for i in range(5)]
     import json
 
-    got = loopmod.parse_followups("```json\n" + json.dumps(items) + "\n```")
+    got = cyclemod.parse_followups("```json\n" + json.dumps(items) + "\n```")
     assert len(got) == 3 and got[0].question == "q0?"
 
 
 def test_parse_followups_rejects_garbage():
-    assert loopmod.parse_followups("no json here") == []
-    assert loopmod.parse_followups("[not valid") == []
-    assert loopmod.parse_followups('[{"question": "q?", "kind": "dance"}]') == []
-    assert loopmod.parse_followups('{"question": "q?"}') == []
+    assert cyclemod.parse_followups("no json here") == []
+    assert cyclemod.parse_followups("[not valid") == []
+    assert cyclemod.parse_followups('[{"question": "q?", "kind": "dance"}]') == []
+    assert cyclemod.parse_followups('{"question": "q?"}') == []
 
 
-# --- loop behavior ---
+# --- cycle behavior ---
 
 
-def test_loop_converges_on_empty_followups():
+def test_cycle_converges_on_empty_followups():
     muse = ScriptedMuse()
     muse.queues["review"] = ["Review text [1]."]
     muse.queues["follow"] = ["[]"]
     muse.queues["final"] = ["Final synthesis (iter 1)."]
-    res = loopmod.run_loop("seed question?", None, None, 3, 5, muse, mock_http())
+    res = cyclemod.run_cycle("seed question?", None, None, 3, 5, muse, mock_http())
     assert len(res.iterations) == 1 and res.stopped == "converged"
     assert res.iterations[0].kind == "review" and res.unanswered == ()
 
 
-def test_loop_runs_followup_then_converges():
+def test_cycle_runs_followup_then_converges():
     muse = ScriptedMuse()
     muse.queues["review"] = ["First [1].", "Second [1]."]
     muse.queues["follow"] = [
@@ -99,21 +99,21 @@ def test_loop_runs_followup_then_converges():
         "[]",
     ]
     muse.queues["final"] = ["Final (iter 1) (iter 2)."]
-    res = loopmod.run_loop("seed?", None, None, 3, 5, muse, mock_http())
+    res = cyclemod.run_cycle("seed?", None, None, 3, 5, muse, mock_http())
     assert [i.question for i in res.iterations] == ["seed?", "deeper angle?"]
     assert res.stopped == "converged"
 
 
-def test_loop_dedupes_reproposed_questions():
+def test_cycle_dedupes_reproposed_questions():
     muse = ScriptedMuse()
     muse.queues["review"] = ["Only [1]."]
     muse.queues["follow"] = ['[{"question": "SEED? ", "kind": "review", "rationale": "dup"}]']
     muse.queues["final"] = ["Final."]
-    res = loopmod.run_loop("seed?", None, None, 3, 5, muse, mock_http())
+    res = cyclemod.run_cycle("seed?", None, None, 3, 5, muse, mock_http())
     assert len(res.iterations) == 1 and res.stopped == "converged"
 
 
-def test_loop_respects_max_iterations_and_tracks_unanswered():
+def test_cycle_respects_max_iterations_and_tracks_unanswered():
     muse = ScriptedMuse()
     muse.queues["review"] = ["R1 [1].", "R2 [1]."]
     muse.queues["follow"] = [
@@ -121,43 +121,43 @@ def test_loop_respects_max_iterations_and_tracks_unanswered():
         '{"question": "q3?", "kind": "review", "rationale": "r"}]',
     ]
     muse.queues["final"] = ["Final with leftovers."]
-    res = loopmod.run_loop("q1?", None, None, 2, 5, muse, mock_http())
+    res = cyclemod.run_cycle("q1?", None, None, 2, 5, muse, mock_http())
     assert len(res.iterations) == 2 and res.stopped == "max_iterations"
     assert res.unanswered == ("q3?",)
 
 
-def test_loop_with_dataset_runs_analyze_seed(csv_path):
+def test_cycle_with_dataset_runs_analyze_seed(csv_path):
     muse = ScriptedMuse()
     muse.queues["review"] = ["Lit [1]."]
     muse.queues["narrate"] = ["Data findings."]
     muse.queues["follow"] = ["[]", "[]"]
     muse.queues["final"] = ["Combined final."]
-    res = loopmod.run_loop("seed?", csv_path, "t", 3, 5, muse, mock_http())
+    res = cyclemod.run_cycle("seed?", csv_path, "t", 3, 5, muse, mock_http())
     assert [i.kind for i in res.iterations] == ["review", "analyze"]
     assert res.stopped == "converged"
 
 
-def test_loop_without_dataset_skips_analyze_followups():
+def test_cycle_without_dataset_skips_analyze_followups():
     muse = ScriptedMuse()
     muse.queues["review"] = ["Lit [1]."]
     muse.queues["follow"] = ['[{"question": "needs data?", "kind": "analyze", "rationale": "r"}]']
     muse.queues["final"] = ["Final."]
-    res = loopmod.run_loop("seed?", None, None, 3, 5, muse, mock_http())
+    res = cyclemod.run_cycle("seed?", None, None, 3, 5, muse, mock_http())
     assert len(res.iterations) == 1 and res.stopped == "converged"
 
 
-def test_loop_validates_inputs():
+def test_cycle_validates_inputs():
     muse = ScriptedMuse()
     with pytest.raises(ValueError, match="max_iterations"):
-        loopmod.run_loop("q?", None, None, 9, 5, muse, mock_http())
+        cyclemod.run_cycle("q?", None, None, 9, 5, muse, mock_http())
     with pytest.raises(ValueError, match="together"):
-        loopmod.run_loop("q?", "d.csv", None, 2, 5, muse, mock_http())
+        cyclemod.run_cycle("q?", "d.csv", None, 2, 5, muse, mock_http())
 
 
-def test_loop_bundle(tmp_path):
-    it = loopmod.Iteration(n=1, question="q?", kind="review", summary="s", detail="# D", provenance={"a": 1})
-    res = loopmod.LoopResult((it,), "synth", "m", "converged", ("left?",))
-    out = report.write_loop_bundle(tmp_path, "seed?", res)
+def test_cycle_bundle(tmp_path):
+    it = cyclemod.Iteration(n=1, question="q?", kind="review", summary="s", detail="# D", provenance={"a": 1})
+    res = cyclemod.CycleResult((it,), "synth", "m", "converged", ("left?",))
+    out = report.write_cycle_bundle(tmp_path, "seed?", res)
     assert (out / "synthesis.md").read_text().count("left?") == 1
     assert (out / "iterations" / "iter1-review.md").exists()
     assert (out / "run.json").exists()

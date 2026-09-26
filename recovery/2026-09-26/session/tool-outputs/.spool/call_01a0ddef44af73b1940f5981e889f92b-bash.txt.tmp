@@ -1,5 +1,0 @@
-autoresearch: error: failed: retrieval failed: openalex_search: Client error '400 Bad Request' for url 'https://api.openalex.org/works?search=does+treatment+delay+raise+cancer+mortality%3F&per-page=25&mailto=autoresearch%40example.com'
-For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400; semscholar_search: Client error '429 ' for url 'https://api.semanticscholar.org/graph/v1/paper/search?query=does+treatment+delay+raise+cancer+mortality%3F&limit=25&fields=title%2Cabstract%2Cauthors%2Cyear%2Cvenue%2Cdoi%2Curl%2CcitationCount%2CexternalIds'
-For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429
-exit=1
----TRAIL---

@@ -1,5 +1,0 @@
-..............                                                           [100%]
-14 passed in 0.03s
----CLI WITHOUT KEY---
-autoresearch: error: no Muse API key found; set MUSE_API_KEY (also accepts MODEL_API_KEY or META_API_KEY)
-exit=1

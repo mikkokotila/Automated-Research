@@ -1,3 +1,0 @@
-=========================== short test summary info ============================
-FAILED tests/test_milestone2.py::test_weak_signal_warns - assert False
-1 failed, 24 passed in 10.79s

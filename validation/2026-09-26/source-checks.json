@@ -1,0 +1,12 @@
+{
+  "tracked_candidate_files_checked": 43,
+  "retired_vocabulary_matches": 0,
+  "credential_format_matches": 0,
+  "application_modules_match_declared_transformation": 18,
+  "shell_syntax": "passed",
+  "local_installation": "canary --help passed; dependency check passed",
+  "source_baseline_commit": "25adff7b4642775016f65f29ab3bc5d04670eb49",
+  "baseline_tag": "pre-canary-20260926",
+  "history_policy": "Original history and archives retained in the checkpoint, excluded from the current tree.",
+  "protocol_exception": "Standard HTTP header and actual provider/dependency identifiers remain unchanged."
+}

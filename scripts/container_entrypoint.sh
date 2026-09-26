@@ -7,6 +7,6 @@ rm -rf /work/* /work/.[!.]* 2>/dev/null || true  # clear tmpfs, never the mountp
 cp -a /app/. /work/
 cd /work
 git config --global --add safe.directory /work
-git config --global user.name "autoresearch-bot"
-git config --global user.email "autoresearch-bot@users.noreply.github.com"
+git config --global user.name "canary-bot"
+git config --global user.email "canary-bot@users.noreply.github.com"
 exec "$@"

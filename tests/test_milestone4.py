@@ -4,10 +4,10 @@ import subprocess
 import httpx
 import pytest
 
-from autoresearch import improve as impmod
-from autoresearch import loop as loopmod
-from autoresearch import reflect as refmod
-from autoresearch.journal import Journal, emit
+from canary import revise as impmod
+from canary import cycle as cyclemod
+from canary import assess as refmod
+from canary.journal import Journal, emit
 
 
 class ScriptedMuse:
@@ -16,7 +16,7 @@ class ScriptedMuse:
     def __init__(self):
         self.queues: dict[str, list[str]] = {
             "follow": [], "review": [], "narrate": [], "final": [],
-            "reflect": [], "diff": [],
+            "assess": [], "diff": [],
         }
 
     def _kind(self, system: str) -> str:
@@ -26,8 +26,8 @@ class ScriptedMuse:
             return "review"
         if "careful data scientist" in system:
             return "narrate"
-        if "self-critic" in system:
-            return "reflect"
+        if "reviewer" in system:
+            return "assess"
         if "unified diff" in system:
             return "diff"
         return "final"
@@ -39,8 +39,8 @@ class ScriptedMuse:
         return q.pop(0)
 
 
-DIFF_FOO = """--- a/src/autoresearch/foo.py
-+++ b/src/autoresearch/foo.py
+DIFF_FOO = """--- a/src/canary/foo.py
++++ b/src/canary/foo.py
 @@ -1 +1 @@
 -X = 1
 +X = 2
@@ -56,15 +56,15 @@ DIFF_TESTS = """--- a/tests/test_x.py
 
 @pytest.fixture(autouse=True)
 def _sandbox(monkeypatch):
-    monkeypatch.setenv("AUTORESEARCH_SANDBOXED", "1")
+    monkeypatch.setenv("CANARY_SANDBOXED", "1")
 
 
 @pytest.fixture()
 def repo(tmp_path):
     r = tmp_path / "repo"
-    (r / "src" / "autoresearch").mkdir(parents=True)
+    (r / "src" / "canary").mkdir(parents=True)
     (r / "tests").mkdir()
-    (r / "src" / "autoresearch" / "foo.py").write_text("X = 1\n", encoding="utf-8")
+    (r / "src" / "canary" / "foo.py").write_text("X = 1\n", encoding="utf-8")
     (r / "tests" / "test_x.py").write_text("assert True\n", encoding="utf-8")
     for args in (["init", "-q"], ["config", "user.email", "t@t"], ["config", "user.name", "t"],
                  ["add", "-A"], ["commit", "-qm", "init"]):
@@ -94,8 +94,8 @@ def mock_http() -> httpx.Client:
 
 def test_journal_roundtrip_and_emit(tmp_path):
     j = Journal()
-    emit(j, "loop", "start", "seed")
-    emit(None, "loop", "start")  # null-safe
+    emit(j, "cycle", "start", "seed")
+    emit(None, "cycle", "start")  # null-safe
     p = j.save(tmp_path / "j.jsonl")
     assert len(Journal.load(p)) == 1
 
@@ -116,52 +116,52 @@ def test_journal_appends_durably(tmp_path):
     assert len(Journal.load(p)) == 1  # on disk before any explicit save
 
 
-# --- reflection ---
+# --- assessment ---
 
 
-def test_parse_reflection_valid_and_capped():
-    props = [{"id": f"p{i}", "target": "src/autoresearch/a.py", "change": "c", "reason": "r"} for i in range(5)]
-    doc = refmod.parse_reflection(json.dumps({"reflection": "# R", "proposals": props}))
+def test_parse_assessment_valid_and_capped():
+    props = [{"id": f"p{i}", "target": "src/canary/a.py", "change": "c", "reason": "r"} for i in range(5)]
+    doc = refmod.parse_assessment(json.dumps({"assessment": "# R", "proposals": props}))
     assert doc.markdown == "# R" and len(doc.proposals) == 3
 
 
-def test_parse_reflection_garbage():
-    doc = refmod.parse_reflection("just prose, no json")
+def test_parse_assessment_garbage():
+    doc = refmod.parse_assessment("just prose, no json")
     assert doc.markdown.startswith("just prose") and doc.proposals == ()
 
 
-def test_reflect_prompts_with_notes():
+def test_assess_prompts_with_notes():
     muse = ScriptedMuse()
-    muse.queues["reflect"] = [json.dumps({"reflection": "R", "proposals": []})]
-    doc = refmod.reflect("note1", "outcome1", muse)
+    muse.queues["assess"] = [json.dumps({"assessment": "R", "proposals": []})]
+    doc = refmod.assess("note1", "outcome1", muse)
     assert doc.proposals == ()
 
 
-# --- improvement gate ---
+# --- revision gate ---
 
 
 def test_target_policy():
-    assert impmod.target_allowed("src/autoresearch/rank.py") is None
+    assert impmod.target_allowed("src/canary/rank.py") is None
     for bad in ("tests/test_a.py", ".github/ci.yml", "Dockerfile", "uv.lock",
-                "src/autoresearch/improve.py", "/etc/x", "src/../evil.py", "README.md"):
+                "src/canary/revise.py", "/etc/x", "src/../evil.py", "README.md"):
         assert impmod.target_allowed(bad), bad
 
 
 def test_diff_targets_parses():
-    assert impmod.diff_targets(DIFF_FOO) == ["src/autoresearch/foo.py"]
+    assert impmod.diff_targets(DIFF_FOO) == ["src/canary/foo.py"]
 
 
 def test_apply_keeps_on_green(repo):
-    prop = refmod.Proposal("p1", "src/autoresearch/foo.py", "bump", "r")
+    prop = refmod.Proposal("p1", "src/canary/foo.py", "bump", "r")
     oc = impmod.apply_one(repo, prop, DIFF_FOO, ["true"], Journal())
-    assert oc.kept and (repo / "src/autoresearch/foo.py").read_text() == "X = 2\n"
+    assert oc.kept and (repo / "src/canary/foo.py").read_text() == "X = 2\n"
 
 
 def test_apply_reverts_on_red(repo):
-    prop = refmod.Proposal("p1", "src/autoresearch/foo.py", "bump", "r")
+    prop = refmod.Proposal("p1", "src/canary/foo.py", "bump", "r")
     oc = impmod.apply_one(repo, prop, DIFF_FOO, ["false"], Journal())
     assert oc.applied and not oc.kept
-    assert (repo / "src/autoresearch/foo.py").read_text() == "X = 1\n"
+    assert (repo / "src/canary/foo.py").read_text() == "X = 1\n"
 
 
 def test_apply_rejects_forbidden_target(repo):
@@ -173,75 +173,75 @@ def test_apply_rejects_forbidden_target(repo):
 
 def test_apply_rejects_oversize(repo):
     big = DIFF_FOO + "\n".join(f"# pad {i}" for i in range(400))
-    prop = refmod.Proposal("p1", "src/autoresearch/foo.py", "big", "r")
+    prop = refmod.Proposal("p1", "src/canary/foo.py", "big", "r")
     oc = impmod.apply_one(repo, prop, big, ["true"], Journal())
     assert not oc.applied and "too large" in oc.reason
 
 
 def test_round_aborts_on_dirty_tree(repo):
-    (repo / "src/autoresearch/foo.py").write_text("X = 9\n", encoding="utf-8")
-    doc = refmod.ReflectionDoc("R", (refmod.Proposal("p1", "src/autoresearch/foo.py", "c", "r"),))
-    rep = impmod.improve_round(repo, doc, ScriptedMuse(), Journal(), ["true"])
+    (repo / "src/canary/foo.py").write_text("X = 9\n", encoding="utf-8")
+    doc = refmod.AssessmentDoc("R", (refmod.Proposal("p1", "src/canary/foo.py", "c", "r"),))
+    rep = impmod.revise_round(repo, doc, ScriptedMuse(), Journal(), ["true"])
     assert rep.skipped == 1 and rep.kept == 0
 
 
 def test_round_aborts_on_red_baseline(repo):
-    doc = refmod.ReflectionDoc("R", (refmod.Proposal("p1", "src/autoresearch/foo.py", "c", "r"),))
-    rep = impmod.improve_round(repo, doc, ScriptedMuse(), Journal(), ["false"])
+    doc = refmod.AssessmentDoc("R", (refmod.Proposal("p1", "src/canary/foo.py", "c", "r"),))
+    rep = impmod.revise_round(repo, doc, ScriptedMuse(), Journal(), ["false"])
     assert rep.skipped == 1 and rep.kept == 0
 
 
-def test_improve_from_journal_stops_when_nothing_kept(repo):
+def test_revise_from_journal_stops_when_nothing_kept(repo):
     muse = ScriptedMuse()
-    muse.queues["reflect"] = [
-        json.dumps({"reflection": "R1", "proposals": [
-            {"id": "p1", "target": "src/autoresearch/foo.py", "change": "bump", "reason": "r"}]}),
-        json.dumps({"reflection": "R2", "proposals": []}),
+    muse.queues["assess"] = [
+        json.dumps({"assessment": "R1", "proposals": [
+            {"id": "p1", "target": "src/canary/foo.py", "change": "bump", "reason": "r"}]}),
+        json.dumps({"assessment": "R2", "proposals": []}),
     ]
     muse.queues["diff"] = [DIFF_FOO]
-    doc, rep = impmod.improve_from_journal("notes", "ok", repo, muse, rounds=3, check_cmd=["true"])
+    doc, rep = impmod.revise_from_journal("notes", "ok", repo, muse, rounds=3, check_cmd=["true"])
     assert rep.kept == 1 and doc.markdown == "R2"
-    assert (repo / "src/autoresearch/foo.py").read_text() == "X = 2\n"
+    assert (repo / "src/canary/foo.py").read_text() == "X = 2\n"
 
 
-# --- loop wiring ---
+# --- cycle wiring ---
 
 
-def test_loop_takes_notes():
+def test_cycle_takes_notes():
     muse = ScriptedMuse()
     muse.queues["review"] = ["R [1]."]
     muse.queues["follow"] = ["[]"]
     muse.queues["final"] = ["F."]
     j = Journal()
-    loopmod.run_loop("seed?", None, None, 2, 5, muse, mock_http(), journal=j)
+    cyclemod.run_cycle("seed?", None, None, 2, 5, muse, mock_http(), journal=j)
     phases = {(n.phase, n.event) for n in j.notes}
-    assert ("loop", "start") in phases and ("review", "retrieved") in phases and ("loop", "done") in phases
+    assert ("cycle", "start") in phases and ("review", "retrieved") in phases and ("cycle", "done") in phases
 
 
-def test_loop_self_improve_wires_mid_and_post(repo):
+def test_cycle_maintenance_wires_mid_and_post(repo):
     muse = ScriptedMuse()
     muse.queues["review"] = ["R [1]."]
     muse.queues["follow"] = ["[]"]
     muse.queues["final"] = ["F."]
-    muse.queues["reflect"] = [
-        json.dumps({"reflection": "mid", "proposals": []}),
-        json.dumps({"reflection": "post", "proposals": []}),
+    muse.queues["assess"] = [
+        json.dumps({"assessment": "mid", "proposals": []}),
+        json.dumps({"assessment": "post", "proposals": []}),
     ]
     j = Journal()
-    res = loopmod.run_loop("seed?", None, None, 2, 5, muse, mock_http(), journal=j,
-                           self_improve=True, repo_root=str(repo), check_cmd=["true"])
+    res = cyclemod.run_cycle("seed?", None, None, 2, 5, muse, mock_http(), journal=j,
+                           maintenance=True, repo_root=str(repo), check_cmd=["true"])
     assert res.stopped == "converged"
     events = [n.event for n in j.notes]
-    assert "mid-improved" in events and "improved" in events
+    assert "mid-revised" in events and "revised" in events
 
 
-def test_loop_self_improve_never_breaks_run(repo):
-    muse = ScriptedMuse()  # empty queues: mid-run improve fails, must be contained
+def test_cycle_maintenance_never_breaks_run(repo):
+    muse = ScriptedMuse()  # empty queues: mid-run revise fails, must be contained
     muse.queues["review"] = ["R [1]."]
     muse.queues["follow"] = ["[]"]
     muse.queues["final"] = ["F."]
     j = Journal()
-    res = loopmod.run_loop("seed?", None, None, 2, 5, muse, mock_http(), journal=j,
-                           self_improve=True, repo_root=str(repo), check_cmd=["true"])
+    res = cyclemod.run_cycle("seed?", None, None, 2, 5, muse, mock_http(), journal=j,
+                           maintenance=True, repo_root=str(repo), check_cmd=["true"])
     assert res.stopped == "converged"
-    assert "mid-improve-failed" in [n.event for n in j.notes]
+    assert "mid-revise-failed" in [n.event for n in j.notes]

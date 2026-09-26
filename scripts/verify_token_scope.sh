@@ -3,7 +3,7 @@
 set -euo pipefail
 
 : "${GITHUB_TOKEN:?set GITHUB_TOKEN first}"
-OWN="${GITHUB_REPO:-mikkokotila/Automated-Research}"
+OWN="${GITHUB_REPO:-mikkokotila/Canary}"
 OTHER="${OTHER_REPO:-mikkokotila/kanava}"  # private sibling: must be invisible
 
 code() { curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $GITHUB_TOKEN" "$1"; }

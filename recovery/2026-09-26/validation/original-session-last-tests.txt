@@ -1,6 +1,0 @@
-Recorded by the original Muse session, not a new test run during recovery.
-Source: session/session.redacted.jsonl:4959
-
-.....................................................                    [100%]
-53 passed in 11.84s
-docker UP

@@ -1,3 +1,0 @@
-=========================== short test summary info ============================
-FAILED tests/test_milestone4.py::test_journal_text_tail_caps - AssertionError...
-1 failed, 52 passed in 13.28s

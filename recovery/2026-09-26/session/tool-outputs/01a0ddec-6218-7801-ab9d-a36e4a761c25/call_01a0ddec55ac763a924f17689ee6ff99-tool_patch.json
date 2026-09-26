@@ -1,1 +1,0 @@
-{"files":[{"path":"/Users/mikkokotila/Automated-Research/src/autoresearch/report.py","hunks":[{"oldStart":8,"oldLines":6,"newStart":8,"newLines":7,"lines":[" "," from .analysis import Findings"," from .data import Prepared","+from .loop import LoopResult"," from .modeling import Results"," from .papers import Paper"," from .spec import ResearchSpec"]}]}]}

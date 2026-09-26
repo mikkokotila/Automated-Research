@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-IMG="${IMG:-autoresearch:local}"
+IMG="${IMG:-canary:local}"
 docker build -q -t "$IMG" .
 
 run() {

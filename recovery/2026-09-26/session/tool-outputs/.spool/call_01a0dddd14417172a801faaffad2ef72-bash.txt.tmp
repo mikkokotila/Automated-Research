@@ -1,5 +1,0 @@
-..............                                                           [100%]
-14 passed in 0.03s
----CLI WITHOUT KEY (expect honest error)---
-autoresearch: error: 'NoneType' object has no attribute 'get'
-exit=0

@@ -1,3 +1,0 @@
-auth_url="https://auth.meta.com"
-channel_url="https://api.meta.ai/muse-code/channels/$channel"
-launcher_url="https://api.meta.ai/muse-launcher.sh"
