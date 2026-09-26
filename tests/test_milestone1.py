@@ -211,67 +211,45 @@ def test_resolve_api_key_prefers_muse_first():
         resolve_api_key({})
 
 
-class _StubCompletions:
-    def __init__(self, script):
-        self.script = script
-        self.calls = 0
-
-    def create(self, **kw):
-        self.calls += 1
-        item = self.script[min(self.calls - 1, len(self.script) - 1)]
-        if isinstance(item, Exception):
-            raise item
-        return item
-
-
-class _StubClient:
-    def __init__(self, script):
-        self.chat = type("C", (), {})()
-        self.chat.completions = _StubCompletions(script)
+def _service_client(monkeypatch, responses):
+    monkeypatch.setenv("CANARY_GATE_TOKEN", "fixture-access")
+    monkeypatch.setenv("CANARY_GATE_URL", "http://fixture")
+    from canary.muse_client import MuseClient
+    calls = []
+    def handler(request):
+        calls.append(request)
+        status, body = responses[min(len(calls)-1, len(responses)-1)]
+        return httpx.Response(status, json=body)
+    return MuseClient(client=httpx.Client(transport=httpx.MockTransport(handler))), calls
 
 
-def _resp(text, finish="stop"):
-    msg = type("M", (), {"content": text})()
-    choice = type("Ch", (), {"message": msg, "finish_reason": finish})()
-    return type("R", (), {"choices": [choice]})()
+def _reply(text, finish="stop"):
+    return {"model": DEFAULT_MODEL, "text": text, "finish_reason": finish,
+            "usage": {"prompt_tokens": 10, "completion_tokens": 4, "total_tokens": 14}, "receipt": "fixture"}
 
 
 def test_muse_retries_transient(monkeypatch):
-    import time as _t
-
-    import openai
-
-    monkeypatch.setattr(_t, "sleep", lambda s: None)
-    err = openai.APIConnectionError(message="boom", request=httpx.Request("POST", "https://x"))
-    stub = _StubClient([err, err, _resp("hello")])
-    from canary.muse_client import MuseClient
-
-    assert MuseClient(api_key="k", client=stub).complete("s", "u") == "hello"
-    assert stub.chat.completions.calls == 3
+    import time
+    monkeypatch.setattr(time, "sleep", lambda s: None)
+    client, calls = _service_client(monkeypatch, [
+        (502, {"error": "provider_request_failed"}),
+        (502, {"error": "provider_request_failed"}), (200, _reply("hello"))])
+    assert client.complete("s", "u") == "hello"
+    assert len(calls) == 3
 
 
 def test_muse_no_retry_on_auth(monkeypatch):
-    import time as _t
-
-    import openai
-
-    monkeypatch.setattr(_t, "sleep", lambda s: None)
-    resp = httpx.Response(401, request=httpx.Request("POST", "https://x"))
-    err = openai.AuthenticationError("bad key", response=resp, body=None)
-    stub = _StubClient([err])
-    from canary.muse_client import MuseClient
-
-    with pytest.raises(openai.AuthenticationError):
-        MuseClient(api_key="k", client=stub).complete("s", "u")
-    assert stub.chat.completions.calls == 1
+    from canary.muse_client import RequestBlocked
+    client, calls = _service_client(monkeypatch, [(403, {"error": "policy_blocked", "message": "denied"})])
+    with pytest.raises(RequestBlocked, match="policy_blocked"):
+        client.complete("s", "u")
+    assert len(calls) == 1
 
 
-def test_muse_empty_reports_finish_reason():
-    stub = _StubClient([_resp("  ", finish="length")])
-    from canary.muse_client import MuseClient
-
+def test_muse_empty_reports_finish_reason(monkeypatch):
+    client, _ = _service_client(monkeypatch, [(200, _reply("  ", "length"))])
     with pytest.raises(RuntimeError, match="finish=length"):
-        MuseClient(api_key="k", client=stub).complete("s", "u")
+        client.complete("s", "u")
 
 
 # --- synthesize ---

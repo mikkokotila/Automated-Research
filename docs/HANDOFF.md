@@ -41,3 +41,7 @@ Continue the existing issues from the repository roadmap. Issue numbers and depe
 A green regression suite is not proof of sound scientific inference, safe network boundaries, or resistance to evaluator tampering. The environment marker and container-presence check are unchanged, and do not establish isolation by themselves. The recorded warning on a rare-class cross-validation fixture appears in both versions. It is an existing limitation, not a newly introduced difference.
 
 Live provider behavior, real GitHub publishing, end-to-end containment, and old saved-plan migration were not validated by this naming-only comparison. Differences in prompt words can change live generated prose even when deterministic control flow is equivalent. Read `docs/VALIDATION.md` for the exact evidence and normalization rules.
+
+## Request-boundary update
+
+The naming-checkpoint description above is historical. The current request path now requires the external service in [TOKEN_BOUNDARY.md](TOKEN_BOUNDARY.md): exact model lock, persistent rolling token reservations, and no direct worker egress or provider credentials. Old direct-key launch recipes are no longer valid. The current launcher also withholds GitHub credentials. Tests and fixture profiling are saved under `validation/token-boundary/`; no live model call was made for this update.

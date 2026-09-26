@@ -10,6 +10,7 @@ import httpx
 
 from . import analysis, data as datamod, modeling, rank, report, retrieval, synthesize
 from .journal import Journal, emit
+from .muse_client import RequestBlocked
 from .spec import ResearchSpec
 from .synthesize import Completer
 
@@ -169,6 +170,8 @@ def run_cycle(
                 hint = f"{csv} (target {target})" if csv else "none — reviews only"
                 try:
                     followups = propose(history, hint, muse)
+                except RequestBlocked:
+                    raise
                 except Exception as e:
                     followups = []
                     emit(journal, "cycle", "propose-failed", f"{type(e).__name__}: {str(e)[:200]}")
@@ -190,6 +193,8 @@ def run_cycle(
                     it = run_analyze(job.question, csv, target, muse, journal)
                 else:
                     it = run_review(job.question, max_papers, http, muse, journal)
+            except RequestBlocked:
+                raise
             except Exception as e:
                 stopped = f"failed: {e}"
                 failed_q = job.question
@@ -223,6 +228,8 @@ def run_cycle(
                 emit(journal, "cycle", "revised", f"kept={rep.kept} reverted={rep.reverted} skipped={rep.skipped}")
                 if outbox is not None:
                     outbox["revision"] = (doc, rep)
+            except RequestBlocked:
+                raise
             except Exception as e:
                 emit(journal, "cycle", "revise-failed", str(e)[:200])
         return CycleResult(tuple(iterations), synthesis, muse.model, stopped, unanswered)
@@ -247,5 +254,7 @@ def _mid_run_revise(journal: Journal | None, it: Iteration, repo_root: str | Non
             rounds=1, check_cmd=check_cmd, journal=journal,
         )
         emit(journal, "cycle", "mid-revised", f"iter={it.n} kept={rep.kept}")
+    except RequestBlocked:
+        raise
     except Exception as e:
         emit(journal, "cycle", "mid-revise-failed", str(e)[:200])

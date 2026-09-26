@@ -20,6 +20,11 @@ BACKOFF_S = (1.0, 3.0)
 
 def _get(client: httpx.Client, url: str, params: dict, headers: dict | None = None) -> httpx.Response:
     """GET with retries on transient failures (429/5xx, timeouts)."""
+    gate = os.environ.get("CANARY_GATE_URL")
+    if gate and url in (OPENALEX_URL, SEMANTIC_SCHOLAR_URL):
+        name = "openalex" if url == OPENALEX_URL else "semanticscholar"
+        url = gate.rstrip("/") + "/v1/sources/" + name
+        headers = {"Authorization": "Bearer " + os.environ.get("CANARY_GATE_TOKEN", "")}
     last: Exception | None = None
     for attempt in range(MAX_ATTEMPTS):
         try:

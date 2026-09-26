@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .journal import Journal, emit
+from .muse_client import RequestBlocked
 from .assess import Proposal, AssessmentDoc, assess
 from .synthesize import Completer
 
@@ -39,7 +40,7 @@ DIFF_SYSTEM = (
 
 FORBIDDEN_PREFIXES = ("tests/", ".github/")
 FORBIDDEN_NAMES = ("Dockerfile", ".dockerignore")
-FORBIDDEN_FILES = ("src/canary/revise.py",)
+FORBIDDEN_FILES = ("src/canary/revise.py", "src/canary/muse_client.py")
 MAX_DIFF_FILES = 5
 MAX_DIFF_LINES = 300
 MAX_PROPOSALS_PER_ROUND = 3
@@ -170,6 +171,8 @@ def revise_round(
     for proposal in doc.proposals[:MAX_PROPOSALS_PER_ROUND]:
         try:
             diff = request_diff(proposal, client, repo)
+        except RequestBlocked:
+            raise
         except Exception as e:
             report.outcomes.append(PatchOutcome(proposal.id, proposal.target, False, False, f"diff request failed: {e}"))
             report.skipped += 1
@@ -268,8 +271,12 @@ def publish_round(
         gh.comment(issue.number, f"Merged: {pr.url}")
         try:
             gh.delete_branch(branch)
+        except RequestBlocked:
+            raise
         except Exception:
             pass
+    except RequestBlocked:
+        raise
     except Exception as e:
         gh.comment(issue.number, f"Auto-merge failed, needs a human: {e}\n\nPR: {pr.url}")
         emit(journal, "publish", "merge-failed", str(e)[:200])

@@ -1,43 +1,37 @@
 #!/bin/bash
-# Run canary in a hardened container. No host mounts: outputs come out via `docker cp`.
-# Usage: ./scripts/container_run.sh cycle "question?" --maintenance --repo /work --out /work/out
+# Run a worker with no direct egress, provider credential, or ledger mount.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-
 IMG="${IMG:-canary:local}"
-NAME="ar-run-$(date +%s)"
-VOL="ar-out-$NAME"
-OUT="${OUT:-./container-out}"
-
-# Maintenance demands a clean tree; a dirty image would abort every patch.
-# Pass ALLOW_DIRTY=1 only for research runs that never patch.
-if [ -z "${ALLOW_DIRTY:-}" ] && [ -n "$(git status --porcelain -- src tests runs 2>/dev/null)" ]; then
-  echo "refusing: uncommitted changes under src/ tests/ runs/ (set ALLOW_DIRTY=1 to override)" >&2
-  exit 2
+RUN=(canary "$@")
+if [ "${1:-}" = profile ]; then
+  shift
+  RUN=(python scripts/profile_cycle.py --live "$@")
 fi
-
-docker build -q -t "$IMG" --label "gitsha=$(git rev-parse HEAD 2>/dev/null || echo unknown)" .
+NAME="canary-run-$(date +%s)-$$"
+VOL="$NAME-out"
+OUT="${OUT:-./container-out/$NAME}"
+test "$(docker network inspect -f '{{.Internal}}' canary-private)" = true
+test "$(docker inspect -f '{{.State.Running}}' canary-gate)" = true
+if [ -z "${ALLOW_DIRTY:-}" ] && [ -n "$(git status --porcelain -- src tests runs)" ]; then
+  echo "Refusing dirty source tree; commit before maintenance" >&2; exit 2
+fi
+docker build -q -t "$IMG" .
 docker volume create "$VOL" >/dev/null
-
+cleanup() {
+  docker rm -f "$NAME" >/dev/null 2>&1 || true
+  docker volume rm "$VOL" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+# Only this narrow service credential reaches the worker, never the upstream key.
+export CANARY_GATE_TOKEN
+CANARY_GATE_TOKEN=$(docker exec canary-gate cat /state/access.key)
+docker run --rm --network none --user 0 --entrypoint sh   --mount type=volume,src="$VOL",dst=/export "$IMG" -c 'chown 10002:10002 /export'
 set +e
-docker run --name "$NAME" \
-  --cap-drop=ALL \
-  --security-opt=no-new-privileges:true \
-  --pids-limit 256 -m 4g --cpus 2 \
-  --read-only --tmpfs /tmp:rw,size=512m --tmpfs /work:rw,size=2g \
-  -v "$VOL:/work/out" \
-  -e MUSE_API_KEY -e GITHUB_TOKEN -e GITHUB_REPO \
-  -e SEMANTIC_SCHOLAR_API_KEY -e OPENALEX_MAILTO \
-  "$IMG" canary "$@"
+docker run --name "$NAME" --network canary-private --user 10002:10002   --cap-drop ALL --security-opt no-new-privileges --pids-limit 256 --memory 4g --cpus 2   --read-only --tmpfs /tmp:rw,size=512m --tmpfs /work:rw,size=2g,uid=10002,gid=10002   --mount type=volume,src="$VOL",dst=/work/out   -e CANARY_GATE_TOKEN -e CANARY_GATE_URL=http://canary-gate:8787   -e OPENALEX_MAILTO "$IMG" "${RUN[@]}"
 RC=$?
 set -e
-
-rm -rf "$OUT"; mkdir -p "$OUT"
-# Extract via tar pipe: outputs leave the volume without any host bind mount.
-if ! docker run --rm -v "$VOL:/from" --entrypoint tar "$IMG" cf - -C /from . 2>/dev/null | tar xf - -C "$OUT"; then
-  echo "(no /work/out produced)"
-fi
-docker rm "$NAME" >/dev/null
-docker volume rm "$VOL" >/dev/null
+unset CANARY_GATE_TOKEN
+docker run --rm --network none --read-only --entrypoint tar   --mount type=volume,src="$VOL",dst=/from,readonly "$IMG" cf - -C /from .   | python3 scripts/export_bundle.py "$OUT"
 echo "exit=$RC out=$OUT"
 exit "$RC"

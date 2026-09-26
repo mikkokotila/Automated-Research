@@ -1,0 +1,14 @@
+{
+  "provider_key_absent": true,
+  "ledger_absent": true,
+  "docker_socket_absent": true,
+  "direct_egress_blocked_api.meta.ai": true,
+  "direct_egress_blocked_1.1.1.1": true,
+  "wrong_model_blocked": true,
+  "alternate_endpoint_blocked": true,
+  "cap_survives_service_restart": true,
+  "request_blocked_before_provider": true,
+  "private_network": true,
+  "no_host_bind_mounts": true,
+  "no_published_ports": true
+}

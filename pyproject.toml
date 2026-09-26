@@ -17,3 +17,4 @@ packages = ["src/canary"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]

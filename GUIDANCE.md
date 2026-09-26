@@ -9,3 +9,5 @@ Read `docs/HANDOFF.md` and `docs/VALIDATION.md` before making changes.
 - Keep historical material intact in its checkpoint tag; do not replay historical commands.
 - Record the exact tested revision and distinguish mocked checks from live demonstrations.
 - Use only public or synthetic data for initial checks. Sample reports are not clinical conclusions.
+
+- Read `docs/TOKEN_BOUNDARY.md`. The fixed 200,000,000-token rolling window and exact model lock belong to the external service. Never reset its volume or add direct provider access to a worker.

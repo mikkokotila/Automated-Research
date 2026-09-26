@@ -2,36 +2,32 @@
 
 A Python command-line toolkit for cited literature reviews, tabular analysis, and repeatable research cycles.
 
+## Required request service
+
+Only `muse-spark-1.3-contributor` is permitted. The service enforces a shared ceiling of **200,000,000 tokens in any rolling 24-hour window**, including input, cached input, output and reasoning. The limit is mechanical, not a prompt instruction or spending target.
+
+Start with [the service deployment and accounting contract](docs/TOKEN_BOUNDARY.md). Provider credentials belong only in that service, never in workers. Do not reset its persistent ledger to regain allowance.
+
 ## Commands
 
+After deploying the request service:
+
 ```bash
-python -m pip install -e . pytest
-canary review "your question" --max-papers 10 --out ./out
-canary analyze example.csv --target outcome --out ./out
-canary cycle "your question" --max-iterations 3 --out ./out
+./scripts/container_run.sh review "your question" --max-papers 10 --out /work/out
+./scripts/container_run.sh cycle "your question" --max-iterations 3 --out /work/out
+./scripts/container_run.sh profile --out /work/out/profile
 ```
 
-Supply a valid `MUSE_API_KEY` through the environment for live calls. The configured provider and model remain unchanged: the Muse API and `muse-spark-1.3-contributor`. The OpenAI-compatible client library is a transport dependency, not a change of model provider. Never store credentials in this repository or use credentials from historical logs.
+The `analyze` command accepts a CSV staged in the disposable workspace and a target column. Review and analysis commands write Markdown and JSON provenance; cycles also write per-step reports and `run.json`. Procedural notes are recorded in `journal.jsonl`.
 
-`review` writes `review.md` and `provenance.json`. `analyze` writes `analysis.md` and `provenance.json`. `cycle` writes `synthesis.md`, per-step reports, and `run.json`. Workflows also record `journal.jsonl`.
-
-## Maintenance
-
-`canary revise --run-dir ./out --repo /work` assesses a saved journal and proposes bounded revisions. `canary cycle ... --maintenance --revise-rounds 1 --repo /work` enables maintenance between steps. The assessment document is named `assessment.md`.
-
-These modes may modify code and, when a GitHub credential is supplied, invoke the existing publishing integration. Run them only in an appropriately isolated disposable environment. No live publishing or live provider requests were performed during this naming migration. Existing safeguards are unchanged; passing tests is not a containment audit.
-
-The container configuration uses `CANARY_SANDBOXED`. The image tag is `canary:local`; see `scripts/container_run.sh`. Review its resource, network, credential, and output handling before live use.
+Optional `--maintenance` and `revise` paths assess notes and test proposed revisions. Their remaining quality and promotion limitations are tracked in the roadmap. The launcher withholds GitHub credentials; publishing requires a separately authorized controller.
 
 ## Development and evidence
 
-```bash
-python -m pytest -q
-python -m canary --help
-```
+Run the test suite in the Linux development container with `python -m pytest -q`. `scripts/container_verify.sh` exercises actual network, credential and persistent-ledger boundaries using fixture credentials only. `scripts/profile_cycle.py --fixture` provides an explicitly synthetic timing workload; `--live` requires the deployed service.
 
-Read [the handoff](docs/HANDOFF.md), [contributor guidance](GUIDANCE.md), and [the comparison report](docs/VALIDATION.md). The side-by-side check covers the complete existing test suite and deterministic output contracts with external services mocked. It does not establish identical live text generation after prompt wording changes.
+Read [the handoff](docs/HANDOFF.md), [contributor guidance](GUIDANCE.md), [the earlier naming comparison](docs/VALIDATION.md), and [current boundary verification](validation/token-boundary/verification.json). An offline fixture does not establish live latency or scientific quality.
 
 ## Historical material
 
-Prior source, tickets, and the recovery archive remain available in Git history. They are intentionally not copied into the current source tree or package. The checkpoint tag is `pre-canary-20260926`. Existing issues retain their numbers and recorded context.
+The pre-migration source and recovery archive remain in Git history at `pre-canary-20260926`. Current issue numbers and dependency relationships are preserved; current wording uses the Canary interfaces.

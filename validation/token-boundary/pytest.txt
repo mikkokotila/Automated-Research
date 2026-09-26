@@ -1,0 +1,26 @@
+........................................................................ [ 57%]
+.....................................................                    [100%]
+=============================== warnings summary ===============================
+tests/test_milestone2.py::test_singleton_class_survives_split_and_cv
+  /usr/local/lib/python3.12/site-packages/sklearn/model_selection/_validation.py:493: FitFailedWarning:
+  1 fits failed out of a total of 2.
+  The score on these train-test partitions for these parameters will be set to nan.
+  If these failures are not expected, you can try to debug them by setting error_score='raise'.
+
+  Below are more details about the failures:
+  --------------------------------------------------------------------------------
+  1 fits failed with the following error:
+  Traceback (most recent call last):
+    File "/usr/local/lib/python3.12/site-packages/sklearn/model_selection/_validation.py", line 860, in _fit_and_score
+      estimator.fit(X_train, y_train, **fit_params)
+    File "/usr/local/lib/python3.12/site-packages/sklearn/base.py", line 1403, in wrapper
+      return fit_method(estimator, *args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/usr/local/lib/python3.12/site-packages/sklearn/linear_model/_logistic.py", line 1501, in fit
+      raise ValueError(
+  ValueError: This solver needs samples of at least 2 classes in the data, but the data contains only one class: np.int64(0)
+
+    warnings.warn(some_fits_failed_message, FitFailedWarning)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+125 passed, 1 warning in 4.47s
