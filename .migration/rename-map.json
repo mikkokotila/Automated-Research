@@ -1,6 +1,18 @@
 {
   "replacements": [
     [
+      "Automated researcher, milestone 1.",
+      "Canary research toolkit."
+    ],
+    [
+      "Automated researcher milestone 1: cited literature review via Muse API.",
+      "Cited literature reviews and tabular analysis via Muse API."
+    ],
+    [
+      "reflect on",
+      "assess"
+    ],
+    [
       "Automated-Research",
       "Canary"
     ],
