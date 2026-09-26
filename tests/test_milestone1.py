@@ -162,7 +162,7 @@ def test_semscolar_sends_api_key_when_set(monkeypatch):
 
 def test_muse_defaults():
     assert BASE_URL == "https://api.meta.ai/v1"
-    assert DEFAULT_MODEL == "muse-spark-1.3"
+    assert DEFAULT_MODEL == "muse-spark-1.3-contributor"
 
 
 def test_resolve_api_key_prefers_muse_first():

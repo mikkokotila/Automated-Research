@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 
 BASE_URL = "https://api.meta.ai/v1"
-DEFAULT_MODEL = "muse-spark-1.3"
+DEFAULT_MODEL = "muse-spark-1.3-contributor"
 KEY_VARS = ("MUSE_API_KEY", "MODEL_API_KEY", "META_API_KEY")
 
 
@@ -28,7 +28,8 @@ class MuseClient:
         self.model = model
         self._client = OpenAI(api_key=api_key or resolve_api_key(), base_url=BASE_URL)
 
-    def complete(self, system: str, user: str, max_tokens: int = 2000) -> str:
+    def complete(self, system: str, user: str, max_tokens: int = 8000) -> str:
+        # Contributor models reason before answering; the budget must cover both.
         resp = self._client.chat.completions.create(
             model=self.model,
             messages=[

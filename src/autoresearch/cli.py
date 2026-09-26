@@ -7,7 +7,7 @@ import sys
 
 import httpx
 
-from . import rank, report, retrieval, synthesize
+from . import analysis, data as datamod, modeling, rank, report, retrieval, synthesize
 from .muse_client import MuseClient
 from .spec import ResearchSpec
 
@@ -32,14 +32,32 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--max-papers", type=int, default=10)
     r.add_argument("--year-from", type=int, default=None)
     r.add_argument("--out", default="./out")
+    a = sub.add_parser("analyze", help="test a hypothesis against a CSV file")
+    a.add_argument("csv", help="path to CSV data file")
+    a.add_argument("--target", required=True, help="target column to predict")
+    a.add_argument("--question", default="", help="research question in plain words")
+    a.add_argument("--out", default="./out")
     args = ap.parse_args(argv)
     try:
-        path = review(args.question, args.max_papers, args.year_from, args.out)
+        if args.cmd == "review":
+            path = review(args.question, args.max_papers, args.year_from, args.out)
+        else:
+            path = analyze(args.csv, args.target, args.question, args.out)
     except Exception as e:  # honest failure, never fake output
         print(f"autoresearch: error: {e}", file=sys.stderr)
         return 1
     print(path)
     return 0
+
+
+def analyze(csv: str, target: str, question: str, out_dir: str) -> str:
+    df = datamod.load_csv(csv)
+    prep = datamod.prepare(df, target)
+    res = modeling.run(prep)
+    q = question.strip() or f"what predicts {target}?"
+    findings = analysis.narrate(q, prep, res, MuseClient())
+    path = report.write_analysis_bundle(out_dir, q, csv, target, prep, res, findings)
+    return str(path / "analysis.md")
 
 
 if __name__ == "__main__":

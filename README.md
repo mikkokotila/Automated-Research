@@ -15,7 +15,7 @@ question → OpenAlex + Semantic Scholar → local rerank → Muse synthesis →
 - **Problem API**: one CLI arg — the question. No solution code from the user.
 - **Retrieval**: OpenAlex + Semantic Scholar, deduped by DOI.
 - **Rerank**: deterministic local score (term overlap + citations + recency).
-- **Synthesis**: Muse API (`https://api.meta.ai/v1`, `muse-spark-1.3`), citations enforced as `[n]`.
+- **Synthesis**: Muse API (`https://api.meta.ai/v1`, `muse-spark-1.3-contributor`), citations enforced as `[n]`.
 - **Governance**: every run emits `provenance.json` (papers, scores, model, timestamp).
 
 ## Quickstart
@@ -29,6 +29,12 @@ autoresearch review "factors related to mortality in advanced cervical cancer" -
 
 Output: `./out/review.md` (the review) and `./out/provenance.json` (the audit trail).
 
+```bash
+autoresearch analyze patients.csv --target mortality --question "what predicts mortality?" --out ./out
+```
+
+Output: `./out/analysis.md` (findings + evidence + warnings) and `./out/provenance.json`.
+
 ## Development
 
 ```bash
@@ -38,6 +44,6 @@ pytest
 
 ## Roadmap
 
-- [x] **M1**: cited literature review (this repo state)
-- [ ] **M2**: hypothesis test on user CSV (ETL agent + AutoML + validation)
+- [x] **M1**: cited literature review
+- [x] **M2**: hypothesis test on user CSV (auto-clean + model zoo + validation + narration)
 - [ ] **M3**: autonomous loop (answers become next questions)
