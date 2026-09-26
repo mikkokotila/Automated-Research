@@ -1,0 +1,29 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________________ test_rerank_prefers_topical_cited_recent ___________________
+
+    def test_rerank_prefers_topical_cited_recent():
+        q = "mortality factors advanced cervical cancer"
+        topical = paper(
+            title="Mortality factors in advanced cervical cancer patients",
+            abstract="cervical cancer mortality analysis",
+            citations=50,
+            year=2024,
+        )
+        off = paper(title="Wheat yields under drought", abstract="agriculture", citations=5000, year=2025)
+>       assert rank.rerank(q, [off, topical], 2)[0] == topical
+E       AssertionError: assert Paper(ref='t:...692, extra={}) == Paper(ref='t:...0.0, extra={})
+E         
+E         Omitting 10 identical items, use -vv to show
+E         Differing attributes:
+E         ['score']
+E         
+E         Drill down into differing attribute score:
+E           score: 3.9692 != 0.0
+
+tests/test_milestone1.py:41: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_milestone1.py::test_rerank_prefers_topical_cited_recent - A...
+1 failed in 0.03s
+keys: ['mortality', 'advanced', 'cervical', 'cancer']
+topical: 3.9692 off: 1.908

@@ -1,0 +1,8 @@
+>       assert any("weak" in w or "barely" in w for w in res.warnings)
+E       assert False
+E        +  where False = any(<generator object test_weak_signal_warns.<locals>.<genexpr> at 0x1135a1ff0>)
+
+tests/test_milestone2.py:112: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_milestone2.py::test_weak_signal_warns - assert False
+1 failed, 24 passed in 50.27s

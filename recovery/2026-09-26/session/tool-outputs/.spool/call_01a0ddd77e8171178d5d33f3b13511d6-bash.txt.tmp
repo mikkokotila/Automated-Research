@@ -1,0 +1,88 @@
+/Users/mikkokotila
+total 1331792
+drwxr-x---+  134 mikkokotila  staff       4288 Sep 26 16:07 .
+drwxr-xr-x     6 root         admin        192 Aug 20 14:48 ..
+-r--------     1 mikkokotila  staff          7 Aug  3  2022 .CFUserTextEncoding
+-rw-r--r--@    1 mikkokotila  staff      24580 Sep 26 12:59 .DS_Store
+drwx------+    2 mikkokotila  staff         64 Sep 26 14:54 .Trash
+drwxr-xr-x     4 mikkokotila  staff        128 May 23 10:26 .acp
+drwxr-xr-x@    5 mikkokotila  staff        160 Mar 21  2026 .antigravity
+drwxr-xr-x@   11 mikkokotila  staff        352 May 15  2024 .arduinoIDE
+-rw-------@    1 mikkokotila  staff        707 Mar 14  2025 .bash_history
+drwx------@    6 mikkokotila  staff        192 Apr 29 18:19 .bash_sessions
+-rw-r--r--@    1 mikkokotila  staff       5264 Aug  5 17:00 .bashrc
+drwx------@    7 mikkokotila  staff        224 Nov 21  2023 .bitmonero
+drwxr-xr-x    19 mikkokotila  staff        608 Sep 24 12:35 .cache
+drwxr-xr-x@    3 mikkokotila  staff         96 Apr 26 15:34 .cagent
+drwxr-xr-x     6 mikkokotila  staff        192 Aug 24  2022 .cargo
+drwxr-xr-x     2 mikkokotila  staff         64 Dec 11  2024 .chatgpt-vscode
+-rw-r--r--@    1 mikkokotila  staff       1671 Aug 15 19:59 .clasprc.json
+drwxr-xr-x    28 mikkokotila  staff        896 Sep 26 14:09 .claude
+drwxr-xr-x@    7 mikkokotila  staff        224 Sep 26 16:11 .claude-server-commander
+drwxr-xr-x@    3 mikkokotila  staff         96 Feb  7  2026 .claude-worktrees
+-rw-------@    1 mikkokotila  staff     105706 Sep 26 16:01 .claude.json
+-rw-------@    1 mikkokotila  staff     104643 Sep 25 14:26 .claude.json.backup
+drwxr-xr-x@    3 mikkokotila  staff         96 Mar 17  2025 .codeium
+drwxr-xr-x@   67 mikkokotila  staff       2144 Sep 26 14:53 .codex
+drwxr-xr-x@    2 mikkokotila  staff         64 Nov 28  2025 .composio
+drwxr-xr-x     3 mikkokotila  staff         96 Aug  5  2022 .conda
+-rw-r--r--     1 mikkokotila  staff         50 Aug  5  2022 .condarc
+drwxr-x--x    14 mikkokotila  admin        448 Sep 15 08:11 .config
+drwxr-xr-x     3 mikkokotila  staff         96 Aug  8  2024 .cortex
+drwxr-xr-x@    4 mikkokotila  staff        128 Jun  6 15:57 .crucible-localdata
+drwx------     3 mikkokotila  staff         96 Jan  6  2023 .cups
+drwxr-xr-x@   21 mikkokotila  staff        672 Jul  9 13:09 .cursor
+drwxr-xr-x@    4 mikkokotila  staff        128 Sep 11 08:56 .dagster
+drwxr-xr-x@    3 mikkokotila  staff         96 Sep 26 15:58 .desktop-commander-device
+drwxr-xr-x@   15 mikkokotila  staff        480 Sep 10 16:15 .docker
+drwxr-xr-x@    7 mikkokotila  staff        224 Nov 20  2025 .docker-user
+drwxr-xr-x    17 mikkokotila  staff        544 Aug  6  2024 .dropbox
+drwxr-xr-x@    3 mikkokotila  staff         96 Jul 10 15:10 .duckdb
+-rw-r--r--     1 mikkokotila  staff        474 Mar 27  2025 .env
+drwxr-xr-x@   16 mikkokotila  staff        512 Sep 16 15:17 .gemini
+-rw-r--r--@    1 mikkokotila  staff        385 Jun 14 11:04 .gitconfig
+drwx------     9 mikkokotila  staff        288 Jun 16 09:37 .gnupg
+drwxr-xr-x    41 mikkokotila  staff       1312 Sep 26 15:02 .grok
+drwx------@   34 mikkokotila  staff       1088 Apr 30 14:03 .hermes
+drwxr-xr-x@    2 mikkokotila  staff         64 Jan 22  2024 .hugindata
+drwxr-xr-x     3 mikkokotila  staff         96 Aug 15  2022 .idlerc
+drwxr-xr-x     3 mikkokotila  staff         96 May 15  2024 .ipynb_checkpoints
+drwxr-xr-x     5 mikkokotila  staff        160 Mar 20  2025 .ipython
+drwxr-xr-x     5 mikkokotila  staff        160 Aug 12  2023 .jupyter
+drwxr-xr-x     4 mikkokotila  staff        128 Apr 20  2024 .keras
+drwxr-xr-x@    6 mikkokotila  staff        192 Nov 28  2025 .langflow
+-rw-------@    1 mikkokotila  staff         20 May 24 18:20 .lesshst
+drwxr-xr-x     3 mikkokotila  staff         96 Jan 26  2025 .llama
+drwxr-xr-x@   16 mikkokotila  staff        512 Sep 26 14:53 .lmstudio
+-rw-r--r--@    1 mikkokotila  staff         28 Jan 29  2025 .lmstudio-home-pointer
+drwxr-xr-x     6 mikkokotila  staff        192 Sep 20  2025 .local
+drwxr-xr-x     5 mikkokotila  staff        160 Aug 18 09:50 .matplotlib
+drwxr-xr-x@    9 mikkokotila  staff        288 Aug 27 10:28 .mcp-auth
+drwxr-xr-x@    3 mikkokotila  staff         96 Nov 28  2025 .mem0
+drwxr-xr-x     8 mikkokotila  staff        256 Feb  9  2025 .npm
+drwxr-xr-x@   11 mikkokotila  staff        352 Sep 26 14:53 .ollama
+drwxr-xr-x@    3 mikkokotila  staff         96 Sep 18 11:13 .pi
+drwxr-xr-x@    2 mikkokotila  staff         64 Apr 18 07:49 .playwright-mcp
+drwx------@   25 mikkokotila  staff        800 Sep 26 16:11 .poise
+-rw-r--r--@    1 mikkokotila  staff        279 Jun 10 23:30 .prodyrc
+-rw-r--r--@    1 mikkokotila  staff        311 Aug  5 17:00 .profile
+drwxr-xr-x@    3 mikkokotila  staff         96 Jun 18 22:06 .pymol
+-rw-r--r--@    1 mikkokotila  staff         10 Jun 18 22:06 .pymoltimestamp
+-rw-r--r--@    1 mikkokotila  staff        223 Jan 10  2026 .pypirc
+-rw-------@    1 mikkokotila  staff       4467 Sep 26 09:08 .python_history
+drwxr-xr-x     3 mikkokotila  staff         96 Nov 12  2024 .qiskit
+drwxr-xr-x     7 mikkokotila  staff        224 Aug 24  2022 .rustup
+drwx------@    8 mikkokotila  staff        256 Aug  6  2024 .sentry 
+drwx------@    4 mikkokotila  staff        128 Nov 21  2023 .shared-ringdb
+drwx------    11 mikkokotila  staff        352 Aug 20 15:03 .ssh
+drwxr-xr-x@    4 mikkokotila  staff        128 Aug  7  2025 .streamlit
+drwxr-xr-x@    4 mikkokotila  staff        128 Jun  6 19:46 .venvs
+drwxr-xr-x     3 mikkokotila  staff         96 Jul 18  2023 .vim
+-rw-------     1 mikkokotila  staff      22131 May  1 22:19 .viminfo
+---GH REPO CHECK---
+GraphQL: Could not resolve to a Repository with the name 'mikkokotila/Automated-Research'. (repository)
+---LOCAL SEARCH---
+ls: ./Automated-Research: No such file or directory
+ls: /Users/mikkokotila/Automated-Research: No such file or directory
+ls: /Users/mikkokotila/github/Automated-Research: No such file or directory
+ls: /Users/mikkokotila/src/Automated-Research: No such file or directory

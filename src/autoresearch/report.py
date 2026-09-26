@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 from .analysis import Findings
 from .data import Prepared
+from .journal import Journal
 from .modeling import Results
 from .papers import Paper
 from .spec import ResearchSpec
@@ -36,9 +37,13 @@ def render_markdown(spec: ResearchSpec, papers: list[Paper], synth: Synthesis) -
     return "\n".join(lines)
 
 
-def write_bundle(out_dir: str | Path, spec: ResearchSpec, papers: list[Paper], synth: Synthesis) -> Path:
+def write_bundle(
+    out_dir: str | Path, spec: ResearchSpec, papers: list[Paper], synth: Synthesis, journal: Journal | None = None
+) -> Path:
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
+    if journal is not None:
+        journal.save(out / "journal.jsonl")
     (out / "review.md").write_text(render_markdown(spec, papers, synth), encoding="utf-8")
     provenance = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -99,9 +104,12 @@ def write_analysis_bundle(
     prep: Prepared,
     res: Results,
     f: Findings,
+    journal: Journal | None = None,
 ) -> Path:
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
+    if journal is not None:
+        journal.save(out / "journal.jsonl")
     (out / "analysis.md").write_text(render_analysis(question, csv, target, prep, res, f), encoding="utf-8")
     p = prep.profile
     provenance = {
@@ -129,10 +137,12 @@ def write_analysis_bundle(
     return out
 
 
-def write_loop_bundle(out_dir: str | Path, seed: str, res: "LoopResult") -> Path:
+def write_loop_bundle(out_dir: str | Path, seed: str, res: "LoopResult", journal: Journal | None = None) -> Path:
     out = Path(out_dir)
     iters = out / "iterations"
     iters.mkdir(parents=True, exist_ok=True)
+    if journal is not None:
+        journal.save(out / "journal.jsonl")
     for i in res.iterations:
         (iters / f"iter{i.n}-{i.kind}.md").write_text(i.detail, encoding="utf-8")
     lines = [

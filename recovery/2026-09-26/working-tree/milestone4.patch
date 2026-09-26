@@ -1,0 +1,863 @@
+diff --git a/src/autoresearch/cli.py b/src/autoresearch/cli.py
+index 5f3c437..af4f325 100644
+--- a/src/autoresearch/cli.py
++++ b/src/autoresearch/cli.py
+@@ -8,19 +8,25 @@ import sys
+ import httpx
+ 
+ from . import analysis, data as datamod, loop as loopmod, modeling, rank, report, retrieval, synthesize
++from .improve import improve_from_journal
++from .journal import Journal, emit
+ from .muse_client import MuseClient
+ from .spec import ResearchSpec
+ 
+ 
+ def review(question: str, max_papers: int, year_from: int | None, out_dir: str) -> str:
++    j = Journal()
++    emit(j, "review", "start", question[:200])
+     spec = ResearchSpec(question=question, max_papers=max_papers, year_from=year_from)
+     with httpx.Client(headers={"User-Agent": "Automated-Research/0.1"}) as http:
+         papers = retrieval.retrieve(spec, http)
++    emit(j, "review", "retrieved", f"{len(papers)} candidates")
+     if not papers:
+         raise RuntimeError("no papers found for this question")
+     top = rank.rerank(spec.question, papers, spec.max_papers)
+     synth = synthesize.synthesize(spec.question, top, MuseClient())
+-    path = report.write_bundle(out_dir, spec, top, synth)
++    emit(j, "review", "synthesized", f"{len(top)} papers, cited {len(synth.cited)}")
++    path = report.write_bundle(out_dir, spec, top, synth, j)
+     return str(path / "review.md")
+ 
+ 
+@@ -44,14 +50,25 @@ def main(argv: list[str] | None = None) -> int:
+     lo.add_argument("--max-iterations", type=int, default=3)
+     lo.add_argument("--max-papers", type=int, default=5)
+     lo.add_argument("--out", default="./out")
++    lo.add_argument("--self-improve", action="store_true", help="reflect and self-patch mid-run and post-run")
++    lo.add_argument("--improve-rounds", type=int, default=1)
++    lo.add_argument("--repo", default=".", help="repo checkout to improve (container workspace)")
++    im = sub.add_parser("improve", help="reflect on a past run's journal and self-patch")
++    im.add_argument("--run-dir", required=True, help="bundle dir containing journal.jsonl")
++    im.add_argument("--repo", default=".", help="repo checkout to improve")
++    im.add_argument("--rounds", type=int, default=1)
++    im.add_argument("--out", default=None, help="optional dir for reflection.md")
+     args = ap.parse_args(argv)
+     try:
+         if args.cmd == "review":
+             path = review(args.question, args.max_papers, args.year_from, args.out)
+         elif args.cmd == "analyze":
+             path = analyze(args.csv, args.target, args.question, args.out)
++        elif args.cmd == "improve":
++            path = improve(args.run_dir, args.repo, args.rounds, args.out)
+         else:
+-            path = loop(args.question, args.csv, args.target, args.max_iterations, args.max_papers, args.out)
++            path = loop(args.question, args.csv, args.target, args.max_iterations, args.max_papers, args.out,
++                        args.self_improve, args.improve_rounds, args.repo)
+     except Exception as e:  # honest failure, never fake output
+         print(f"autoresearch: error: {e}", file=sys.stderr)
+         return 1
+@@ -59,21 +76,52 @@ def main(argv: list[str] | None = None) -> int:
+     return 0
+ 
+ 
+-def loop(question: str, csv: str | None, target: str | None, max_iterations: int, max_papers: int, out_dir: str) -> str:
+-    res = loopmod.run_loop(question, csv, target, max_iterations, max_papers, MuseClient())
+-    path = report.write_loop_bundle(out_dir, question, res)
++def loop(
++    question: str, csv: str | None, target: str | None, max_iterations: int, max_papers: int, out_dir: str,
++    self_improve: bool = False, improve_rounds: int = 1, repo: str = ".",
++) -> str:
++    j = Journal()
++    res = loopmod.run_loop(
++        question, csv, target, max_iterations, max_papers, MuseClient(), journal=j,
++        self_improve=self_improve, improve_rounds=improve_rounds, repo_root=repo,
++    )
++    path = report.write_loop_bundle(out_dir, question, res, j)
+     return str(path / "synthesis.md")
+ 
+ 
+ def analyze(csv: str, target: str, question: str, out_dir: str) -> str:
++    j = Journal()
++    emit(j, "analyze", "start", f"{csv} target={target}")
+     df = datamod.load_csv(csv)
+     prep = datamod.prepare(df, target)
++    emit(j, "analyze", "prepared", f"{prep.profile.n_rows} rows, {prep.profile.task}")
+     res = modeling.run(prep)
++    emit(j, "analyze", "modeled", f"{res.best} test={res.best_test} baseline={res.baseline_test}")
+     q = question.strip() or f"what predicts {target}?"
+     findings = analysis.narrate(q, prep, res, MuseClient())
+-    path = report.write_analysis_bundle(out_dir, q, csv, target, prep, res, findings)
++    emit(j, "analyze", "narrated", f"warnings={len(res.warnings)}")
++    path = report.write_analysis_bundle(out_dir, q, csv, target, prep, res, findings, j)
+     return str(path / "analysis.md")
+ 
+ 
++def improve(run_dir: str, repo: str, rounds: int, out: str | None) -> str:
++    from pathlib import Path
++
++    jr = Journal.load(Path(run_dir) / "journal.jsonl")
++    outcome = f"past run at {run_dir}: {len(jr)} notes"
++    for cand in ("run.json", "provenance.json"):
++        p = Path(run_dir) / cand
++        if p.exists():
++            outcome += f"; {cand}={p.read_text(encoding='utf-8')[:800]}"
++            break
++    doc, rep = improve_from_journal(jr.text(), outcome, repo, MuseClient(), rounds=rounds, journal=jr)
++    dest = Path(out or run_dir)
++    dest.mkdir(parents=True, exist_ok=True)
++    (dest / "reflection.md").write_text(doc.markdown + "\n", encoding="utf-8")
++    jr.save(dest / "journal.jsonl")
++    print(f"improve: kept={rep.kept} reverted={rep.reverted} skipped={rep.skipped}")
++    return str(dest / "reflection.md")
++
++
+ if __name__ == "__main__":
+     raise SystemExit(main())
+diff --git a/src/autoresearch/loop.py b/src/autoresearch/loop.py
+index 9cb7ed7..a3ee88f 100644
+--- a/src/autoresearch/loop.py
++++ b/src/autoresearch/loop.py
+@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
+ import httpx
+ 
+ from . import analysis, data as datamod, modeling, rank, report, retrieval, synthesize
++from .journal import Journal, emit
+ from .spec import ResearchSpec
+ from .synthesize import Completer
+ 
+@@ -75,13 +76,16 @@ def propose(history: str, dataset_hint: str, client: Completer) -> list[Followup
+     return parse_followups(client.complete(FOLLOWUP_SYSTEM, user))
+ 
+ 
+-def run_review(question: str, max_papers: int, http: httpx.Client, muse: Completer) -> Iteration:
++def run_review(question: str, max_papers: int, http: httpx.Client, muse: Completer, journal: Journal | None = None) -> Iteration:
++    emit(journal, "review", "start", question[:200])
+     spec = ResearchSpec(question=question, max_papers=max_papers)
+     papers = retrieval.retrieve(spec, http)
++    emit(journal, "review", "retrieved", f"{len(papers)} candidates")
+     if not papers:
+         raise RuntimeError("no papers found for this question")
+     top = rank.rerank(spec.question, papers, spec.max_papers)
+     synth = synthesize.synthesize(spec.question, top, muse)
++    emit(journal, "review", "synthesized", f"{len(top)} papers, cited {len(synth.cited)}")
+     detail = report.render_markdown(spec, top, synth)
+     cited = ", ".join(f"[{i}]" for i in synth.cited[:6]) or "none"
+     summary = f"Q: {question}\nReview of {len(top)} papers (cited {cited}). {synth.text[:800]}"
+@@ -89,11 +93,15 @@ def run_review(question: str, max_papers: int, http: httpx.Client, muse: Complet
+     return Iteration(n=0, question=question, kind="review", summary=summary, detail=detail, provenance=prov)
+ 
+ 
+-def run_analyze(question: str, csv: str, target: str, muse: Completer) -> Iteration:
++def run_analyze(question: str, csv: str, target: str, muse: Completer, journal: Journal | None = None) -> Iteration:
++    emit(journal, "analyze", "start", f"{csv} target={target}")
+     df = datamod.load_csv(csv)
+     prep = datamod.prepare(df, target)
++    emit(journal, "analyze", "prepared", f"{prep.profile.n_rows} rows, {prep.profile.task}")
+     res = modeling.run(prep)
++    emit(journal, "analyze", "modeled", f"{res.best} test={res.best_test} baseline={res.baseline_test}")
+     findings = analysis.narrate(question, prep, res, muse)
++    emit(journal, "analyze", "narrated", f"warnings={len(res.warnings)}")
+     detail = report.render_analysis(question, csv, target, prep, res, findings)
+     summary = f"Q: {question}\n{res.task} on {prep.profile.n_rows} rows: {res.best} test {res.best_test} vs baseline {res.baseline_test}. {findings.text[:600]}"
+     prov = {
+@@ -130,6 +138,11 @@ def run_loop(
+     max_papers: int,
+     muse: Completer,
+     http: httpx.Client | None = None,
++    journal: Journal | None = None,
++    self_improve: bool = False,
++    improve_rounds: int = 1,
++    repo_root: str | None = None,
++    check_cmd: list[str] | None = None,
+ ) -> LoopResult:
+     if not 1 <= max_iterations <= MAX_ITERATIONS:
+         raise ValueError(f"max_iterations must be 1..{MAX_ITERATIONS}")
+@@ -139,6 +152,10 @@ def run_loop(
+     http = http or httpx.Client(headers={"User-Agent": "Automated-Research/0.1"})
+     iterations: list[Iteration] = []
+     stopped = "converged"
++    improving = self_improve and repo_root is not None
++    if self_improve and repo_root is None:
++        emit(journal, "loop", "improve-disabled", "self_improve needs repo_root")
++    emit(journal, "loop", "start", f"seed={question[:150]} max_iter={max_iterations}")
+     try:
+         pending: list[Followup] = [Followup(question=question, kind="review", rationale="seed")]
+         if csv and target:
+@@ -167,14 +184,18 @@ def run_loop(
+             job = pending.pop(0)
+             try:
+                 if job.kind == "analyze" and csv and target:
+-                    it = run_analyze(job.question, csv, target, muse)
++                    it = run_analyze(job.question, csv, target, muse, journal)
+                 else:
+-                    it = run_review(job.question, max_papers, http, muse)
++                    it = run_review(job.question, max_papers, http, muse, journal)
+             except Exception as e:
+                 stopped = f"failed: {e}"
++                emit(journal, "loop", "failed", str(e)[:300])
+                 break
+             it.n = len(iterations) + 1
+             iterations.append(it)
++            emit(journal, "loop", "iter-done", f"n={it.n} kind={it.kind}")
++            if improving:  # iterative self-repair as it goes, not only at the end
++                _mid_run_improve(journal, it, repo_root, muse, check_cmd)
+             if len(iterations) >= max_iterations:
+                 stopped = "max_iterations"
+         if not iterations:
+@@ -185,7 +206,36 @@ def run_loop(
+         synthesis = muse.complete(SYNTHESIS_SYSTEM, f"Iterations:\n{history}{tail}")
+         if not synthesis.strip():
+             raise RuntimeError("Muse API returned an empty final synthesis")
++        emit(journal, "loop", "done", f"iters={len(iterations)} stopped={stopped}")
++        if improving:
++            try:
++                from .improve import improve_from_journal
++
++                outcome = f"{len(iterations)} iterations, stopped={stopped}"
++                _, rep = improve_from_journal(
++                    journal.text() if journal else "", outcome, repo_root, muse,
++                    rounds=improve_rounds, check_cmd=check_cmd, journal=journal,
++                )
++                emit(journal, "loop", "improved", f"kept={rep.kept} reverted={rep.reverted} skipped={rep.skipped}")
++            except Exception as e:
++                emit(journal, "loop", "improve-failed", str(e)[:200])
+         return LoopResult(tuple(iterations), synthesis, muse.model, stopped, unanswered)
+     finally:
+         if own:
+             http.close()
++
++
++def _mid_run_improve(journal: Journal | None, it: Iteration, repo_root: str | None, muse: Completer, check_cmd: list[str] | None) -> None:
++    """One bounded improve pass on the latest iteration's notes. Never raises."""
++    if journal is None or repo_root is None:
++        return
++    try:
++        from .improve import improve_from_journal
++
++        _, rep = improve_from_journal(
++            journal.text(), f"mid-run after iter {it.n} ({it.kind})", repo_root, muse,
++            rounds=1, check_cmd=check_cmd, journal=journal,
++        )
++        emit(journal, "loop", "mid-improved", f"iter={it.n} kept={rep.kept}")
++    except Exception as e:
++        emit(journal, "loop", "mid-improve-failed", str(e)[:200])
+diff --git a/src/autoresearch/report.py b/src/autoresearch/report.py
+index bb43b41..9c4f5c5 100644
+--- a/src/autoresearch/report.py
++++ b/src/autoresearch/report.py
+@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
+ 
+ from .analysis import Findings
+ from .data import Prepared
++from .journal import Journal
+ from .modeling import Results
+ from .papers import Paper
+ from .spec import ResearchSpec
+@@ -36,9 +37,13 @@ def render_markdown(spec: ResearchSpec, papers: list[Paper], synth: Synthesis) -
+     return "\n".join(lines)
+ 
+ 
+-def write_bundle(out_dir: str | Path, spec: ResearchSpec, papers: list[Paper], synth: Synthesis) -> Path:
++def write_bundle(
++    out_dir: str | Path, spec: ResearchSpec, papers: list[Paper], synth: Synthesis, journal: Journal | None = None
++) -> Path:
+     out = Path(out_dir)
+     out.mkdir(parents=True, exist_ok=True)
++    if journal is not None:
++        journal.save(out / "journal.jsonl")
+     (out / "review.md").write_text(render_markdown(spec, papers, synth), encoding="utf-8")
+     provenance = {
+         "generated_at": datetime.now(timezone.utc).isoformat(),
+@@ -99,9 +104,12 @@ def write_analysis_bundle(
+     prep: Prepared,
+     res: Results,
+     f: Findings,
++    journal: Journal | None = None,
+ ) -> Path:
+     out = Path(out_dir)
+     out.mkdir(parents=True, exist_ok=True)
++    if journal is not None:
++        journal.save(out / "journal.jsonl")
+     (out / "analysis.md").write_text(render_analysis(question, csv, target, prep, res, f), encoding="utf-8")
+     p = prep.profile
+     provenance = {
+@@ -129,10 +137,12 @@ def write_analysis_bundle(
+     return out
+ 
+ 
+-def write_loop_bundle(out_dir: str | Path, seed: str, res: "LoopResult") -> Path:
++def write_loop_bundle(out_dir: str | Path, seed: str, res: "LoopResult", journal: Journal | None = None) -> Path:
+     out = Path(out_dir)
+     iters = out / "iterations"
+     iters.mkdir(parents=True, exist_ok=True)
++    if journal is not None:
++        journal.save(out / "journal.jsonl")
+     for i in res.iterations:
+         (iters / f"iter{i.n}-{i.kind}.md").write_text(i.detail, encoding="utf-8")
+     lines = [
+diff --git a/src/autoresearch/improve.py b/src/autoresearch/improve.py
+new file mode 100644
+index 0000000..3988471
+--- /dev/null
++++ b/src/autoresearch/improve.py
+@@ -0,0 +1,183 @@
++"""Improve: apply self-proposed patches only if the test gate stays green.
++
++Safety properties:
++- tests/ are immutable: the agent may never weaken its own exam.
++- .github/, Dockerfile*, lockfiles, and this gate file are off-limits.
++- The tree must be clean and the suite green BEFORE any patch is attempted.
++- Every patch is reverted unless the full suite passes after it.
++"""
++
++from __future__ import annotations
++
++import re
++import subprocess
++from dataclasses import dataclass, field
++from pathlib import Path
++
++from .journal import Journal, emit
++from .reflect import Proposal, ReflectionDoc, reflect
++from .synthesize import Completer
++
++DIFF_SYSTEM = (
++    "You emit ONLY a unified diff (git format with a/ b/ paths, no fences, no "
++    "commentary) implementing the requested change. Keep it minimal and complete; "
++    "the patch must apply with git apply and keep the test suite passing."
++)
++
++FORBIDDEN_PREFIXES = ("tests/", ".github/")
++FORBIDDEN_NAMES = ("Dockerfile", ".dockerignore")
++FORBIDDEN_FILES = ("src/autoresearch/improve.py",)
++MAX_DIFF_FILES = 5
++MAX_DIFF_LINES = 300
++MAX_PROPOSALS_PER_ROUND = 3
++
++
++@dataclass
++class PatchOutcome:
++    proposal_id: str
++    target: str
++    applied: bool
++    kept: bool
++    reason: str
++
++
++@dataclass
++class ImproveReport:
++    kept: int = 0
++    reverted: int = 0
++    skipped: int = 0
++    outcomes: list[PatchOutcome] = field(default_factory=list)
++
++
++def diff_targets(diff: str) -> list[str]:
++    return re.findall(r"^\+\+\+ b/(.+)$", diff, re.MULTILINE)
++
++
++def target_allowed(target: str) -> str | None:
++    """None if allowed, else the reason it is forbidden."""
++    t = target.strip()
++    if not t or t.startswith("/") or ".." in Path(t).parts:
++        return "absolute or escaping path"
++    if t.startswith(FORBIDDEN_PREFIXES):
++        return "protected area (tests and workflows are immutable)"
++    if Path(t).name in FORBIDDEN_NAMES or t in FORBIDDEN_FILES:
++        return "protected file"
++    if t.endswith(".lock"):
++        return "lockfiles are immutable"
++    if not t.startswith("src/autoresearch/"):
++        return "only src/autoresearch/ may be modified"
++    return None
++
++
++def git(repo: Path, *args: str) -> str:
++    r = subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True, timeout=60, stdin=subprocess.DEVNULL)
++    if r.returncode != 0:
++        raise RuntimeError(f"git {' '.join(args)} failed: {r.stderr.strip()[:300]}")
++    return r.stdout
++
++
++def tree_clean(repo: Path) -> bool:
++    return git(repo, "status", "--porcelain", "--", "src", "tests").strip() == ""
++
++
++def checks_pass(repo: Path, check_cmd: list[str], journal: Journal | None = None) -> bool:
++    r = subprocess.run(check_cmd, cwd=repo, capture_output=True, text=True, timeout=600)
++    emit(journal, "improve", "checks", f"cmd={' '.join(check_cmd)} rc={r.returncode} tail={r.stdout[-300:] + r.stderr[-300:]}")
++    return r.returncode == 0
++
++
++def request_diff(proposal: Proposal, client: Completer) -> str:
++    user = f"Target file: {proposal.target}\nRequested change: {proposal.change}\nReason: {proposal.reason}\n\nEmit the diff."
++    return client.complete(DIFF_SYSTEM, user)
++
++
++def apply_one(repo: Path, proposal: Proposal, diff: str, check_cmd: list[str], journal: Journal | None) -> PatchOutcome:
++    targets = diff_targets(diff)
++    if not targets:
++        return PatchOutcome(proposal.id, proposal.target, False, False, "diff has no file targets")
++    if len(targets) > MAX_DIFF_FILES:
++        return PatchOutcome(proposal.id, proposal.target, False, False, f"diff touches {len(targets)} files (cap {MAX_DIFF_FILES})")
++    if len(diff.splitlines()) > MAX_DIFF_LINES:
++        return PatchOutcome(proposal.id, proposal.target, False, False, f"diff too large (cap {MAX_DIFF_LINES} lines)")
++    for t in targets:
++        reason = target_allowed(t)
++        if reason:
++            emit(journal, "improve", "rejected", f"{proposal.id}: {t} forbidden ({reason})")
++            return PatchOutcome(proposal.id, t, False, False, f"forbidden target {t}: {reason}")
++    ap = subprocess.run(["git", "apply", "-"], input=diff, cwd=repo, capture_output=True, text=True, timeout=60)
++    if ap.returncode != 0:
++        return PatchOutcome(proposal.id, proposal.target, False, False, f"git apply failed: {ap.stderr.strip()[:200]}")
++    emit(journal, "improve", "applied", f"{proposal.id}: {', '.join(targets)}")
++    if checks_pass(repo, check_cmd, journal):
++        return PatchOutcome(proposal.id, proposal.target, True, True, "checks green, kept")
++    # revert: restore tracked files, delete files the patch added
++    for t in targets:
++        p = repo / t
++        tracked = subprocess.run(["git", "ls-files", "--error-unmatch", t], cwd=repo, capture_output=True).returncode == 0
++        if tracked:
++            subprocess.run(["git", "checkout", "--", t], cwd=repo, capture_output=True)
++        elif p.exists():
++            p.unlink()
++    emit(journal, "improve", "reverted", f"{proposal.id}: checks failed")
++    return PatchOutcome(proposal.id, proposal.target, True, False, "checks failed, reverted")
++
++
++def improve_round(
++    repo: str | Path,
++    doc: ReflectionDoc,
++    client: Completer,
++    journal: Journal | None = None,
++    check_cmd: list[str] | None = None,
++) -> ImproveReport:
++    repo = Path(repo)
++    check_cmd = check_cmd or ["pytest", "-q"]
++    report = ImproveReport()
++    if not tree_clean(repo):
++        emit(journal, "improve", "aborted", "tree not clean")
++        report.skipped = len(doc.proposals)
++        return report
++    if not checks_pass(repo, check_cmd, journal):
++        emit(journal, "improve", "aborted", "baseline checks not green")
++        report.skipped = len(doc.proposals)
++        return report
++    for proposal in doc.proposals[:MAX_PROPOSALS_PER_ROUND]:
++        try:
++            diff = request_diff(proposal, client)
++        except Exception as e:
++            report.outcomes.append(PatchOutcome(proposal.id, proposal.target, False, False, f"diff request failed: {e}"))
++            report.skipped += 1
++            continue
++        oc = apply_one(repo, proposal, diff, check_cmd, journal)
++        report.outcomes.append(oc)
++        if oc.kept:
++            report.kept += 1
++        elif oc.applied:
++            report.reverted += 1
++        else:
++            report.skipped += 1
++    return report
++
++
++def improve_from_journal(
++    journal_text: str,
++    outcome: str,
++    repo: str | Path,
++    client: Completer,
++    rounds: int = 1,
++    check_cmd: list[str] | None = None,
++    journal: Journal | None = None,
++) -> tuple[ReflectionDoc, ImproveReport]:
++    """Reflect on notes, then do the improvements. Returns last reflection + totals."""
++    total = ImproveReport()
++    doc = ReflectionDoc(markdown="", proposals=())
++    for _ in range(max(rounds, 1)):
++        doc = reflect(journal_text, outcome, client)
++        emit(journal, "improve", "reflected", f"{len(doc.proposals)} proposals")
++        rep = improve_round(repo, doc, client, journal, check_cmd)
++        total.kept += rep.kept
++        total.reverted += rep.reverted
++        total.skipped += rep.skipped
++        total.outcomes.extend(rep.outcomes)
++        if rep.kept == 0:
++            break
++    return doc, total
+diff --git a/src/autoresearch/journal.py b/src/autoresearch/journal.py
+new file mode 100644
+index 0000000..456c040
+--- /dev/null
++++ b/src/autoresearch/journal.py
+@@ -0,0 +1,57 @@
++"""Journal: append-only procedural notes taken during every workflow."""
++
++from __future__ import annotations
++
++import json
++from dataclasses import asdict, dataclass
++from datetime import datetime, timezone
++from pathlib import Path
++
++
++@dataclass(frozen=True)
++class Note:
++    ts: str
++    phase: str
++    event: str
++    detail: str = ""
++
++
++class Journal:
++    def __init__(self) -> None:
++        self.notes: list[Note] = []
++
++    def note(self, phase: str, event: str, detail: str = "") -> None:
++        self.notes.append(Note(
++            ts=datetime.now(timezone.utc).isoformat(),
++            phase=phase,
++            event=event,
++            detail=detail[:2000],
++        ))
++
++    def save(self, path: str | Path) -> Path:
++        p = Path(path)
++        p.write_text("\n".join(json.dumps(asdict(n)) for n in self.notes) + "\n", encoding="utf-8")
++        return p
++
++    @classmethod
++    def load(cls, path: str | Path) -> "Journal":
++        j = cls()
++        for line in Path(path).read_text(encoding="utf-8").splitlines():
++            line = line.strip()
++            if line:
++                d = json.loads(line)
++                j.notes.append(Note(ts=d["ts"], phase=d["phase"], event=d["event"], detail=d.get("detail", "")))
++        return j
++
++    def text(self, max_chars: int = 6000) -> str:
++        lines = [f"[{n.ts}] {n.phase}/{n.event} {n.detail}".rstrip() for n in self.notes]
++        out = "\n".join(lines)
++        return out[-max_chars:] if len(out) > max_chars else out
++
++    def __len__(self) -> int:
++        return len(self.notes)
++
++
++def emit(journal: Journal | None, phase: str, event: str, detail: str = "") -> None:
++    if journal is not None:
++        journal.note(phase, event, detail)
+diff --git a/src/autoresearch/reflect.py b/src/autoresearch/reflect.py
+new file mode 100644
+index 0000000..8fa4d39
+--- /dev/null
++++ b/src/autoresearch/reflect.py
+@@ -0,0 +1,68 @@
++"""Reflect: review procedural notes, document how the system must improve."""
++
++from __future__ import annotations
++
++import json
++import re
++from dataclasses import dataclass
++
++from .synthesize import Completer
++
++SYSTEM = (
++    "You are the system's self-critic. Review the procedural notes and outcome. "
++    "Reply with ONLY a JSON object: {\"reflection\": \"markdown\", \"proposals\": "
++    "[{\"id\": \"p1\", \"target\": \"src/autoresearch/<file>.py\", "
++    "\"change\": \"concrete edit\", \"reason\": \"why\"}]}. Rules: at most 3 "
++    "proposals; each must name one file under src/autoresearch/; never propose "
++    "changes to tests, workflows, Docker files, lockfiles, or improve.py itself; "
++    "prefer small, verifiable fixes over redesigns. If nothing is worth changing, "
++    "use []. The reflection markdown covers: what worked, what failed, and what "
++    "to change next."
++)
++
++
++@dataclass(frozen=True)
++class Proposal:
++    id: str
++    target: str
++    change: str
++    reason: str
++
++
++@dataclass(frozen=True)
++class ReflectionDoc:
++    markdown: str
++    proposals: tuple[Proposal, ...]
++
++
++def parse_reflection(text: str) -> ReflectionDoc:
++    match = re.search(r"\{.*\}", text, re.DOTALL)
++    if not match:
++        return ReflectionDoc(markdown=text.strip() or "no reflection produced", proposals=())
++    try:
++        raw = json.loads(match.group(0))
++    except json.JSONDecodeError:
++        return ReflectionDoc(markdown=text.strip(), proposals=())
++    if not isinstance(raw, dict):
++        return ReflectionDoc(markdown=text.strip(), proposals=())
++    out: list[Proposal] = []
++    for item in raw.get("proposals", []) or []:
++        if not isinstance(item, dict):
++            continue
++        target = str(item.get("target", "")).strip()
++        change = str(item.get("change", "")).strip()
++        if not target or not change:
++            continue
++        out.append(Proposal(
++            id=str(item.get("id", f"p{len(out) + 1}")),
++            target=target,
++            change=change[:1000],
++            reason=str(item.get("reason", ""))[:500],
++        ))
++    md = str(raw.get("reflection", "")).strip() or "no reflection produced"
++    return ReflectionDoc(markdown=md, proposals=tuple(out[:3]))
++
++
++def reflect(journal_text: str, outcome: str, client: Completer) -> ReflectionDoc:
++    user = f"Procedural notes:\n{journal_text}\n\nOutcome:\n{outcome}\n\nReflect and propose improvements."
++    return parse_reflection(client.complete(SYSTEM, user))
+diff --git a/tests/test_milestone4.py b/tests/test_milestone4.py
+new file mode 100644
+index 0000000..c07854f
+--- /dev/null
++++ b/tests/test_milestone4.py
+@@ -0,0 +1,234 @@
++import json
++import subprocess
++
++import httpx
++import pytest
++
++from autoresearch import improve as impmod
++from autoresearch import loop as loopmod
++from autoresearch import reflect as refmod
++from autoresearch.journal import Journal, emit
++
++
++class ScriptedMuse:
++    model = "scripted"
++
++    def __init__(self):
++        self.queues: dict[str, list[str]] = {
++            "follow": [], "review": [], "narrate": [], "final": [],
++            "reflect": [], "diff": [],
++        }
++
++    def _kind(self, system: str) -> str:
++        if "research strategist" in system:
++            return "follow"
++        if "precise research assistant" in system:
++            return "review"
++        if "careful data scientist" in system:
++            return "narrate"
++        if "self-critic" in system:
++            return "reflect"
++        if "unified diff" in system:
++            return "diff"
++        return "final"
++
++    def complete(self, system, user, max_tokens=8000):
++        q = self.queues[self._kind(system)]
++        if not q:
++            raise AssertionError("no scripted response")
++        return q.pop(0)
++
++
++DIFF_FOO = """--- a/src/autoresearch/foo.py
+++++ b/src/autoresearch/foo.py
++@@ -1 +1 @@
++-X = 1
+++X = 2
++"""
++
++DIFF_TESTS = """--- a/tests/test_x.py
+++++ b/tests/test_x.py
++@@ -1 +1 @@
++-assert True
+++assert False
++"""
++
++
++@pytest.fixture()
++def repo(tmp_path):
++    r = tmp_path / "repo"
++    (r / "src" / "autoresearch").mkdir(parents=True)
++    (r / "tests").mkdir()
++    (r / "src" / "autoresearch" / "foo.py").write_text("X = 1\n", encoding="utf-8")
++    (r / "tests" / "test_x.py").write_text("assert True\n", encoding="utf-8")
++    for args in (["init", "-q"], ["config", "user.email", "t@t"], ["config", "user.name", "t"],
++                 ["add", "-A"], ["commit", "-qm", "init"]):
++        subprocess.run(["git", *args], cwd=r, capture_output=True, check=True)
++    return r
++
++
++def mock_http() -> httpx.Client:
++    def handler(req: httpx.Request) -> httpx.Response:
++        if "openalex" in str(req.url):
++            return httpx.Response(200, json={
++                "results": [{
++                    "id": "W1", "title": "Study on X", "doi": "https://doi.org/10.1/x",
++                    "publication_year": 2023, "cited_by_count": 5,
++                    "authorships": [{"author": {"display_name": "A. Uthor"}}],
++                    "primary_location": {"source": {"display_name": "J X"}},
++                    "abstract_inverted_index": {"X": [0]},
++                }]
++            })
++        return httpx.Response(200, json={"data": []})
++
++    return httpx.Client(transport=httpx.MockTransport(handler))
++
++
++# --- journal ---
++
++
++def test_journal_roundtrip_and_emit(tmp_path):
++    j = Journal()
++    emit(j, "loop", "start", "seed")
++    emit(None, "loop", "start")  # null-safe
++    p = j.save(tmp_path / "j.jsonl")
++    assert len(Journal.load(p)) == 1
++
++
++def test_journal_text_tail_caps():
++    j = Journal()
++    for i in range(50):
++        j.note("p", f"e{i}", "x" * 200)
++    assert len(j.text(100)) == 100
++    assert j.text(10**9).endswith(j.text(100))  # keeps the most recent notes
++
++
++# --- reflection ---
++
++
++def test_parse_reflection_valid_and_capped():
++    props = [{"id": f"p{i}", "target": "src/autoresearch/a.py", "change": "c", "reason": "r"} for i in range(5)]
++    doc = refmod.parse_reflection(json.dumps({"reflection": "# R", "proposals": props}))
++    assert doc.markdown == "# R" and len(doc.proposals) == 3
++
++
++def test_parse_reflection_garbage():
++    doc = refmod.parse_reflection("just prose, no json")
++    assert doc.markdown.startswith("just prose") and doc.proposals == ()
++
++
++def test_reflect_prompts_with_notes():
++    muse = ScriptedMuse()
++    muse.queues["reflect"] = [json.dumps({"reflection": "R", "proposals": []})]
++    doc = refmod.reflect("note1", "outcome1", muse)
++    assert doc.proposals == ()
++
++
++# --- improvement gate ---
++
++
++def test_target_policy():
++    assert impmod.target_allowed("src/autoresearch/rank.py") is None
++    for bad in ("tests/test_a.py", ".github/ci.yml", "Dockerfile", "uv.lock",
++                "src/autoresearch/improve.py", "/etc/x", "src/../evil.py", "README.md"):
++        assert impmod.target_allowed(bad), bad
++
++
++def test_diff_targets_parses():
++    assert impmod.diff_targets(DIFF_FOO) == ["src/autoresearch/foo.py"]
++
++
++def test_apply_keeps_on_green(repo):
++    prop = refmod.Proposal("p1", "src/autoresearch/foo.py", "bump", "r")
++    oc = impmod.apply_one(repo, prop, DIFF_FOO, ["true"], Journal())
++    assert oc.kept and (repo / "src/autoresearch/foo.py").read_text() == "X = 2\n"
++
++
++def test_apply_reverts_on_red(repo):
++    prop = refmod.Proposal("p1", "src/autoresearch/foo.py", "bump", "r")
++    oc = impmod.apply_one(repo, prop, DIFF_FOO, ["false"], Journal())
++    assert oc.applied and not oc.kept
++    assert (repo / "src/autoresearch/foo.py").read_text() == "X = 1\n"
++
++
++def test_apply_rejects_forbidden_target(repo):
++    prop = refmod.Proposal("p1", "tests/test_x.py", "weaken", "evil")
++    oc = impmod.apply_one(repo, prop, DIFF_TESTS, ["true"], Journal())
++    assert not oc.applied and "forbidden" in oc.reason
++    assert (repo / "tests/test_x.py").read_text() == "assert True\n"
++
++
++def test_apply_rejects_oversize(repo):
++    big = DIFF_FOO + "\n".join(f"# pad {i}" for i in range(400))
++    prop = refmod.Proposal("p1", "src/autoresearch/foo.py", "big", "r")
++    oc = impmod.apply_one(repo, prop, big, ["true"], Journal())
++    assert not oc.applied and "too large" in oc.reason
++
++
++def test_round_aborts_on_dirty_tree(repo):
++    (repo / "src/autoresearch/foo.py").write_text("X = 9\n", encoding="utf-8")
++    doc = refmod.ReflectionDoc("R", (refmod.Proposal("p1", "src/autoresearch/foo.py", "c", "r"),))
++    rep = impmod.improve_round(repo, doc, ScriptedMuse(), Journal(), ["true"])
++    assert rep.skipped == 1 and rep.kept == 0
++
++
++def test_round_aborts_on_red_baseline(repo):
++    doc = refmod.ReflectionDoc("R", (refmod.Proposal("p1", "src/autoresearch/foo.py", "c", "r"),))
++    rep = impmod.improve_round(repo, doc, ScriptedMuse(), Journal(), ["false"])
++    assert rep.skipped == 1 and rep.kept == 0
++
++
++def test_improve_from_journal_stops_when_nothing_kept(repo):
++    muse = ScriptedMuse()
++    muse.queues["reflect"] = [
++        json.dumps({"reflection": "R1", "proposals": [
++            {"id": "p1", "target": "src/autoresearch/foo.py", "change": "bump", "reason": "r"}]}),
++        json.dumps({"reflection": "R2", "proposals": []}),
++    ]
++    muse.queues["diff"] = [DIFF_FOO]
++    doc, rep = impmod.improve_from_journal("notes", "ok", repo, muse, rounds=3, check_cmd=["true"])
++    assert rep.kept == 1 and doc.markdown == "R2"
++    assert (repo / "src/autoresearch/foo.py").read_text() == "X = 2\n"
++
++
++# --- loop wiring ---
++
++
++def test_loop_takes_notes():
++    muse = ScriptedMuse()
++    muse.queues["review"] = ["R [1]."]
++    muse.queues["follow"] = ["[]"]
++    muse.queues["final"] = ["F."]
++    j = Journal()
++    loopmod.run_loop("seed?", None, None, 2, 5, muse, mock_http(), journal=j)
++    phases = {(n.phase, n.event) for n in j.notes}
++    assert ("loop", "start") in phases and ("review", "retrieved") in phases and ("loop", "done") in phases
++
++
++def test_loop_self_improve_wires_mid_and_post(repo):
++    muse = ScriptedMuse()
++    muse.queues["review"] = ["R [1]."]
++    muse.queues["follow"] = ["[]"]
++    muse.queues["final"] = ["F."]
++    muse.queues["reflect"] = [
++        json.dumps({"reflection": "mid", "proposals": []}),
++        json.dumps({"reflection": "post", "proposals": []}),
++    ]
++    j = Journal()
++    res = loopmod.run_loop("seed?", None, None, 2, 5, muse, mock_http(), journal=j,
++                           self_improve=True, repo_root=str(repo), check_cmd=["true"])
++    assert res.stopped == "converged"
++    events = [n.event for n in j.notes]
++    assert "mid-improved" in events and "improved" in events
++
++
++def test_loop_self_improve_never_breaks_run(repo):
++    muse = ScriptedMuse()  # empty queues: mid-run improve fails, must be contained
++    muse.queues["review"] = ["R [1]."]
++    muse.queues["follow"] = ["[]"]
++    muse.queues["final"] = ["F."]
++    j = Journal()
++    res = loopmod.run_loop("seed?", None, None, 2, 5, muse, mock_http(), journal=j,
++                           self_improve=True, repo_root=str(repo), check_cmd=["true"])
++    assert res.stopped == "converged"
++    assert "mid-improve-failed" in [n.event for n in j.notes]

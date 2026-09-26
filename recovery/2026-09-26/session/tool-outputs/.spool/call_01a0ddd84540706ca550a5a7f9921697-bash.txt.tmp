@@ -1,0 +1,6 @@
+    "https://$download_host/"*) ;;
+    http://*) printf 'https://%s\n' "${1#http://}" ;;
+    https://*) printf '%s\n' "$1" ;;
+auth_url="https://auth.meta.com"
+channel_url="https://api.meta.ai/muse-code/channels/$channel"
+launcher_url="https://api.meta.ai/muse-launcher.sh"

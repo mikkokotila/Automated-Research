@@ -1,0 +1,6 @@
+CHOICES: 1
+CONTENT: ''
+REFUSAL: None
+REASONING: n/a
+FINISH: length
+USAGE: CompletionUsage(completion_tokens=100, prompt_tokens=13, total_tokens=113, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=97, rejected_prediction_tokens=None, text_tokens=None), prompt_tokens_details=PromptTokensDetails(audio_tokens=None, cache_write_tokens=None, cached_tokens=0, image_tokens=None, text_tokens=None))

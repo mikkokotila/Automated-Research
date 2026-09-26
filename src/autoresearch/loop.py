@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 import httpx
 
 from . import analysis, data as datamod, modeling, rank, report, retrieval, synthesize
+from .journal import Journal, emit
 from .spec import ResearchSpec
 from .synthesize import Completer
 
@@ -75,13 +76,16 @@ def propose(history: str, dataset_hint: str, client: Completer) -> list[Followup
     return parse_followups(client.complete(FOLLOWUP_SYSTEM, user))
 
 
-def run_review(question: str, max_papers: int, http: httpx.Client, muse: Completer) -> Iteration:
+def run_review(question: str, max_papers: int, http: httpx.Client, muse: Completer, journal: Journal | None = None) -> Iteration:
+    emit(journal, "review", "start", question[:200])
     spec = ResearchSpec(question=question, max_papers=max_papers)
     papers = retrieval.retrieve(spec, http)
+    emit(journal, "review", "retrieved", f"{len(papers)} candidates")
     if not papers:
         raise RuntimeError("no papers found for this question")
     top = rank.rerank(spec.question, papers, spec.max_papers)
     synth = synthesize.synthesize(spec.question, top, muse)
+    emit(journal, "review", "synthesized", f"{len(top)} papers, cited {len(synth.cited)}")
     detail = report.render_markdown(spec, top, synth)
     cited = ", ".join(f"[{i}]" for i in synth.cited[:6]) or "none"
     summary = f"Q: {question}\nReview of {len(top)} papers (cited {cited}). {synth.text[:800]}"
@@ -89,11 +93,15 @@ def run_review(question: str, max_papers: int, http: httpx.Client, muse: Complet
     return Iteration(n=0, question=question, kind="review", summary=summary, detail=detail, provenance=prov)
 
 
-def run_analyze(question: str, csv: str, target: str, muse: Completer) -> Iteration:
+def run_analyze(question: str, csv: str, target: str, muse: Completer, journal: Journal | None = None) -> Iteration:
+    emit(journal, "analyze", "start", f"{csv} target={target}")
     df = datamod.load_csv(csv)
     prep = datamod.prepare(df, target)
+    emit(journal, "analyze", "prepared", f"{prep.profile.n_rows} rows, {prep.profile.task}")
     res = modeling.run(prep)
+    emit(journal, "analyze", "modeled", f"{res.best} test={res.best_test} baseline={res.baseline_test}")
     findings = analysis.narrate(question, prep, res, muse)
+    emit(journal, "analyze", "narrated", f"warnings={len(res.warnings)}")
     detail = report.render_analysis(question, csv, target, prep, res, findings)
     summary = f"Q: {question}\n{res.task} on {prep.profile.n_rows} rows: {res.best} test {res.best_test} vs baseline {res.baseline_test}. {findings.text[:600]}"
     prov = {
@@ -130,6 +138,11 @@ def run_loop(
     max_papers: int,
     muse: Completer,
     http: httpx.Client | None = None,
+    journal: Journal | None = None,
+    self_improve: bool = False,
+    improve_rounds: int = 1,
+    repo_root: str | None = None,
+    check_cmd: list[str] | None = None,
 ) -> LoopResult:
     if not 1 <= max_iterations <= MAX_ITERATIONS:
         raise ValueError(f"max_iterations must be 1..{MAX_ITERATIONS}")
@@ -139,6 +152,10 @@ def run_loop(
     http = http or httpx.Client(headers={"User-Agent": "Automated-Research/0.1"})
     iterations: list[Iteration] = []
     stopped = "converged"
+    improving = self_improve and repo_root is not None
+    if self_improve and repo_root is None:
+        emit(journal, "loop", "improve-disabled", "self_improve needs repo_root")
+    emit(journal, "loop", "start", f"seed={question[:150]} max_iter={max_iterations}")
     try:
         pending: list[Followup] = [Followup(question=question, kind="review", rationale="seed")]
         if csv and target:
@@ -167,14 +184,18 @@ def run_loop(
             job = pending.pop(0)
             try:
                 if job.kind == "analyze" and csv and target:
-                    it = run_analyze(job.question, csv, target, muse)
+                    it = run_analyze(job.question, csv, target, muse, journal)
                 else:
-                    it = run_review(job.question, max_papers, http, muse)
+                    it = run_review(job.question, max_papers, http, muse, journal)
             except Exception as e:
                 stopped = f"failed: {e}"
+                emit(journal, "loop", "failed", str(e)[:300])
                 break
             it.n = len(iterations) + 1
             iterations.append(it)
+            emit(journal, "loop", "iter-done", f"n={it.n} kind={it.kind}")
+            if improving:  # iterative self-repair as it goes, not only at the end
+                _mid_run_improve(journal, it, repo_root, muse, check_cmd)
             if len(iterations) >= max_iterations:
                 stopped = "max_iterations"
         if not iterations:
@@ -185,7 +206,36 @@ def run_loop(
         synthesis = muse.complete(SYNTHESIS_SYSTEM, f"Iterations:\n{history}{tail}")
         if not synthesis.strip():
             raise RuntimeError("Muse API returned an empty final synthesis")
+        emit(journal, "loop", "done", f"iters={len(iterations)} stopped={stopped}")
+        if improving:
+            try:
+                from .improve import improve_from_journal
+
+                outcome = f"{len(iterations)} iterations, stopped={stopped}"
+                _, rep = improve_from_journal(
+                    journal.text() if journal else "", outcome, repo_root, muse,
+                    rounds=improve_rounds, check_cmd=check_cmd, journal=journal,
+                )
+                emit(journal, "loop", "improved", f"kept={rep.kept} reverted={rep.reverted} skipped={rep.skipped}")
+            except Exception as e:
+                emit(journal, "loop", "improve-failed", str(e)[:200])
         return LoopResult(tuple(iterations), synthesis, muse.model, stopped, unanswered)
     finally:
         if own:
             http.close()
+
+
+def _mid_run_improve(journal: Journal | None, it: Iteration, repo_root: str | None, muse: Completer, check_cmd: list[str] | None) -> None:
+    """One bounded improve pass on the latest iteration's notes. Never raises."""
+    if journal is None or repo_root is None:
+        return
+    try:
+        from .improve import improve_from_journal
+
+        _, rep = improve_from_journal(
+            journal.text(), f"mid-run after iter {it.n} ({it.kind})", repo_root, muse,
+            rounds=1, check_cmd=check_cmd, journal=journal,
+        )
+        emit(journal, "loop", "mid-improved", f"iter={it.n} kept={rep.kept}")
+    except Exception as e:
+        emit(journal, "loop", "mid-improve-failed", str(e)[:200])

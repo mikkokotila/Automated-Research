@@ -1,0 +1,75 @@
+{
+  "generated_at": "2026-09-26T13:28:53.819192+00:00",
+  "kind": "analysis",
+  "question": "what predicts mortality in these patients?",
+  "csv": "/tmp/ar-patients.csv",
+  "target": "mortality",
+  "model": "muse-spark-1.3-contributor",
+  "task": "classification",
+  "metric": "accuracy (macro-F1 0.555)",
+  "best": "gradboost",
+  "best_test": 0.5867,
+  "baseline_test": 0.4667,
+  "scores": [
+    {
+      "name": "dummy",
+      "cv_mean": 0.6,
+      "cv_std": 0.08432740427115676,
+      "test": 0.4666666666666667
+    },
+    {
+      "name": "logreg",
+      "cv_mean": 0.6799999999999999,
+      "cv_std": 0.04121608220220311,
+      "test": 0.6933333333333334
+    },
+    {
+      "name": "gradboost",
+      "cv_mean": 0.6933333333333334,
+      "cv_std": 0.04073400617738521,
+      "test": 0.5866666666666667
+    }
+  ],
+  "importances": [
+    {
+      "feature": "treatment_delay_wk",
+      "value": 0.032
+    },
+    {
+      "feature": "age",
+      "value": -0.0027
+    },
+    {
+      "feature": "hpv_neg",
+      "value": -0.0027
+    },
+    {
+      "feature": "stage_II",
+      "value": -0.008
+    },
+    {
+      "feature": "stage_I",
+      "value": -0.008
+    },
+    {
+      "feature": "hpv_pos",
+      "value": -0.0107
+    },
+    {
+      "feature": "stage_IV",
+      "value": -0.016
+    },
+    {
+      "feature": "stage_III",
+      "value": -0.024
+    }
+  ],
+  "warnings": [
+    "train/cv vs test gap is large (0.693 vs 0.587) \u2014 treat as unstable"
+  ],
+  "n_rows": 300,
+  "n_features": 4,
+  "missing_cells": 0,
+  "preprocessing": "numeric(median+standardize): 2; categorical(mode+onehot): 2; split 75/25 seed 42",
+  "data_notes": []
+}

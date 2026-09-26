@@ -4,3 +4,9 @@ __pycache__/
 *.egg-info/
 out/
 .DS_Store
+
+# Credentials and development caches
+.env
+.env.*
+!.env.example
+.pytest_cache/

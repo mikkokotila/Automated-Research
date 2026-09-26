@@ -1,0 +1,11 @@
+leak-check-done
+M  README.md
+M  src/autoresearch/cli.py
+A  src/autoresearch/loop.py
+M  src/autoresearch/report.py
+M  src/autoresearch/retrieval.py
+M  tests/test_milestone1.py
+A  tests/test_milestone3.py
+77501f6 Milestone 3: autonomous research loop
+5e38d8c Milestone 2: CSV hypothesis testing + contributor model
+a971a81 Milestone 1: cited literature review via Muse API

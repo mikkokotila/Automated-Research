@@ -1,0 +1,2227 @@
+{
+  "schema_version": 1,
+  "snapshot_date": "2026-09-26",
+  "session_id": "01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5",
+  "session_name": "calm-fireball",
+  "base_commit": "77501f654534f880682389fdf525405ebf53f8ae",
+  "original_session_directory": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5",
+  "archive_purpose": "Credential-redacted preservation and continuation, not a live Muse session import.",
+  "copied_files": [
+    {
+      "path": "session/cli-9f6a17e7-24a6-4737-8812-b9e77303fe73.log",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/cli-9f6a17e7-24a6-4737-8812-b9e77303fe73.log",
+      "source_bytes": 7847,
+      "source_sha256": "30dca4cce81cce377674baa75c152288e09cf786df71aca32ab7ca95401f6715",
+      "bytes": 7847,
+      "sha256": "30dca4cce81cce377674baa75c152288e09cf786df71aca32ab7ca95401f6715",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/session.redacted.jsonl",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/session.jsonl",
+      "source_bytes": 5611534,
+      "source_sha256": "1cc5b460f66f45b428663807ebc7ac4d5bbeb35f308d8faa4625acf46302f9c3",
+      "bytes": 5610724,
+      "sha256": "a8418b1649ceb9e7636dc2482c5c667452a99f9bbf8685b748e6d44c451abdac",
+      "credential_replacements": 30
+    },
+    {
+      "path": "session/subagent/41afa80a-929b-4d33-8314-cc2075f3f820/session.jsonl",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/subagent/41afa80a-929b-4d33-8314-cc2075f3f820/session.jsonl",
+      "source_bytes": 117779,
+      "source_sha256": "b1a3d7dd3d037d318cdce24cc8e58fe3e04627eacc3d0c0dac32b409f06b6be8",
+      "bytes": 117779,
+      "sha256": "b1a3d7dd3d037d318cdce24cc8e58fe3e04627eacc3d0c0dac32b409f06b6be8",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/subagent/5877db8d-7a5a-4e8b-84bf-77913a09e4a9/session.jsonl",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/subagent/5877db8d-7a5a-4e8b-84bf-77913a09e4a9/session.jsonl",
+      "source_bytes": 118558,
+      "source_sha256": "109c2534b0492d77e540d91fc1f7d17030d67e9ee8d529cc350fa5deacf89699",
+      "bytes": 118509,
+      "sha256": "d70beec5a329c6604a11047b78d0c926eb0af8c927c57847554acb8ee59310a0",
+      "credential_replacements": 2
+    },
+    {
+      "path": "session/subagent/5f7e7be6-22cd-4a3e-82f7-264fcfb48336/session.jsonl",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/subagent/5f7e7be6-22cd-4a3e-82f7-264fcfb48336/session.jsonl",
+      "source_bytes": 78224,
+      "source_sha256": "cc488c71e9e8165e9765134fd0e4ed8b524911fbcca4587f49438c7a572c560d",
+      "bytes": 75116,
+      "sha256": "5f91c6e6de8b86c49f6fbf13262b455b7aa8c4ce4699b948c648fd401f866265",
+      "credential_replacements": 1
+    },
+    {
+      "path": "session/subagent/b5f4d09c-0ec6-4efc-90a8-4d1e4da3e997/session.jsonl",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/subagent/b5f4d09c-0ec6-4efc-90a8-4d1e4da3e997/session.jsonl",
+      "source_bytes": 58421,
+      "source_sha256": "9724dd03a111246ebaf967c590be02dd3df428045de3310d6b6917ec06ed69ad",
+      "bytes": 58421,
+      "sha256": "9724dd03a111246ebaf967c590be02dd3df428045de3310d6b6917ec06ed69ad",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/subagent/cd13bd0d-7672-4046-bebf-0ea741e9c432/session.jsonl",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/subagent/cd13bd0d-7672-4046-bebf-0ea741e9c432/session.jsonl",
+      "source_bytes": 75186,
+      "source_sha256": "e8111a92ca1dc6127d29b793ef1045a58d82f6cf4e8c829ecfc4a713288e07a1",
+      "bytes": 75078,
+      "sha256": "cfe254abb9f7c36c7d1695976bc93ee49b0307bc777194a45fdbcb3b9bcf3665",
+      "credential_replacements": 4
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddd4410f7426822807bef69c3ca8-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0ddd4410f7426822807bef69c3ca8-bash.txt.tmp",
+      "source_bytes": 16189,
+      "source_sha256": "2b6cccf996542d89ea74bf8f1b64079c1de584de25cf7630cf4cdb0d90c3d0d0",
+      "bytes": 16189,
+      "sha256": "2b6cccf996542d89ea74bf8f1b64079c1de584de25cf7630cf4cdb0d90c3d0d0",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddd4544c759cb59bf9989399bdf2-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0ddd4544c759cb59bf9989399bdf2-bash.txt.tmp",
+      "source_bytes": 22656,
+      "source_sha256": "73a69ae5e05c2fb93dc412e823d2b2f94bfe0cad74920d879305b07699d96455",
+      "bytes": 22656,
+      "sha256": "73a69ae5e05c2fb93dc412e823d2b2f94bfe0cad74920d879305b07699d96455",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddd77e8171178d5d33f3b13511d6-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0ddd77e8171178d5d33f3b13511d6-bash.txt.tmp",
+      "source_bytes": 5991,
+      "source_sha256": "9072fff21ea118f8abe14995b96d18534f3d812541a0d5df14aba2bbfa37fc64",
+      "bytes": 5991,
+      "sha256": "9072fff21ea118f8abe14995b96d18534f3d812541a0d5df14aba2bbfa37fc64",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddd7b2a276d792a0366560f6328b-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0ddd7b2a276d792a0366560f6328b-bash.txt.tmp",
+      "source_bytes": 5643,
+      "source_sha256": "740f0ad7cf01dcfe005411b6d900446383f28622b374e53809caff3459ba1f40",
+      "bytes": 5643,
+      "sha256": "740f0ad7cf01dcfe005411b6d900446383f28622b374e53809caff3459ba1f40",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddd7e33876b29a2886a8b555b1e2-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0ddd7e33876b29a2886a8b555b1e2-bash.txt.tmp",
+      "source_bytes": 1376,
+      "source_sha256": "d46a0082d6013612da3e58f53396f13a2251ec5177a5e37355b2a23d081847d1",
+      "bytes": 1376,
+      "sha256": "d46a0082d6013612da3e58f53396f13a2251ec5177a5e37355b2a23d081847d1",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddd80bcb76908fbf6fd05bd57405-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0ddd80bcb76908fbf6fd05bd57405-bash.txt.tmp",
+      "source_bytes": 2745,
+      "source_sha256": "00ce17efb43b989b61f24f29bf42e0585c20da9deeefbca59d81869a0b2a28fa",
+      "bytes": 2745,
+      "sha256": "00ce17efb43b989b61f24f29bf42e0585c20da9deeefbca59d81869a0b2a28fa",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddd82af6765188f00ac14e976adb-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0ddd82af6765188f00ac14e976adb-bash.txt.tmp",
+      "source_bytes": 147,
+      "source_sha256": "33f4d2a2de8e8b2efd987853118bec7e425f69ac968c82e53f5bc3b1a029c1db",
+      "bytes": 147,
+      "sha256": "33f4d2a2de8e8b2efd987853118bec7e425f69ac968c82e53f5bc3b1a029c1db",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddd84540706ca550a5a7f9921697-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0ddd84540706ca550a5a7f9921697-bash.txt.tmp",
+      "source_bytes": 273,
+      "source_sha256": "4c1ddd352b8b5605354083dcb17ddae6ec017d51e337cac69435a54555275042",
+      "bytes": 273,
+      "sha256": "4c1ddd352b8b5605354083dcb17ddae6ec017d51e337cac69435a54555275042",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddd8e70b73aab9b7821a324d0c6e-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0ddd8e70b73aab9b7821a324d0c6e-bash.txt.tmp",
+      "source_bytes": 388,
+      "source_sha256": "94e9d9817e47683797f4f2c358c0b0c1d62fde7adbd4fcd119c9386671ccdeac",
+      "bytes": 388,
+      "sha256": "94e9d9817e47683797f4f2c358c0b0c1d62fde7adbd4fcd119c9386671ccdeac",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddd90ec670cdb106e319bbee7735-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0ddd90ec670cdb106e319bbee7735-bash.txt.tmp",
+      "source_bytes": 143,
+      "source_sha256": "99487c5eb38de816d7d0203695baf7e093337512b2ea739f97ac86577d853456",
+      "bytes": 143,
+      "sha256": "99487c5eb38de816d7d0203695baf7e093337512b2ea739f97ac86577d853456",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0dddb980c747b9ecf6a21efc36b10-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0dddb980c747b9ecf6a21efc36b10-bash.txt.tmp",
+      "source_bytes": 787,
+      "source_sha256": "e4e70d86dfcf1d0097c38f5006e36039c5d31742dd835f85b5042bd24b957f07",
+      "bytes": 787,
+      "sha256": "e4e70d86dfcf1d0097c38f5006e36039c5d31742dd835f85b5042bd24b957f07",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0dddbeb2177c1a38c21cfb63fa7ba-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0dddbeb2177c1a38c21cfb63fa7ba-bash.txt.tmp",
+      "source_bytes": 1358,
+      "source_sha256": "a25367ef06d56435a72d7b43ad2f9f5ad7049f44694c9c808aa1fe19bdc4fcb6",
+      "bytes": 1358,
+      "sha256": "a25367ef06d56435a72d7b43ad2f9f5ad7049f44694c9c808aa1fe19bdc4fcb6",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0dddc31c573ffbe9a3d5f7c53b400-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0dddc31c573ffbe9a3d5f7c53b400-bash.txt.tmp",
+      "source_bytes": 99,
+      "source_sha256": "2517e9eae50646d7bbe12680a6b4bab62b845ea0743476059c8b765356d3b1f7",
+      "bytes": 99,
+      "sha256": "2517e9eae50646d7bbe12680a6b4bab62b845ea0743476059c8b765356d3b1f7",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0dddc5dcd72bf840aceba4ca0972b-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0dddc5dcd72bf840aceba4ca0972b-bash.txt.tmp",
+      "source_bytes": 469,
+      "source_sha256": "fa03dd5c5a445b9a406070e4934ea53434f26ff3e05843b0130b6a075639c3b3",
+      "bytes": 469,
+      "sha256": "fa03dd5c5a445b9a406070e4934ea53434f26ff3e05843b0130b6a075639c3b3",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0dddc90e27267b6f317f8b3f559b2-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0dddc90e27267b6f317f8b3f559b2-bash.txt.tmp",
+      "source_bytes": 384,
+      "source_sha256": "78c3a203599fdc07249ebe4e3300844402a176075c48435bbcdf05f91d1dff4b",
+      "bytes": 384,
+      "sha256": "78c3a203599fdc07249ebe4e3300844402a176075c48435bbcdf05f91d1dff4b",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0dddd14417172a801faaffad2ef72-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0dddd14417172a801faaffad2ef72-bash.txt.tmp",
+      "source_bytes": 212,
+      "source_sha256": "6acfdb1cd3c337c318caee9d867165ecc297fb6a690ac9eee11f926282766552",
+      "bytes": 212,
+      "sha256": "6acfdb1cd3c337c318caee9d867165ecc297fb6a690ac9eee11f926282766552",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0dddd5a7676e98afce4e28d6a5ed1-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0dddd5a7676e98afce4e28d6a5ed1-bash.txt.tmp",
+      "source_bytes": 234,
+      "source_sha256": "9c3591ea5d7c89be5c2df957f203c61144944f9cd0e75b8392c5ba489c357c74",
+      "bytes": 234,
+      "sha256": "9c3591ea5d7c89be5c2df957f203c61144944f9cd0e75b8392c5ba489c357c74",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0dddd935975049ce807e04ec112ea-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0dddd935975049ce807e04ec112ea-bash.txt.tmp",
+      "source_bytes": 479,
+      "source_sha256": "c088768c2401e4a137c507a949730bbb672b99c301d75d9e9a9d897565dc3385",
+      "bytes": 479,
+      "sha256": "c088768c2401e4a137c507a949730bbb672b99c301d75d9e9a9d897565dc3385",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0dde06e0870959c3931aa2a6c3abd-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0dde06e0870959c3931aa2a6c3abd-bash.txt.tmp",
+      "source_bytes": 65,
+      "source_sha256": "3f01d586637998ee8407a8020a71f5fb0c0adae1e84f3c94271f18c6be1f89c9",
+      "bytes": 65,
+      "sha256": "3f01d586637998ee8407a8020a71f5fb0c0adae1e84f3c94271f18c6be1f89c9",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0dde0e0cb74c0a6a6dc6c148ff31b-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0dde0e0cb74c0a6a6dc6c148ff31b-bash.txt.tmp",
+      "source_bytes": 465,
+      "source_sha256": "67836d0243358074d1118ca1224d6481d42573d06894048d3b03c3e777b852d3",
+      "bytes": 465,
+      "sha256": "67836d0243358074d1118ca1224d6481d42573d06894048d3b03c3e777b852d3",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0dde13b99721199e8573d3ab88c79-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0dde13b99721199e8573d3ab88c79-bash.txt.tmp",
+      "source_bytes": 4482,
+      "source_sha256": "0fb14537aa1a2ab07a63f0d2c227b1fcae040d9fedc644c826ebe32668e0fc37",
+      "bytes": 4482,
+      "sha256": "0fb14537aa1a2ab07a63f0d2c227b1fcae040d9fedc644c826ebe32668e0fc37",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0dde4ce6475539b6a6a4cb7613a1b-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0dde4ce6475539b6a6a4cb7613a1b-bash.txt.tmp",
+      "source_bytes": 427,
+      "source_sha256": "859ff7aa0224f31f5452d4173ab514497af218b2b282016e3159f8902d066e24",
+      "bytes": 427,
+      "sha256": "859ff7aa0224f31f5452d4173ab514497af218b2b282016e3159f8902d066e24",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0dde6061470a7a7f2f05be6d1291f-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0dde6061470a7a7f2f05be6d1291f-bash.txt.tmp",
+      "source_bytes": 182,
+      "source_sha256": "060c5c4d71952b81693b8192df6227864db5ebffab9be1bfbe387f8d95129c74",
+      "bytes": 182,
+      "sha256": "060c5c4d71952b81693b8192df6227864db5ebffab9be1bfbe387f8d95129c74",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0dde6476e753b94ea69b7fdf9cd83-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0dde6476e753b94ea69b7fdf9cd83-bash.txt.tmp",
+      "source_bytes": 338,
+      "source_sha256": "bf082756717bb600ad8433bfca4cf352b640c6c9d6c25ed58a7096aaf3b6bffd",
+      "bytes": 338,
+      "sha256": "bf082756717bb600ad8433bfca4cf352b640c6c9d6c25ed58a7096aaf3b6bffd",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0dde6a6b0728fb8d3ea94fad0ba19-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0dde6a6b0728fb8d3ea94fad0ba19-bash.txt.tmp",
+      "source_bytes": 100,
+      "source_sha256": "f56345290b4631b84c8aa6111507433adaca4b281a13c989c2a70a609ca7a7d1",
+      "bytes": 100,
+      "sha256": "f56345290b4631b84c8aa6111507433adaca4b281a13c989c2a70a609ca7a7d1",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0dde6ebac728896880eb2b8b482fc-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0dde6ebac728896880eb2b8b482fc-bash.txt.tmp",
+      "source_bytes": 88,
+      "source_sha256": "e52928fb2f227cb6f99776d183887aac939913552f87c47029c9b0efa38f84ce",
+      "bytes": 88,
+      "sha256": "e52928fb2f227cb6f99776d183887aac939913552f87c47029c9b0efa38f84ce",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0dde792277287860af6e7202d4b0e-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0dde792277287860af6e7202d4b0e-bash.txt.tmp",
+      "source_bytes": 1491,
+      "source_sha256": "859870e98a349dc61e4c7f061d229e41300983f959b2042c81ab232e1206324a",
+      "bytes": 1491,
+      "sha256": "859870e98a349dc61e4c7f061d229e41300983f959b2042c81ab232e1206324a",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0dde7e71f74ad965ddcb0935fc34d-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0dde7e71f74ad965ddcb0935fc34d-bash.txt.tmp",
+      "source_bytes": 420,
+      "source_sha256": "f76791498a8967e127f969faf97670d99a872d8c8703aed888d59efdd9cb7b06",
+      "bytes": 420,
+      "sha256": "f76791498a8967e127f969faf97670d99a872d8c8703aed888d59efdd9cb7b06",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddecb695715a9723b4fca2d04ec1-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0ddecb695715a9723b4fca2d04ec1-bash.txt.tmp",
+      "source_bytes": 196,
+      "source_sha256": "82c344bf21836c8478020db8026a4c46c392b3472b498e39b507cd9fef201e9e",
+      "bytes": 196,
+      "sha256": "82c344bf21836c8478020db8026a4c46c392b3472b498e39b507cd9fef201e9e",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddee1f567429a4ca27d16440fe80-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0ddee1f567429a4ca27d16440fe80-bash.txt.tmp",
+      "source_bytes": 236,
+      "source_sha256": "762a0d8af98323b2f808f4409a53a8e70be7234ac397ec4bb43e2eadedf5d8d1",
+      "bytes": 236,
+      "sha256": "762a0d8af98323b2f808f4409a53a8e70be7234ac397ec4bb43e2eadedf5d8d1",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddee601d709e991d7d7a4cf5550b-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0ddee601d709e991d7d7a4cf5550b-bash.txt.tmp",
+      "source_bytes": 554,
+      "source_sha256": "f2b9af2d9d5362fb13fbd883f65350cd80c8b73d922cad66bfca6f3d3e714b26",
+      "bytes": 554,
+      "sha256": "f2b9af2d9d5362fb13fbd883f65350cd80c8b73d922cad66bfca6f3d3e714b26",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddeefcf1772da4fabda181ce5217-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0ddeefcf1772da4fabda181ce5217-bash.txt.tmp",
+      "source_bytes": 100,
+      "source_sha256": "1b0e1c2c2dc3f51a657e4d6cdd3db203b7e91b39833be11129723ae7d05425da",
+      "bytes": 100,
+      "sha256": "1b0e1c2c2dc3f51a657e4d6cdd3db203b7e91b39833be11129723ae7d05425da",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddef44af73b1940f5981e889f92b-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0ddef44af73b1940f5981e889f92b-bash.txt.tmp",
+      "source_bytes": 690,
+      "source_sha256": "8d3fd75a6512e6f9f0a09a43aee91f5a381805dd7713f8422b1a03154d674720",
+      "bytes": 690,
+      "sha256": "8d3fd75a6512e6f9f0a09a43aee91f5a381805dd7713f8422b1a03154d674720",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddef9dbe74a9b1c0291f30eae805-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0ddef9dbe74a9b1c0291f30eae805-bash.txt.tmp",
+      "source_bytes": 25,
+      "source_sha256": "4e91c8ea8b716c25b5fc7235bbfe3d9071ca4d93dc502c228a8ddeed84814ab8",
+      "bytes": 25,
+      "sha256": "4e91c8ea8b716c25b5fc7235bbfe3d9071ca4d93dc502c228a8ddeed84814ab8",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddf0313671638780c595807a35f1-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0ddf0313671638780c595807a35f1-bash.txt.tmp",
+      "source_bytes": 1913,
+      "source_sha256": "81283b4a342b8b84340d321a5ffddebd7f65f7c9874c41ce54950cf43234929a",
+      "bytes": 1913,
+      "sha256": "81283b4a342b8b84340d321a5ffddebd7f65f7c9874c41ce54950cf43234929a",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddf203ce74f9bfad3e22d21d6d91-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0ddf203ce74f9bfad3e22d21d6d91-bash.txt.tmp",
+      "source_bytes": 371,
+      "source_sha256": "9ff3f0b8fcbfb58562318bd807c6f9114bdc128e4e3db9c8507a5f8db3ce644d",
+      "bytes": 371,
+      "sha256": "9ff3f0b8fcbfb58562318bd807c6f9114bdc128e4e3db9c8507a5f8db3ce644d",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddf45d327252b0a70ecd58211d21-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0ddf45d327252b0a70ecd58211d21-bash.txt.tmp",
+      "source_bytes": 87,
+      "source_sha256": "6b491e34b0a5e18bc3e60b9a40d5e851cc0d7a5532e443efb758314a6d8acc93",
+      "bytes": 87,
+      "sha256": "6b491e34b0a5e18bc3e60b9a40d5e851cc0d7a5532e443efb758314a6d8acc93",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddf499b572dba753cb66e504ee45-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0ddf499b572dba753cb66e504ee45-bash.txt.tmp",
+      "source_bytes": 394,
+      "source_sha256": "52b764b331ed4bf78dacfc6f096fecbcc1414314066e6be2f685822cc288459c",
+      "bytes": 394,
+      "sha256": "52b764b331ed4bf78dacfc6f096fecbcc1414314066e6be2f685822cc288459c",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddf4df6f7182a2f9469dcd1cb4e6-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0ddf4df6f7182a2f9469dcd1cb4e6-bash.txt.tmp",
+      "source_bytes": 9,
+      "source_sha256": "d95ad9f59ed65122a5999ac957cefc3f186e504d67cde886e1a5a2bf8840f21d",
+      "bytes": 9,
+      "sha256": "d95ad9f59ed65122a5999ac957cefc3f186e504d67cde886e1a5a2bf8840f21d",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddf82c14752bbc1e7826392ed1d8-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0ddf82c14752bbc1e7826392ed1d8-bash.txt.tmp",
+      "source_bytes": 225,
+      "source_sha256": "d9bcbc1b1861d5b71f5c6f11a438636f48273054acd52f2bcaff7ac2f66b13bf",
+      "bytes": 225,
+      "sha256": "d9bcbc1b1861d5b71f5c6f11a438636f48273054acd52f2bcaff7ac2f66b13bf",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddfa8c14723fa4e1a9c29592b4ec-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0ddfa8c14723fa4e1a9c29592b4ec-bash.txt.tmp",
+      "source_bytes": 192,
+      "source_sha256": "4326aecf7240e68a735ae19724185fcb6838292042eed7e569a82e2d0bcc5e67",
+      "bytes": 192,
+      "sha256": "4326aecf7240e68a735ae19724185fcb6838292042eed7e569a82e2d0bcc5e67",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddfb03f976829ae30043f8df1c53-bash.txt.tmp",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/.spool/call_01a0ddfb03f976829ae30043f8df1c53-bash.txt.tmp",
+      "source_bytes": 110,
+      "source_sha256": "6bd547a06e1162ce13081188da2948fb8ccad46309661ed7941e217a6afad577",
+      "bytes": 110,
+      "sha256": "6bd547a06e1162ce13081188da2948fb8ccad46309661ed7941e217a6afad577",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddd4-49cb-7cb1-824a-a9fdf88a5b38/call_01a0ddd43c5972ed8eab05391dbb2d01-web_fetch-page.txt",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddd4-49cb-7cb1-824a-a9fdf88a5b38/call_01a0ddd43c5972ed8eab05391dbb2d01-web_fetch-page.txt",
+      "source_bytes": 22637,
+      "source_sha256": "365fcaa61c374038cef704f7fe4c2cff3b29fc408178f7bb973d9a5fe33cc619",
+      "bytes": 22637,
+      "sha256": "365fcaa61c374038cef704f7fe4c2cff3b29fc408178f7bb973d9a5fe33cc619",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddd9-b337-7bf3-bb74-8b726c441daa/call_01a0ddd970ac71eea5cf9bf8deebeb7c-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddd9-b337-7bf3-bb74-8b726c441daa/call_01a0ddd970ac71eea5cf9bf8deebeb7c-tool_patch.json",
+      "source_bytes": 689,
+      "source_sha256": "940e74f6ae61e7713886c0bb0d4d87afd2468be37e547b91ca422503892ddad4",
+      "bytes": 689,
+      "sha256": "940e74f6ae61e7713886c0bb0d4d87afd2468be37e547b91ca422503892ddad4",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddd9-b359-7c21-836d-4feb721fb770/call_01a0ddd97e257344aa8080135db52337-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddd9-b359-7c21-836d-4feb721fb770/call_01a0ddd97e257344aa8080135db52337-tool_patch.json",
+      "source_bytes": 368,
+      "source_sha256": "ab1e39e45ff24a6c609fd80d5addd37caaee5992d88b24ee9629b7538c69b1a4",
+      "bytes": 368,
+      "sha256": "ab1e39e45ff24a6c609fd80d5addd37caaee5992d88b24ee9629b7538c69b1a4",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddd9-b37b-7430-97bc-db63ae5e92ac/call_01a0ddd98664705b899e69358176b460-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddd9-b37b-7430-97bc-db63ae5e92ac/call_01a0ddd98664705b899e69358176b460-tool_patch.json",
+      "source_bytes": 1105,
+      "source_sha256": "1c6a29bb5dedd1d75a1f076a44a5ad4e7e1fb9f615b092235fcc04f0ccdb5047",
+      "bytes": 1105,
+      "sha256": "1c6a29bb5dedd1d75a1f076a44a5ad4e7e1fb9f615b092235fcc04f0ccdb5047",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddd9-b39d-7fe1-869e-0e7b35436c9f/call_01a0ddd99a1576c9acca41c340854ae6-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddd9-b39d-7fe1-869e-0e7b35436c9f/call_01a0ddd99a1576c9acca41c340854ae6-tool_patch.json",
+      "source_bytes": 1101,
+      "source_sha256": "b4687506d029c79ee8a21c05dbfe7cc4528b18a5e7b231e74ac901f56b251321",
+      "bytes": 1101,
+      "sha256": "b4687506d029c79ee8a21c05dbfe7cc4528b18a5e7b231e74ac901f56b251321",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddda-5b5c-7961-9701-57112a35ee4b/call_01a0ddd9ba57774eba2b7ae89a2643b7-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddda-5b5c-7961-9701-57112a35ee4b/call_01a0ddd9ba57774eba2b7ae89a2643b7-tool_patch.json",
+      "source_bytes": 5605,
+      "source_sha256": "a89dc2d5c757c9fd3f5d2f4894e458d9c03871cafa7bcf25d46869331c5666c3",
+      "bytes": 5605,
+      "sha256": "a89dc2d5c757c9fd3f5d2f4894e458d9c03871cafa7bcf25d46869331c5666c3",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddda-5b83-7030-9cb7-1433159096c5/call_01a0ddda179875c8bbbc146368085229-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddda-5b83-7030-9cb7-1433159096c5/call_01a0ddda179875c8bbbc146368085229-tool_patch.json",
+      "source_bytes": 1855,
+      "source_sha256": "0f389283045018161821b5739d541a70db829ef65f18feed0a65b2d4a19781d2",
+      "bytes": 1855,
+      "sha256": "0f389283045018161821b5739d541a70db829ef65f18feed0a65b2d4a19781d2",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddda-5bb0-7d23-a249-8a2532ffe283/call_01a0ddda419c73b8999c82e3c92ad815-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddda-5bb0-7d23-a249-8a2532ffe283/call_01a0ddda419c73b8999c82e3c92ad815-tool_patch.json",
+      "source_bytes": 1610,
+      "source_sha256": "20b9fb5151f42be2dd92b1dd0effdce3e95610af5e9cd78b8c9a1774b865ecff",
+      "bytes": 1610,
+      "sha256": "20b9fb5151f42be2dd92b1dd0effdce3e95610af5e9cd78b8c9a1774b865ecff",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddda-e507-7f01-9add-d100446679e4/call_01a0ddda759071b9aa10d0411830b16d-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddda-e507-7f01-9add-d100446679e4/call_01a0ddda759071b9aa10d0411830b16d-tool_patch.json",
+      "source_bytes": 2335,
+      "source_sha256": "4dbee9c77855a2e438cf88e32dc6812448383abe4c6f1adf0980a7e0b98f8055",
+      "bytes": 2335,
+      "sha256": "4dbee9c77855a2e438cf88e32dc6812448383abe4c6f1adf0980a7e0b98f8055",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddda-e52b-7013-8026-bce104bd99dc/call_01a0ddda9b647438a07437b0f3560bb7-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddda-e52b-7013-8026-bce104bd99dc/call_01a0ddda9b647438a07437b0f3560bb7-tool_patch.json",
+      "source_bytes": 2315,
+      "source_sha256": "817fe919f1937919d58440293cea39cfbec43e440fbd5fa74e9fff2ff0b56395",
+      "bytes": 2315,
+      "sha256": "817fe919f1937919d58440293cea39cfbec43e440fbd5fa74e9fff2ff0b56395",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddda-e554-7642-b74d-d66c3d798b0b/call_01a0dddabde172fdaa2a6d505d1a1e93-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddda-e554-7642-b74d-d66c3d798b0b/call_01a0dddabde172fdaa2a6d505d1a1e93-tool_patch.json",
+      "source_bytes": 2047,
+      "source_sha256": "cf871d4005907fbcc7097404383c5b631b6e672bf1c61439d422469b1e99522c",
+      "bytes": 2047,
+      "sha256": "cf871d4005907fbcc7097404383c5b631b6e672bf1c61439d422469b1e99522c",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddda-e57f-7a01-ad59-80b48c567f9d/call_01a0dddadf0c76d9b304689bdd396116-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddda-e57f-7a01-ad59-80b48c567f9d/call_01a0dddadf0c76d9b304689bdd396116-tool_patch.json",
+      "source_bytes": 256,
+      "source_sha256": "4b8c99237ae9fd5a500db271bd9b162c38c97151303e4a051ad6c2f45bd71058",
+      "bytes": 256,
+      "sha256": "4b8c99237ae9fd5a500db271bd9b162c38c97151303e4a051ad6c2f45bd71058",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0dddb-9113-7601-ae92-5c50afc0d524/call_01a0dddaefc270a1b9eec8d1bd5e369d-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0dddb-9113-7601-ae92-5c50afc0d524/call_01a0dddaefc270a1b9eec8d1bd5e369d-tool_patch.json",
+      "source_bytes": 7460,
+      "source_sha256": "26859274edaa2918d0ce5b795d34f08d76d7dd2387ce2c6f5977ddf0aec1866d",
+      "bytes": 7460,
+      "sha256": "26859274edaa2918d0ce5b795d34f08d76d7dd2387ce2c6f5977ddf0aec1866d",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0dddb-913b-7873-bb71-1088bf25660e/call_01a0dddb5c3577faa3dabf051fdaa508-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0dddb-913b-7873-bb71-1088bf25660e/call_01a0dddb5c3577faa3dabf051fdaa508-tool_patch.json",
+      "source_bytes": 1820,
+      "source_sha256": "fe96c9b0d238a0fdc419ba3fc090e4fad25a95c1a9b90d775290ca773d35e962",
+      "bytes": 1820,
+      "sha256": "fe96c9b0d238a0fdc419ba3fc090e4fad25a95c1a9b90d775290ca773d35e962",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0dddb-915e-7361-b067-585ed989eb4e/call_01a0dddb803375b5a909a245581ec89b-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0dddb-915e-7361-b067-585ed989eb4e/call_01a0dddb803375b5a909a245581ec89b-tool_patch.json",
+      "source_bytes": 216,
+      "source_sha256": "65fd6d2ea47c9aa73aa5f23c52132cc782000ef66df6bcd0163c1322f0a35bd1",
+      "bytes": 216,
+      "sha256": "65fd6d2ea47c9aa73aa5f23c52132cc782000ef66df6bcd0163c1322f0a35bd1",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0dddb-9188-70f2-9280-b456bf138bdb/call_01a0dddb86f374f6ae9e784de7b0d037-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0dddb-9188-70f2-9280-b456bf138bdb/call_01a0dddb86f374f6ae9e784de7b0d037-tool_patch.json",
+      "source_bytes": 463,
+      "source_sha256": "37ec839868177171cb57332fdbac3c5f226914dfc3e13d1034a299a9c6d2c821",
+      "bytes": 463,
+      "sha256": "37ec839868177171cb57332fdbac3c5f226914dfc3e13d1034a299a9c6d2c821",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0dddc-2d02-7401-b4d9-504da4208342/call_01a0dddc12fb77968881cda14bd883a1-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0dddc-2d02-7401-b4d9-504da4208342/call_01a0dddc12fb77968881cda14bd883a1-tool_patch.json",
+      "source_bytes": 556,
+      "source_sha256": "3d813529d1d571de5b4e52b81da61e1c28f527b43b4fe44ee3f22bdcacec81fa",
+      "bytes": 556,
+      "sha256": "3d813529d1d571de5b4e52b81da61e1c28f527b43b4fe44ee3f22bdcacec81fa",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0dddc-2d29-74a2-9d96-88cdf2c1a6b5/call_01a0dddc1d1374268d0d3b110fe5df13-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0dddc-2d29-74a2-9d96-88cdf2c1a6b5/call_01a0dddc1d1374268d0d3b110fe5df13-tool_patch.json",
+      "source_bytes": 751,
+      "source_sha256": "e2c6eee7f26e778b21e92453554a2711c33339bfe55a481c00570c8784d5b492",
+      "bytes": 751,
+      "sha256": "e2c6eee7f26e778b21e92453554a2711c33339bfe55a481c00570c8784d5b492",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0dddc-d9cb-7471-9dad-94dd16cd4822/call_01a0dddcc63f7595bd265871475d8db8-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0dddc-d9cb-7471-9dad-94dd16cd4822/call_01a0dddcc63f7595bd265871475d8db8-tool_patch.json",
+      "source_bytes": 256,
+      "source_sha256": "ae1daff9647b30fe449ca306e83e99cb0ec726e070f45a0dc728e31ce15cb134",
+      "bytes": 256,
+      "sha256": "ae1daff9647b30fe449ca306e83e99cb0ec726e070f45a0dc728e31ce15cb134",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0dddc-d9f6-7b13-af0c-831e3bfb910c/call_01a0dddccbb574ce939d9a41905bb766-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0dddc-d9f6-7b13-af0c-831e3bfb910c/call_01a0dddccbb574ce939d9a41905bb766-tool_patch.json",
+      "source_bytes": 684,
+      "source_sha256": "4863b8d29f9e982b8fc64078c552a0a0669cdf668da950f22d81199ce4d1d4b1",
+      "bytes": 684,
+      "sha256": "4863b8d29f9e982b8fc64078c552a0a0669cdf668da950f22d81199ce4d1d4b1",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0dddc-ef43-7ee3-b43d-c6c951382003/call_01a0dddcdf0570ff828a17612dc87824-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0dddc-ef43-7ee3-b43d-c6c951382003/call_01a0dddcdf0570ff828a17612dc87824-tool_patch.json",
+      "source_bytes": 877,
+      "source_sha256": "b6256cbd827aa278bc658273c07cdf52a1f8247b4c0267858e3f3419d464f0eb",
+      "bytes": 877,
+      "sha256": "b6256cbd827aa278bc658273c07cdf52a1f8247b4c0267858e3f3419d464f0eb",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0dddd-04c4-7493-9f51-f349d883de7f/call_01a0dddcf8617198836900affdb11f0c-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0dddd-04c4-7493-9f51-f349d883de7f/call_01a0dddcf8617198836900affdb11f0c-tool_patch.json",
+      "source_bytes": 607,
+      "source_sha256": "637de26113eb1952e0b4f6d2053fd2c21b2709b63462a7931becba4b6f8303d7",
+      "bytes": 607,
+      "sha256": "637de26113eb1952e0b4f6d2053fd2c21b2709b63462a7931becba4b6f8303d7",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0dddd-213f-70a0-9a5a-0a1ddc9330af/call_01a0dddd0c2973618ee26bda36fe8ab6-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0dddd-213f-70a0-9a5a-0a1ddc9330af/call_01a0dddd0c2973618ee26bda36fe8ab6-tool_patch.json",
+      "source_bytes": 455,
+      "source_sha256": "a008262d149a783126b0ae8ff233d2322dcb48c3017722e0b18b4ef7fe38bfc2",
+      "bytes": 455,
+      "sha256": "a008262d149a783126b0ae8ff233d2322dcb48c3017722e0b18b4ef7fe38bfc2",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0dddd-52fb-7cb3-a09f-5839fb006820/call_01a0dddd497973debce35b6ecdcda4f5-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0dddd-52fb-7cb3-a09f-5839fb006820/call_01a0dddd497973debce35b6ecdcda4f5-tool_patch.json",
+      "source_bytes": 705,
+      "source_sha256": "f116bbb3996260dae63795f8b79b0a3d43a76039fa85b34b5a2f6ebdc669db3c",
+      "bytes": 705,
+      "sha256": "f116bbb3996260dae63795f8b79b0a3d43a76039fa85b34b5a2f6ebdc669db3c",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0dde0-5d3d-79f3-a2fc-0d671c11bb1c/call_01a0dde048a17259a3b51c598ee9d8ec-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0dde0-5d3d-79f3-a2fc-0d671c11bb1c/call_01a0dde048a17259a3b51c598ee9d8ec-tool_patch.json",
+      "source_bytes": 390,
+      "source_sha256": "01c81917b003cf30abb425a2c74352de7f6dc446e88e37bb79ad8b59c20aa1f7",
+      "bytes": 390,
+      "sha256": "01c81917b003cf30abb425a2c74352de7f6dc446e88e37bb79ad8b59c20aa1f7",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0dde0-5d60-7801-8c2e-a915a99fb9e9/call_01a0dde04e4d7548a2d190cb988c11ac-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0dde0-5d60-7801-8c2e-a915a99fb9e9/call_01a0dde04e4d7548a2d190cb988c11ac-tool_patch.json",
+      "source_bytes": 419,
+      "source_sha256": "976d162ab4e935d67f8b0b5701bd86aed99e912f3f948e2a05f8c4b1a8693b9e",
+      "bytes": 419,
+      "sha256": "976d162ab4e935d67f8b0b5701bd86aed99e912f3f948e2a05f8c4b1a8693b9e",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0dde0-5d83-7553-b274-7336abd0c59e/call_01a0dde055b973b186d8a67082813d4f-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0dde0-5d83-7553-b274-7336abd0c59e/call_01a0dde055b973b186d8a67082813d4f-tool_patch.json",
+      "source_bytes": 708,
+      "source_sha256": "4f473bd23cc6ff0dd8059ed0ac83c4f68300d0b5235dbdee459c584d8cda8c0b",
+      "bytes": 708,
+      "sha256": "4f473bd23cc6ff0dd8059ed0ac83c4f68300d0b5235dbdee459c584d8cda8c0b",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0dde1-35d2-77c2-8b0f-812e7041d268/call_01a0dde12b7172e3a365ef671358778f-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0dde1-35d2-77c2-8b0f-812e7041d268/call_01a0dde12b7172e3a365ef671358778f-tool_patch.json",
+      "source_bytes": 656,
+      "source_sha256": "0dbf05cb95de51babcc3fa8b1d0755d21c64abd1334f1480d7bb2c4044cf45d3",
+      "bytes": 656,
+      "sha256": "0dbf05cb95de51babcc3fa8b1d0755d21c64abd1334f1480d7bb2c4044cf45d3",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0dde2-682a-74d1-a680-9e08fd6d6ece/call_01a0dde25f76772aa7e3ebe356947068-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0dde2-682a-74d1-a680-9e08fd6d6ece/call_01a0dde25f76772aa7e3ebe356947068-tool_patch.json",
+      "source_bytes": 531,
+      "source_sha256": "6c34f87833d4b6623f79ba912b94b79f562b7da42b00cb255c8afb897d485823",
+      "bytes": 531,
+      "sha256": "6c34f87833d4b6623f79ba912b94b79f562b7da42b00cb255c8afb897d485823",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0dde2-e44d-7491-9588-8ec7202e7294/call_01a0dde26f08742db3434725fe1b2a4d-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0dde2-e44d-7491-9588-8ec7202e7294/call_01a0dde26f08742db3434725fe1b2a4d-tool_patch.json",
+      "source_bytes": 6339,
+      "source_sha256": "dc9d2384d3d44b5589c02dcfdd6917dabc936787f22633cb1f24471475d9df2d",
+      "bytes": 6339,
+      "sha256": "dc9d2384d3d44b5589c02dcfdd6917dabc936787f22633cb1f24471475d9df2d",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0dde3-4c67-7d23-aec6-339f85e7578b/call_01a0dde2ed8172059cd28a1ecefd0f8a-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0dde3-4c67-7d23-aec6-339f85e7578b/call_01a0dde2ed8172059cd28a1ecefd0f8a-tool_patch.json",
+      "source_bytes": 5306,
+      "source_sha256": "f1b0d362c18490f7ba03e0dd7661f686094031008d97a4ea748d52ace00ea30b",
+      "bytes": 5306,
+      "sha256": "f1b0d362c18490f7ba03e0dd7661f686094031008d97a4ea748d52ace00ea30b",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0dde3-73cf-7552-8e22-db6280d19a98/call_01a0dde360da70498ba2a2bceb9b2494-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0dde3-73cf-7552-8e22-db6280d19a98/call_01a0dde360da70498ba2a2bceb9b2494-tool_patch.json",
+      "source_bytes": 765,
+      "source_sha256": "b66610c9856cf6c81741f966b136b0e2f6bfda9e01167ca7aeb625931ada767d",
+      "bytes": 765,
+      "sha256": "b66610c9856cf6c81741f966b136b0e2f6bfda9e01167ca7aeb625931ada767d",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0dde3-73f7-7cd1-a1ef-47f608f2c06e/call_01a0dde36a98705eb5d150b2aede7d3f-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0dde3-73f7-7cd1-a1ef-47f608f2c06e/call_01a0dde36a98705eb5d150b2aede7d3f-tool_patch.json",
+      "source_bytes": 508,
+      "source_sha256": "914a2fcf4d8ca71516e41e3b068cd35486210b68b58111bc38f8a91b4eecffa6",
+      "bytes": 508,
+      "sha256": "914a2fcf4d8ca71516e41e3b068cd35486210b68b58111bc38f8a91b4eecffa6",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0dde3-bc9b-7bb2-b74c-93a68d72588a/call_01a0dde37fcb70d5a0794813eddeca18-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0dde3-bc9b-7bb2-b74c-93a68d72588a/call_01a0dde37fcb70d5a0794813eddeca18-tool_patch.json",
+      "source_bytes": 2440,
+      "source_sha256": "2d49dc72a4e6b50675697cfaa2717c5c3af193c626d7fd65150a219d7167c77b",
+      "bytes": 2440,
+      "sha256": "2d49dc72a4e6b50675697cfaa2717c5c3af193c626d7fd65150a219d7167c77b",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0dde3-bcc3-7610-bd9c-dda039f52ab1/call_01a0dde3b0f871b0985576b8f6bfc71a-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0dde3-bcc3-7610-bd9c-dda039f52ab1/call_01a0dde3b0f871b0985576b8f6bfc71a-tool_patch.json",
+      "source_bytes": 682,
+      "source_sha256": "9f9f9b3e3741713543d858ff7415669edbb5aba37b89c3fe1410790c87510174",
+      "bytes": 682,
+      "sha256": "9f9f9b3e3741713543d858ff7415669edbb5aba37b89c3fe1410790c87510174",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0dde3-fa58-78e2-b920-518402e16337/call_01a0dde3c2f2718991cd1b1c1fba5330-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0dde3-fa58-78e2-b920-518402e16337/call_01a0dde3c2f2718991cd1b1c1fba5330-tool_patch.json",
+      "source_bytes": 2789,
+      "source_sha256": "6366936c2a4df46d25a58beab666efb61d5226401ecfebde0e71f5f45aff3df3",
+      "bytes": 2789,
+      "sha256": "6366936c2a4df46d25a58beab666efb61d5226401ecfebde0e71f5f45aff3df3",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0dde3-fa80-7ae1-b381-6a45b7e1a593/call_01a0dde3f14c77d89ac85af380bc8a4f-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0dde3-fa80-7ae1-b381-6a45b7e1a593/call_01a0dde3f14c77d89ac85af380bc8a4f-tool_patch.json",
+      "source_bytes": 402,
+      "source_sha256": "f9d28e8673c0f981c49aa358a24b1eb3bcc028c4757f2b41b4342173a45681ff",
+      "bytes": 402,
+      "sha256": "f9d28e8673c0f981c49aa358a24b1eb3bcc028c4757f2b41b4342173a45681ff",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0dde4-1f18-70a0-9184-b89af3fdbde1/call_01a0dde3fffb733bbe32879e4714a241-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0dde4-1f18-70a0-9184-b89af3fdbde1/call_01a0dde3fffb733bbe32879e4714a241-tool_patch.json",
+      "source_bytes": 1821,
+      "source_sha256": "cb2a5a543ed68d910a8b7f53066e57f1cd5f904c8f36017b6a9a2a54c6dcc052",
+      "bytes": 1821,
+      "sha256": "cb2a5a543ed68d910a8b7f53066e57f1cd5f904c8f36017b6a9a2a54c6dcc052",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0dde4-b100-75f3-9635-eac2381e2045/call_01a0dde42c3f7346b6f7a6bc3d28bb59-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0dde4-b100-75f3-9635-eac2381e2045/call_01a0dde42c3f7346b6f7a6bc3d28bb59-tool_patch.json",
+      "source_bytes": 5540,
+      "source_sha256": "e02d8cc7fcf2cd0a0e271d2175586af02d263d40954ce6dfef27bdd5a652e6de",
+      "bytes": 5540,
+      "sha256": "e02d8cc7fcf2cd0a0e271d2175586af02d263d40954ce6dfef27bdd5a652e6de",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0dde4-c955-7133-afb6-c3a609e7c964/call_01a0dde4bc7474ecb4c1150a34237fd0-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0dde4-c955-7133-afb6-c3a609e7c964/call_01a0dde4bc7474ecb4c1150a34237fd0-tool_patch.json",
+      "source_bytes": 776,
+      "source_sha256": "198bb66c784fa2eb7f2d255e1e0f9630a9f054d75bedcfa4d7a71f66f67901ad",
+      "bytes": 776,
+      "sha256": "198bb66c784fa2eb7f2d255e1e0f9630a9f054d75bedcfa4d7a71f66f67901ad",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0dde5-e7be-7f41-a404-003ea8a22131/call_01a0dde5d728730bb06f2cfac9038469-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0dde5-e7be-7f41-a404-003ea8a22131/call_01a0dde5d728730bb06f2cfac9038469-tool_patch.json",
+      "source_bytes": 885,
+      "source_sha256": "0215e855a32e4026478deca021b0e08c5389484cb229a6ee97e0f6db3a256340",
+      "bytes": 885,
+      "sha256": "0215e855a32e4026478deca021b0e08c5389484cb229a6ee97e0f6db3a256340",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0dde6-002c-7e23-89bd-793cdc85ce95/call_01a0dde5f21e74d8b0eb02b7585c38fd-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0dde6-002c-7e23-89bd-793cdc85ce95/call_01a0dde5f21e74d8b0eb02b7585c38fd-tool_patch.json",
+      "source_bytes": 561,
+      "source_sha256": "ebb10ca6754cebf7b5c454762e65fd7e208f6ad5e313b82a0cc2077eb103fe9d",
+      "bytes": 561,
+      "sha256": "ebb10ca6754cebf7b5c454762e65fd7e208f6ad5e313b82a0cc2077eb103fe9d",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0dde6-9fc7-7703-8a82-cf4826aaa3c7/call_01a0dde689c7746688f7a95bc823c0e1-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0dde6-9fc7-7703-8a82-cf4826aaa3c7/call_01a0dde689c7746688f7a95bc823c0e1-tool_patch.json",
+      "source_bytes": 1080,
+      "source_sha256": "e75a42a692037d0626e32a2a131bcf3849472ad10650b45da4a372ad3acb51c8",
+      "bytes": 1080,
+      "sha256": "e75a42a692037d0626e32a2a131bcf3849472ad10650b45da4a372ad3acb51c8",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0dde6-9feb-79b0-b21d-33e390eb0e39/call_01a0dde6952373a8af7da0f8e4f29e06-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0dde6-9feb-79b0-b21d-33e390eb0e39/call_01a0dde6952373a8af7da0f8e4f29e06-tool_patch.json",
+      "source_bytes": 586,
+      "source_sha256": "0fb7af22ea4e9173c121c3fe56761d6fc37908f28ebab838bc8b5ce8682089bb",
+      "bytes": 586,
+      "sha256": "0fb7af22ea4e9173c121c3fe56761d6fc37908f28ebab838bc8b5ce8682089bb",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0dde7-d7ec-7bb1-ad76-8dd7080c08b7/call_01a0dde7c19671aa92db9640d992463a-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0dde7-d7ec-7bb1-ad76-8dd7080c08b7/call_01a0dde7c19671aa92db9640d992463a-tool_patch.json",
+      "source_bytes": 504,
+      "source_sha256": "d7d05836e23898669e1f6a5e1b9046126299f43156462b765cd7c4034dc47355",
+      "bytes": 504,
+      "sha256": "d7d05836e23898669e1f6a5e1b9046126299f43156462b765cd7c4034dc47355",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0dde7-d81c-7fd2-bbb6-c14f9ff0ad26/call_01a0dde7cc46770fa0ec61603bcc1a5c-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0dde7-d81c-7fd2-bbb6-c14f9ff0ad26/call_01a0dde7cc46770fa0ec61603bcc1a5c-tool_patch.json",
+      "source_bytes": 507,
+      "source_sha256": "f46ff8437dd5a63a54a2691fb15912d048826ba919ac0de3adcffca82d779453",
+      "bytes": 507,
+      "sha256": "f46ff8437dd5a63a54a2691fb15912d048826ba919ac0de3adcffca82d779453",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddea-ed69-72b2-a5ce-a323b2b3e0c3/call_01a0ddea520e72b1908efb51aeb96d62-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddea-ed69-72b2-a5ce-a323b2b3e0c3/call_01a0ddea520e72b1908efb51aeb96d62-tool_patch.json",
+      "source_bytes": 8101,
+      "source_sha256": "54a62d3f1f7ede1b987b1de6bb7ac76dcd5098281a7928df45b2ab6630802ee8",
+      "bytes": 8101,
+      "sha256": "54a62d3f1f7ede1b987b1de6bb7ac76dcd5098281a7928df45b2ab6630802ee8",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddeb-7cc0-7d02-a6c8-b1a2af1932b8/call_01a0ddeb62c477c9886b61c5bc9602bc-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddeb-7cc0-7d02-a6c8-b1a2af1932b8/call_01a0ddeb62c477c9886b61c5bc9602bc-tool_patch.json",
+      "source_bytes": 373,
+      "source_sha256": "fb69d7529227ad892600175b6907713a80ff42f23071c9d5db89da7c665a84a5",
+      "bytes": 373,
+      "sha256": "fb69d7529227ad892600175b6907713a80ff42f23071c9d5db89da7c665a84a5",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddeb-7ce6-7b11-93aa-feef161e0e30/call_01a0ddeb6cb871b9840dca60bff01006-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddeb-7ce6-7b11-93aa-feef161e0e30/call_01a0ddeb6cb871b9840dca60bff01006-tool_patch.json",
+      "source_bytes": 489,
+      "source_sha256": "5a47165d16d2c201318dd094f94a077abb716467e2d69488839042e1944734fb",
+      "bytes": 489,
+      "sha256": "5a47165d16d2c201318dd094f94a077abb716467e2d69488839042e1944734fb",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddeb-e5af-7fa3-bb07-563dda242d4d/call_01a0ddeb90bb736cbb5e7fa603833508-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddeb-e5af-7fa3-bb07-563dda242d4d/call_01a0ddeb90bb736cbb5e7fa603833508-tool_patch.json",
+      "source_bytes": 2516,
+      "source_sha256": "79b6d5b35654a2ffd655394def6025894a5b02e5796eb0fed5fa5905bed37c70",
+      "bytes": 2516,
+      "sha256": "79b6d5b35654a2ffd655394def6025894a5b02e5796eb0fed5fa5905bed37c70",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddec-342e-72d0-878d-f78aa835a6cd/call_01a0ddec1e017442aaa29fd641023e79-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddec-342e-72d0-878d-f78aa835a6cd/call_01a0ddec1e017442aaa29fd641023e79-tool_patch.json",
+      "source_bytes": 632,
+      "source_sha256": "5ff8f97f346b2568d72f0074107de247bda60bda90670919048f771c2f6cb191",
+      "bytes": 632,
+      "sha256": "5ff8f97f346b2568d72f0074107de247bda60bda90670919048f771c2f6cb191",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddec-3451-73f3-9e62-05392e79568a/call_01a0ddec26eb70fa980b924d3d034c1a-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddec-3451-73f3-9e62-05392e79568a/call_01a0ddec26eb70fa980b924d3d034c1a-tool_patch.json",
+      "source_bytes": 882,
+      "source_sha256": "617e96fd50cc8c65031199cf74af33775a2364c1843aa31ddd2d9d641af73e58",
+      "bytes": 882,
+      "sha256": "617e96fd50cc8c65031199cf74af33775a2364c1843aa31ddd2d9d641af73e58",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddec-6218-7801-ab9d-a36e4a761c25/call_01a0ddec55ac763a924f17689ee6ff99-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddec-6218-7801-ab9d-a36e4a761c25/call_01a0ddec55ac763a924f17689ee6ff99-tool_patch.json",
+      "source_bytes": 357,
+      "source_sha256": "32fe8a4c918afefb0a042ca0e47c3b90e3f432b7c1402e7ea895b6a5b868704f",
+      "bytes": 357,
+      "sha256": "32fe8a4c918afefb0a042ca0e47c3b90e3f432b7c1402e7ea895b6a5b868704f",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddec-a904-71b1-a306-3dc0278a3d4e/call_01a0ddec9d4476ada47d398e01f91fc0-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddec-a904-71b1-a306-3dc0278a3d4e/call_01a0ddec9d4476ada47d398e01f91fc0-tool_patch.json",
+      "source_bytes": 694,
+      "source_sha256": "509e3b7c072d8b722e3d020a00d87d251fe9736f535d429b3f3df6197637bb02",
+      "bytes": 694,
+      "sha256": "509e3b7c072d8b722e3d020a00d87d251fe9736f535d429b3f3df6197637bb02",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddec-f382-7ec3-8fd2-347d7e03bd87/call_01a0ddecc9ba72db815a8c776da3ebc1-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddec-f382-7ec3-8fd2-347d7e03bd87/call_01a0ddecc9ba72db815a8c776da3ebc1-tool_patch.json",
+      "source_bytes": 1792,
+      "source_sha256": "aea875099b904f40e3b23364a00badba7e14d2f64e7dff4cb53a9d428f78305a",
+      "bytes": 1792,
+      "sha256": "aea875099b904f40e3b23364a00badba7e14d2f64e7dff4cb53a9d428f78305a",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddec-f3a5-7c91-b132-343e5b169792/call_01a0ddece92c75b8ac322261ff6e1285-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddec-f3a5-7c91-b132-343e5b169792/call_01a0ddece92c75b8ac322261ff6e1285-tool_patch.json",
+      "source_bytes": 456,
+      "source_sha256": "e52780e3fcd56fef4503eec6c6fdadb1b530a0e8ace5f7759a1c6fa917a81ce7",
+      "bytes": 456,
+      "sha256": "e52780e3fcd56fef4503eec6c6fdadb1b530a0e8ace5f7759a1c6fa917a81ce7",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0dded-2f09-7010-9eb3-38a0b3125bf0/call_01a0dded046574d7be83fba3092b4446-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0dded-2f09-7010-9eb3-38a0b3125bf0/call_01a0dded046574d7be83fba3092b4446-tool_patch.json",
+      "source_bytes": 2104,
+      "source_sha256": "f4119a71aad5117d92f147c73609d1c95c8d80981f07fa1a7295fccfe80d641c",
+      "bytes": 2104,
+      "sha256": "f4119a71aad5117d92f147c73609d1c95c8d80981f07fa1a7295fccfe80d641c",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0dded-de47-7262-abda-fcb54bf5a747/call_01a0dded63b171a685e41e737424daab-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0dded-de47-7262-abda-fcb54bf5a747/call_01a0dded63b171a685e41e737424daab-tool_patch.json",
+      "source_bytes": 7098,
+      "source_sha256": "b52ffa9baa37cced647f2897c826ad5bb37d2dea617dd175c04a619545b1dfa8",
+      "bytes": 7098,
+      "sha256": "b52ffa9baa37cced647f2897c826ad5bb37d2dea617dd175c04a619545b1dfa8",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddee-da98-70d2-bb58-cc1b297254b6/call_01a0ddeeb29270769c365043bc5ecef6-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddee-da98-70d2-bb58-cc1b297254b6/call_01a0ddeeb29270769c365043bc5ecef6-tool_patch.json",
+      "source_bytes": 2899,
+      "source_sha256": "88e9cc2090cf91bcec6fbdc701f0ffe427471472e5bcf38b08584981f290f467",
+      "bytes": 2899,
+      "sha256": "88e9cc2090cf91bcec6fbdc701f0ffe427471472e5bcf38b08584981f290f467",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddef-fbe8-7581-aa12-b6e16fc29841/call_01a0ddefd5f074f4a82d7149a15f79d4-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddef-fbe8-7581-aa12-b6e16fc29841/call_01a0ddefd5f074f4a82d7149a15f79d4-tool_patch.json",
+      "source_bytes": 578,
+      "source_sha256": "7b3a807159f1a861edfe2fbd87853fa1d7156c317ad666a21dcc593a5eabef57",
+      "bytes": 578,
+      "sha256": "7b3a807159f1a861edfe2fbd87853fa1d7156c317ad666a21dcc593a5eabef57",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddef-fc0d-7f93-a94e-5e16bd45d58b/call_01a0ddefe61c7492b6f03fa619938360-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddef-fc0d-7f93-a94e-5e16bd45d58b/call_01a0ddefe61c7492b6f03fa619938360-tool_patch.json",
+      "source_bytes": 477,
+      "source_sha256": "118dd883caac784acc5b75b86956a7714eb84b1047feb5195ec1dea529db9cfe",
+      "bytes": 477,
+      "sha256": "118dd883caac784acc5b75b86956a7714eb84b1047feb5195ec1dea529db9cfe",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddef-fc5a-7502-9448-43c14d419c02/call_01a0ddefeecb729191f5ecd153b0fb43-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddef-fc5a-7502-9448-43c14d419c02/call_01a0ddefeecb729191f5ecd153b0fb43-tool_patch.json",
+      "source_bytes": 523,
+      "source_sha256": "8256b3c6a20a6562c356ee101f5dec4406848cf209cb5c85710d7eb960b3d88e",
+      "bytes": 523,
+      "sha256": "8256b3c6a20a6562c356ee101f5dec4406848cf209cb5c85710d7eb960b3d88e",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf0-16fb-7a63-8e90-c299f9dbfbd3/call_01a0ddf00a6874198af87df833454d4c-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddf0-16fb-7a63-8e90-c299f9dbfbd3/call_01a0ddf00a6874198af87df833454d4c-tool_patch.json",
+      "source_bytes": 493,
+      "source_sha256": "a715092fa7c8ee0b2a77873bb4742dba16822ba043e736ea684b7d99b4c35fe8",
+      "bytes": 493,
+      "sha256": "a715092fa7c8ee0b2a77873bb4742dba16822ba043e736ea684b7d99b4c35fe8",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf1-ec68-7f03-bcd3-497cf7fff3b5/call_01a0ddf1d64776c9ba703d9c7e80c4b3-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddf1-ec68-7f03-bcd3-497cf7fff3b5/call_01a0ddf1d64776c9ba703d9c7e80c4b3-tool_patch.json",
+      "source_bytes": 566,
+      "source_sha256": "d643be3fdcc1f8ca30e49c352cb5fcd55acb7338729e66d3f0413687886a1532",
+      "bytes": 566,
+      "sha256": "d643be3fdcc1f8ca30e49c352cb5fcd55acb7338729e66d3f0413687886a1532",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf1-ec90-7192-9bec-395f8121645b/call_01a0ddf1e125762ba7086f3e073bb589-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddf1-ec90-7192-9bec-395f8121645b/call_01a0ddf1e125762ba7086f3e073bb589-tool_patch.json",
+      "source_bytes": 444,
+      "source_sha256": "c522034d99e1ff8305cb6f2f9a6bdd6937e8125625d634d2f9896bab5696f3f4",
+      "bytes": 444,
+      "sha256": "c522034d99e1ff8305cb6f2f9a6bdd6937e8125625d634d2f9896bab5696f3f4",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf6-60f7-7843-bb22-e8005e7206d0/call_01a0ddf60b0b7465b0c645908d8843d1-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddf6-60f7-7843-bb22-e8005e7206d0/call_01a0ddf60b0b7465b0c645908d8843d1-tool_patch.json",
+      "source_bytes": 2064,
+      "source_sha256": "8dab805a8bfc7835104c289a25e3c5fb1d2d9071c5396b86c6ed9ea801b1be92",
+      "bytes": 2064,
+      "sha256": "8dab805a8bfc7835104c289a25e3c5fb1d2d9071c5396b86c6ed9ea801b1be92",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf6-6119-7f01-8ba4-f697dc6652c5/call_01a0ddf62c56714b915b136d25204574-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddf6-6119-7f01-8ba4-f697dc6652c5/call_01a0ddf62c56714b915b136d25204574-tool_patch.json",
+      "source_bytes": 2928,
+      "source_sha256": "ade3609f3be4670a0a896fc9d0a3baca1a5d573080d9bc7f291ce80b22fc98ba",
+      "bytes": 2928,
+      "sha256": "ade3609f3be4670a0a896fc9d0a3baca1a5d573080d9bc7f291ce80b22fc98ba",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf7-015a-76f1-b448-3f02eb8bb0cd/call_01a0ddf66bb573bd9f8d2250cb7da420-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddf7-015a-76f1-b448-3f02eb8bb0cd/call_01a0ddf66bb573bd9f8d2250cb7da420-tool_patch.json",
+      "source_bytes": 8136,
+      "source_sha256": "3422f3a7aee729440b8d067e14938f02b34fdf1be9e31668e4e4a1d518ae3712",
+      "bytes": 8136,
+      "sha256": "3422f3a7aee729440b8d067e14938f02b34fdf1be9e31668e4e4a1d518ae3712",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf7-2474-7e42-a896-76f376552851/call_01a0ddf719cc748ca9a4f140dd713b03-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddf7-2474-7e42-a896-76f376552851/call_01a0ddf719cc748ca9a4f140dd713b03-tool_patch.json",
+      "source_bytes": 836,
+      "source_sha256": "3c89e05fa515698df123d4844aad5fefe94c646dc16ca75e80f8156909782b10",
+      "bytes": 836,
+      "sha256": "3c89e05fa515698df123d4844aad5fefe94c646dc16ca75e80f8156909782b10",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf7-3c5d-7bd0-89b2-7e321f90911e/call_01a0ddf7316e77d2a0e541bfcfb448fd-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddf7-3c5d-7bd0-89b2-7e321f90911e/call_01a0ddf7316e77d2a0e541bfcfb448fd-tool_patch.json",
+      "source_bytes": 579,
+      "source_sha256": "2fe18ee0e7cbcbcfc43682c272bf4b24b8d274e05b9340b7549f1fb7d34801d1",
+      "bytes": 579,
+      "sha256": "2fe18ee0e7cbcbcfc43682c272bf4b24b8d274e05b9340b7549f1fb7d34801d1",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf7-9d54-7bb0-b338-924c13860153/call_01a0ddf76d2073b983f8d7879beea264-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddf7-9d54-7bb0-b338-924c13860153/call_01a0ddf76d2073b983f8d7879beea264-tool_patch.json",
+      "source_bytes": 382,
+      "source_sha256": "63e187b87683845b673f93dc085d78f07aa13ff6ad7f61f08783ea150afe743b",
+      "bytes": 382,
+      "sha256": "63e187b87683845b673f93dc085d78f07aa13ff6ad7f61f08783ea150afe743b",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf7-9d76-7180-a0c5-d00bb3762359/call_01a0ddf775f1779e97aeec6c9a03bb7e-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddf7-9d76-7180-a0c5-d00bb3762359/call_01a0ddf775f1779e97aeec6c9a03bb7e-tool_patch.json",
+      "source_bytes": 1284,
+      "source_sha256": "40d754248078a847994ad925ce6d84d028bb1508417b4a1f1b13bb4cfc424c4c",
+      "bytes": 1284,
+      "sha256": "40d754248078a847994ad925ce6d84d028bb1508417b4a1f1b13bb4cfc424c4c",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf7-9dbd-7ba1-a1b3-f9aafddfdb97/call_01a0ddf789b2753eb2eeced99d2f1f9a-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddf7-9dbd-7ba1-a1b3-f9aafddfdb97/call_01a0ddf789b2753eb2eeced99d2f1f9a-tool_patch.json",
+      "source_bytes": 1301,
+      "source_sha256": "a1caabdc05005b0941bcd59313374bd8c569cff01d82e2c0eb28f3e862c04efe",
+      "bytes": 1301,
+      "sha256": "a1caabdc05005b0941bcd59313374bd8c569cff01d82e2c0eb28f3e862c04efe",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf7-c492-7810-9254-e3be38966072/call_01a0ddf7a46273be9bc6f7de9dea21b9-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddf7-c492-7810-9254-e3be38966072/call_01a0ddf7a46273be9bc6f7de9dea21b9-tool_patch.json",
+      "source_bytes": 589,
+      "source_sha256": "4ef9f36b7a54a34e9e9d3b7415127e39fb4a9c45e9090357340cad657ff35388",
+      "bytes": 589,
+      "sha256": "4ef9f36b7a54a34e9e9d3b7415127e39fb4a9c45e9090357340cad657ff35388",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf7-c4b5-7123-8870-6b4dda0221ad/call_01a0ddf7b3c4700bb558df36ff08da60-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddf7-c4b5-7123-8870-6b4dda0221ad/call_01a0ddf7b3c4700bb558df36ff08da60-tool_patch.json",
+      "source_bytes": 761,
+      "source_sha256": "bc8c4ae53aedae45387770eea9595075365157daf44f2ce000622a3765bc9690",
+      "bytes": 761,
+      "sha256": "bc8c4ae53aedae45387770eea9595075365157daf44f2ce000622a3765bc9690",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf7-e7bb-7301-baf1-b20b80a9d6dc/call_01a0ddf7d05876ae80da13734d293617-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddf7-e7bb-7301-baf1-b20b80a9d6dc/call_01a0ddf7d05876ae80da13734d293617-tool_patch.json",
+      "source_bytes": 1265,
+      "source_sha256": "eae6903494f29a791fb8c6804bb52665a58089ab3f1c6a11ac7d8b8507863b21",
+      "bytes": 1265,
+      "sha256": "eae6903494f29a791fb8c6804bb52665a58089ab3f1c6a11ac7d8b8507863b21",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf8-223b-7710-bf5d-e2e3d64ba0de/call_01a0ddf7f4b8766683f30e274ff63c54-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddf8-223b-7710-bf5d-e2e3d64ba0de/call_01a0ddf7f4b8766683f30e274ff63c54-tool_patch.json",
+      "source_bytes": 1908,
+      "source_sha256": "077e4488927bac4863e113dc05e4e596c850ab53663bf0c52c23b711aa6d5caa",
+      "bytes": 1908,
+      "sha256": "077e4488927bac4863e113dc05e4e596c850ab53663bf0c52c23b711aa6d5caa",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf8-5f2d-7442-a8dc-51deab6df128/call_01a0ddf84c2f77df92daa700c2d307e5-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddf8-5f2d-7442-a8dc-51deab6df128/call_01a0ddf84c2f77df92daa700c2d307e5-tool_patch.json",
+      "source_bytes": 357,
+      "source_sha256": "40fe64ad74250cbd9ae8a6de5092064e0eb3416204007059f610d048997f3171",
+      "bytes": 357,
+      "sha256": "40fe64ad74250cbd9ae8a6de5092064e0eb3416204007059f610d048997f3171",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf8-5f50-7ab1-97db-bcf36772e1eb/call_01a0ddf853b5776491400564573bc47a-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddf8-5f50-7ab1-97db-bcf36772e1eb/call_01a0ddf853b5776491400564573bc47a-tool_patch.json",
+      "source_bytes": 810,
+      "source_sha256": "7b274f510862e185fb72cddae541c298b15a79e4cb42b49b3d3b6b838aed8f57",
+      "bytes": 810,
+      "sha256": "7b274f510862e185fb72cddae541c298b15a79e4cb42b49b3d3b6b838aed8f57",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf8-9746-7073-8e6c-74b30ec8acf7/call_01a0ddf87b98739392fa996d9d335f9a-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddf8-9746-7073-8e6c-74b30ec8acf7/call_01a0ddf87b98739392fa996d9d335f9a-tool_patch.json",
+      "source_bytes": 598,
+      "source_sha256": "f616f819b5f4dd9930c05808344531a2afcec8b9375d53b3c5ae30fe9e19c1af",
+      "bytes": 598,
+      "sha256": "f616f819b5f4dd9930c05808344531a2afcec8b9375d53b3c5ae30fe9e19c1af",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf8-9768-7bf1-9777-14fd0db4e34f/call_01a0ddf88a3c728a9e87ace1fba2f2b4-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddf8-9768-7bf1-9777-14fd0db4e34f/call_01a0ddf88a3c728a9e87ace1fba2f2b4-tool_patch.json",
+      "source_bytes": 728,
+      "source_sha256": "d9be449dcb4a203cd599b3ff9d9bf598ed5783e5beeee1a968706100d28b2ea2",
+      "bytes": 728,
+      "sha256": "d9be449dcb4a203cd599b3ff9d9bf598ed5783e5beeee1a968706100d28b2ea2",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf8-eee1-7fa0-bce7-6bdb16c9cfe4/call_01a0ddf8aeb17248bf856836542ac63a-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddf8-eee1-7fa0-bce7-6bdb16c9cfe4/call_01a0ddf8aeb17248bf856836542ac63a-tool_patch.json",
+      "source_bytes": 1413,
+      "source_sha256": "1709219fbc4cd73236a504bc0a143511d67f153eee122b576b8a1a920fc3b1f1",
+      "bytes": 1413,
+      "sha256": "1709219fbc4cd73236a504bc0a143511d67f153eee122b576b8a1a920fc3b1f1",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf8-ef0b-7ab3-8aba-50d910fe5498/call_01a0ddf8cc5f76bc8879b093dbe27839-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddf8-ef0b-7ab3-8aba-50d910fe5498/call_01a0ddf8cc5f76bc8879b093dbe27839-tool_patch.json",
+      "source_bytes": 1946,
+      "source_sha256": "55334de9c727bc2b6e8122a48dc741e6b42e457f671deb47449446811ee954cc",
+      "bytes": 1946,
+      "sha256": "55334de9c727bc2b6e8122a48dc741e6b42e457f671deb47449446811ee954cc",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf9-26b7-7d53-bb97-1ab413a6dd34/call_01a0ddf8f5c07039a71b5a0d17116fcc-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddf9-26b7-7d53-bb97-1ab413a6dd34/call_01a0ddf8f5c07039a71b5a0d17116fcc-tool_patch.json",
+      "source_bytes": 2916,
+      "source_sha256": "a8be318512ff9ef26b266b429daf498cf37af0eba82356bed7166803ef6fb5dc",
+      "bytes": 2916,
+      "sha256": "a8be318512ff9ef26b266b429daf498cf37af0eba82356bed7166803ef6fb5dc",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddfa-2da9-7823-ba08-8fec8723e671/call_01a0ddf9945173288249431cea703eb5-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddfa-2da9-7823-ba08-8fec8723e671/call_01a0ddf9945173288249431cea703eb5-tool_patch.json",
+      "source_bytes": 9525,
+      "source_sha256": "5181d5c863bc12911112eb1fa2739ffe105428941341c4f4282bce0fd0abfa8d",
+      "bytes": 9525,
+      "sha256": "5181d5c863bc12911112eb1fa2739ffe105428941341c4f4282bce0fd0abfa8d",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddfa-7297-74e0-a5c4-d8bbbe3a6008/call_01a0ddfa5da771d89cad4ec7f728f5d1-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddfa-7297-74e0-a5c4-d8bbbe3a6008/call_01a0ddfa5da771d89cad4ec7f728f5d1-tool_patch.json",
+      "source_bytes": 1621,
+      "source_sha256": "16e19794b1baca8893abd1229038790de13e192b51776fc59cbf32e3e27cc323",
+      "bytes": 1621,
+      "sha256": "16e19794b1baca8893abd1229038790de13e192b51776fc59cbf32e3e27cc323",
+      "credential_replacements": 0
+    },
+    {
+      "path": "session/tool-outputs/01a0ddfa-f529-7312-af2a-a7892f340c3d/call_01a0ddfae7e27746bd50c2ea3b339dba-tool_patch.json",
+      "source_path": "/Users/mikkokotila/.local/share/muse/sessions/2026/09/26/01a0ddd3-a8a8-70c1-ad3c-63f81dcabea5/tool-outputs/01a0ddfa-f529-7312-af2a-a7892f340c3d/call_01a0ddfae7e27746bd50c2ea3b339dba-tool_patch.json",
+      "source_bytes": 474,
+      "source_sha256": "553b797b4718925823cc7647398eb83869e6f262a84c0fc14fadff8b739df4f4",
+      "bytes": 474,
+      "sha256": "553b797b4718925823cc7647398eb83869e6f262a84c0fc14fadff8b739df4f4",
+      "credential_replacements": 0
+    },
+    {
+      "path": "artifacts/m1-review/provenance.json",
+      "source_path": "/tmp/ar-live/provenance.json",
+      "source_bytes": 2151,
+      "source_sha256": "6b3184e703b1d6435a02033cbd07d84c92c639e94f4417592586d7066f3e7300",
+      "bytes": 2151,
+      "sha256": "6b3184e703b1d6435a02033cbd07d84c92c639e94f4417592586d7066f3e7300",
+      "credential_replacements": 0
+    },
+    {
+      "path": "artifacts/m1-review/review.md",
+      "source_path": "/tmp/ar-live/review.md",
+      "source_bytes": 4589,
+      "source_sha256": "bf31f997fe428855cd362c867ae9311c01c410297135b3a1d5ad43ab00c5b2e6",
+      "bytes": 4589,
+      "sha256": "bf31f997fe428855cd362c867ae9311c01c410297135b3a1d5ad43ab00c5b2e6",
+      "credential_replacements": 0
+    },
+    {
+      "path": "artifacts/m2-analysis/analysis.md",
+      "source_path": "/tmp/ar-m2/analysis.md",
+      "source_bytes": 1765,
+      "source_sha256": "d001fee208188895894117d9f6f7161d1d01b666d764fd42f5ea755615902131",
+      "bytes": 1765,
+      "sha256": "d001fee208188895894117d9f6f7161d1d01b666d764fd42f5ea755615902131",
+      "credential_replacements": 0
+    },
+    {
+      "path": "artifacts/m2-analysis/provenance.json",
+      "source_path": "/tmp/ar-m2/provenance.json",
+      "source_bytes": 1636,
+      "source_sha256": "ead63033ee03e11217d1c574a436f396a2562291a2c3685f859665564b4f1516",
+      "bytes": 1636,
+      "sha256": "ead63033ee03e11217d1c574a436f396a2562291a2c3685f859665564b4f1516",
+      "credential_replacements": 0
+    },
+    {
+      "path": "artifacts/m3-loop/iterations/iter1-review.md",
+      "source_path": "/tmp/ar-m3/iterations/iter1-review.md",
+      "source_bytes": 2994,
+      "source_sha256": "6b8e5932e9016eb61865f7a17c96e2a04b81f8c9db0d4b56cd38475a38904cb4",
+      "bytes": 2994,
+      "sha256": "6b8e5932e9016eb61865f7a17c96e2a04b81f8c9db0d4b56cd38475a38904cb4",
+      "credential_replacements": 0
+    },
+    {
+      "path": "artifacts/m3-loop/iterations/iter2-review.md",
+      "source_path": "/tmp/ar-m3/iterations/iter2-review.md",
+      "source_bytes": 4101,
+      "source_sha256": "74229752bb1c6da9d4f3fafcbec430073322025888365bf363c132ade8b88780",
+      "bytes": 4101,
+      "sha256": "74229752bb1c6da9d4f3fafcbec430073322025888365bf363c132ade8b88780",
+      "credential_replacements": 0
+    },
+    {
+      "path": "artifacts/m3-loop/run.json",
+      "source_path": "/tmp/ar-m3/run.json",
+      "source_bytes": 1507,
+      "source_sha256": "5a2a7e0f9834ec4a370e609654005dc7696a725bf149ff36f57a112765ae7130",
+      "bytes": 1507,
+      "sha256": "5a2a7e0f9834ec4a370e609654005dc7696a725bf149ff36f57a112765ae7130",
+      "credential_replacements": 0
+    },
+    {
+      "path": "artifacts/m3-loop/synthesis.md",
+      "source_path": "/tmp/ar-m3/synthesis.md",
+      "source_bytes": 2598,
+      "source_sha256": "256006785477f8ba15c104955b052024d4942033982178749cf4640ced4a367c",
+      "bytes": 2598,
+      "sha256": "256006785477f8ba15c104955b052024d4942033982178749cf4640ced4a367c",
+      "credential_replacements": 0
+    },
+    {
+      "path": "inputs/ar-patients.csv",
+      "source_path": "/tmp/ar-patients.csv",
+      "source_bytes": 4832,
+      "source_sha256": "01bae4620ed759d85c30e1f3d1a079fd79ced95db18faf7bd012f2fcef8e06ac",
+      "bytes": 4832,
+      "sha256": "01bae4620ed759d85c30e1f3d1a079fd79ced95db18faf7bd012f2fcef8e06ac",
+      "credential_replacements": 0
+    }
+  ],
+  "source_snapshot_before_recovery": [
+    {
+      "path": "src/autoresearch/improve.py",
+      "sha256": "70fb388532d2f28ba3b181408b67901f6c13b964b11a70c431fc258b9e1a6d4f",
+      "bytes": 7122
+    },
+    {
+      "path": "src/autoresearch/journal.py",
+      "sha256": "8b0860bd143958f7bf5fdd8b774c9eb641f493495169e60292569509a2ca524b",
+      "bytes": 1691
+    },
+    {
+      "path": "src/autoresearch/reflect.py",
+      "sha256": "865506ceaf561286966c981636f219dc7a1e17e9669d29cde24035450e172864",
+      "bytes": 2455
+    },
+    {
+      "path": "tests/test_milestone4.py",
+      "sha256": "df8fdba967d3eb66a817e59c35bb87e81d045ffb4d7759695486c3d24d24653c",
+      "bytes": 8268
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "6f97e034ff28912eaa7c205fd608c57d17afefb4b463b82126968c7735e65288",
+      "bytes": 265
+    },
+    {
+      "path": ".gitignore",
+      "sha256": "e341b36ff948ef3390308c7867b2d7844b99edecb0587991158ab8bbafeecc5b",
+      "bytes": 53
+    },
+    {
+      "path": "README.md",
+      "sha256": "87d6cd2bf41181c4009ac6b6b2d23e6481f787b6a8a90eb6796542fe4d37a6ac",
+      "bytes": 2126
+    },
+    {
+      "path": "pyproject.toml",
+      "sha256": "1acd21e248f0f1bfdc0c6ada438b38a351875efc15fc410f99d0a3a66e6b0314",
+      "bytes": 511
+    },
+    {
+      "path": "src/autoresearch/__init__.py",
+      "sha256": "d0f0fda307cc553d5078b7659f0a318214cb6fa5505b687672a00a996848115d",
+      "bytes": 177
+    },
+    {
+      "path": "src/autoresearch/__main__.py",
+      "sha256": "307299fda7b77d22c64cb51430ec75e5f59d78e9c948786afb3b2544fe45e4b7",
+      "bytes": 79
+    },
+    {
+      "path": "src/autoresearch/analysis.py",
+      "sha256": "f2f32a5f2a9113d2f409bc15b6699976c9cee14fa5820241a599f67cebeadea0",
+      "bytes": 2051
+    },
+    {
+      "path": "src/autoresearch/cli.py",
+      "sha256": "8156996c200354ff8bce6e4bbca20d0249ed69bbace590d794db37da86c8af61",
+      "bytes": 6123
+    },
+    {
+      "path": "src/autoresearch/data.py",
+      "sha256": "40de24107036b6093a7a1427e5dde79eab1e2e0965d45029852caf6a496ceb7d",
+      "bytes": 5615
+    },
+    {
+      "path": "src/autoresearch/loop.py",
+      "sha256": "896c915e6343079ebda8723942221a79aa1cec62d7b87acea0d5aa1d43a58d55",
+      "bytes": 10520
+    },
+    {
+      "path": "src/autoresearch/modeling.py",
+      "sha256": "c5ba5cffc13672f9b059066adc2bbdd77a45fd97655d1bb37246d5e001da97c8",
+      "bytes": 4770
+    },
+    {
+      "path": "src/autoresearch/muse_client.py",
+      "sha256": "f9b3482aa6288724105ee1303ed53db3dae7e1361a5584e04132329d35feac07",
+      "bytes": 1379
+    },
+    {
+      "path": "src/autoresearch/papers.py",
+      "sha256": "21b2c7cab56e3371328241bc94c03db1dfe8277f666deed9c983225885e68abc",
+      "bytes": 827
+    },
+    {
+      "path": "src/autoresearch/rank.py",
+      "sha256": "90872ac1ec731223b31f2f2907a04a4be67fede983a060e6aa09f9098253c48f",
+      "bytes": 1558
+    },
+    {
+      "path": "src/autoresearch/report.py",
+      "sha256": "3ccbef18ba3fbec03f112e849e53b65135b06cca16da38b17a9821756bc7c4ae",
+      "bytes": 5967
+    },
+    {
+      "path": "src/autoresearch/retrieval.py",
+      "sha256": "6555375d4432e1c3b309e2dd8561b61990096daafc86033c8a2521b686f0ce90",
+      "bytes": 5324
+    },
+    {
+      "path": "src/autoresearch/spec.py",
+      "sha256": "55ad1f4a91d1c1fba708816b413c6b53ddf4146830134de4b9708a15ba962bf4",
+      "bytes": 857
+    },
+    {
+      "path": "src/autoresearch/synthesize.py",
+      "sha256": "ea679181290c254d18e77764ef950d35bcf90a248166cf3cc09deea240f0bfaa",
+      "bytes": 1949
+    },
+    {
+      "path": "tests/test_milestone1.py",
+      "sha256": "ebc5061e879b835d31b7bdadc33dc6a93df332d5d16e451219a8aaecf78a74ad",
+      "bytes": 7238
+    },
+    {
+      "path": "tests/test_milestone2.py",
+      "sha256": "ed1957757101db61ea6342a9227c05ed66432a7100d731248b5ed1f30c561d9b",
+      "bytes": 4843
+    },
+    {
+      "path": "tests/test_milestone3.py",
+      "sha256": "a4c2e91dc012f7d5251dbfe9296148043526bb5640045ddd0886933a0fe11385",
+      "bytes": 6110
+    },
+    {
+      "path": "uv.lock",
+      "sha256": "139e8a95b9aae96a701503e976e417f68c32bb4d6b066c4cd01a5f78213ac6ae",
+      "bytes": 272720
+    }
+  ],
+  "integrity": [
+    {
+      "path": "README.md",
+      "bytes": 3038,
+      "sha256": "a5f0e7f345b073e2f006a0e5dfdac5ee6ed1b9cc6ce0b15350c9947329f62b91"
+    },
+    {
+      "path": "artifacts/m1-review/provenance.json",
+      "bytes": 2151,
+      "sha256": "6b3184e703b1d6435a02033cbd07d84c92c639e94f4417592586d7066f3e7300"
+    },
+    {
+      "path": "artifacts/m1-review/review.md",
+      "bytes": 4589,
+      "sha256": "bf31f997fe428855cd362c867ae9311c01c410297135b3a1d5ad43ab00c5b2e6"
+    },
+    {
+      "path": "artifacts/m2-analysis/analysis.md",
+      "bytes": 1765,
+      "sha256": "d001fee208188895894117d9f6f7161d1d01b666d764fd42f5ea755615902131"
+    },
+    {
+      "path": "artifacts/m2-analysis/provenance.json",
+      "bytes": 1636,
+      "sha256": "ead63033ee03e11217d1c574a436f396a2562291a2c3685f859665564b4f1516"
+    },
+    {
+      "path": "artifacts/m3-loop/iterations/iter1-review.md",
+      "bytes": 2994,
+      "sha256": "6b8e5932e9016eb61865f7a17c96e2a04b81f8c9db0d4b56cd38475a38904cb4"
+    },
+    {
+      "path": "artifacts/m3-loop/iterations/iter2-review.md",
+      "bytes": 4101,
+      "sha256": "74229752bb1c6da9d4f3fafcbec430073322025888365bf363c132ade8b88780"
+    },
+    {
+      "path": "artifacts/m3-loop/run.json",
+      "bytes": 1507,
+      "sha256": "5a2a7e0f9834ec4a370e609654005dc7696a725bf149ff36f57a112765ae7130"
+    },
+    {
+      "path": "artifacts/m3-loop/synthesis.md",
+      "bytes": 2598,
+      "sha256": "256006785477f8ba15c104955b052024d4942033982178749cf4640ced4a367c"
+    },
+    {
+      "path": "inputs/ar-patients.csv",
+      "bytes": 4832,
+      "sha256": "01bae4620ed759d85c30e1f3d1a079fd79ced95db18faf7bd012f2fcef8e06ac"
+    },
+    {
+      "path": "session/cli-9f6a17e7-24a6-4737-8812-b9e77303fe73.log",
+      "bytes": 7847,
+      "sha256": "30dca4cce81cce377674baa75c152288e09cf786df71aca32ab7ca95401f6715"
+    },
+    {
+      "path": "session/messages.jsonl",
+      "bytes": 6793,
+      "sha256": "b5719120277913c2e8465327825fe72e243414cd4f324c463746ca19741acc8e"
+    },
+    {
+      "path": "session/session.redacted.jsonl",
+      "bytes": 5610724,
+      "sha256": "a8418b1649ceb9e7636dc2482c5c667452a99f9bbf8685b748e6d44c451abdac"
+    },
+    {
+      "path": "session/subagent/41afa80a-929b-4d33-8314-cc2075f3f820/session.jsonl",
+      "bytes": 117779,
+      "sha256": "b1a3d7dd3d037d318cdce24cc8e58fe3e04627eacc3d0c0dac32b409f06b6be8"
+    },
+    {
+      "path": "session/subagent/5877db8d-7a5a-4e8b-84bf-77913a09e4a9/session.jsonl",
+      "bytes": 118509,
+      "sha256": "d70beec5a329c6604a11047b78d0c926eb0af8c927c57847554acb8ee59310a0"
+    },
+    {
+      "path": "session/subagent/5f7e7be6-22cd-4a3e-82f7-264fcfb48336/session.jsonl",
+      "bytes": 75116,
+      "sha256": "5f91c6e6de8b86c49f6fbf13262b455b7aa8c4ce4699b948c648fd401f866265"
+    },
+    {
+      "path": "session/subagent/b5f4d09c-0ec6-4efc-90a8-4d1e4da3e997/session.jsonl",
+      "bytes": 58421,
+      "sha256": "9724dd03a111246ebaf967c590be02dd3df428045de3310d6b6917ec06ed69ad"
+    },
+    {
+      "path": "session/subagent/cd13bd0d-7672-4046-bebf-0ea741e9c432/session.jsonl",
+      "bytes": 75078,
+      "sha256": "cfe254abb9f7c36c7d1695976bc93ee49b0307bc777194a45fdbcb3b9bcf3665"
+    },
+    {
+      "path": "session/tool-calls.jsonl",
+      "bytes": 176624,
+      "sha256": "355fab5415bac8ca36346b0f14d7a52fdbb5906d2991621fb7a6105c5626d97c"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddd4410f7426822807bef69c3ca8-bash.txt.tmp",
+      "bytes": 16189,
+      "sha256": "2b6cccf996542d89ea74bf8f1b64079c1de584de25cf7630cf4cdb0d90c3d0d0"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddd4544c759cb59bf9989399bdf2-bash.txt.tmp",
+      "bytes": 22656,
+      "sha256": "73a69ae5e05c2fb93dc412e823d2b2f94bfe0cad74920d879305b07699d96455"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddd77e8171178d5d33f3b13511d6-bash.txt.tmp",
+      "bytes": 5991,
+      "sha256": "9072fff21ea118f8abe14995b96d18534f3d812541a0d5df14aba2bbfa37fc64"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddd7b2a276d792a0366560f6328b-bash.txt.tmp",
+      "bytes": 5643,
+      "sha256": "740f0ad7cf01dcfe005411b6d900446383f28622b374e53809caff3459ba1f40"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddd7e33876b29a2886a8b555b1e2-bash.txt.tmp",
+      "bytes": 1376,
+      "sha256": "d46a0082d6013612da3e58f53396f13a2251ec5177a5e37355b2a23d081847d1"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddd80bcb76908fbf6fd05bd57405-bash.txt.tmp",
+      "bytes": 2745,
+      "sha256": "00ce17efb43b989b61f24f29bf42e0585c20da9deeefbca59d81869a0b2a28fa"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddd82af6765188f00ac14e976adb-bash.txt.tmp",
+      "bytes": 147,
+      "sha256": "33f4d2a2de8e8b2efd987853118bec7e425f69ac968c82e53f5bc3b1a029c1db"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddd84540706ca550a5a7f9921697-bash.txt.tmp",
+      "bytes": 273,
+      "sha256": "4c1ddd352b8b5605354083dcb17ddae6ec017d51e337cac69435a54555275042"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddd8e70b73aab9b7821a324d0c6e-bash.txt.tmp",
+      "bytes": 388,
+      "sha256": "94e9d9817e47683797f4f2c358c0b0c1d62fde7adbd4fcd119c9386671ccdeac"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddd90ec670cdb106e319bbee7735-bash.txt.tmp",
+      "bytes": 143,
+      "sha256": "99487c5eb38de816d7d0203695baf7e093337512b2ea739f97ac86577d853456"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0dddb980c747b9ecf6a21efc36b10-bash.txt.tmp",
+      "bytes": 787,
+      "sha256": "e4e70d86dfcf1d0097c38f5006e36039c5d31742dd835f85b5042bd24b957f07"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0dddbeb2177c1a38c21cfb63fa7ba-bash.txt.tmp",
+      "bytes": 1358,
+      "sha256": "a25367ef06d56435a72d7b43ad2f9f5ad7049f44694c9c808aa1fe19bdc4fcb6"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0dddc31c573ffbe9a3d5f7c53b400-bash.txt.tmp",
+      "bytes": 99,
+      "sha256": "2517e9eae50646d7bbe12680a6b4bab62b845ea0743476059c8b765356d3b1f7"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0dddc5dcd72bf840aceba4ca0972b-bash.txt.tmp",
+      "bytes": 469,
+      "sha256": "fa03dd5c5a445b9a406070e4934ea53434f26ff3e05843b0130b6a075639c3b3"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0dddc90e27267b6f317f8b3f559b2-bash.txt.tmp",
+      "bytes": 384,
+      "sha256": "78c3a203599fdc07249ebe4e3300844402a176075c48435bbcdf05f91d1dff4b"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0dddd14417172a801faaffad2ef72-bash.txt.tmp",
+      "bytes": 212,
+      "sha256": "6acfdb1cd3c337c318caee9d867165ecc297fb6a690ac9eee11f926282766552"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0dddd5a7676e98afce4e28d6a5ed1-bash.txt.tmp",
+      "bytes": 234,
+      "sha256": "9c3591ea5d7c89be5c2df957f203c61144944f9cd0e75b8392c5ba489c357c74"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0dddd935975049ce807e04ec112ea-bash.txt.tmp",
+      "bytes": 479,
+      "sha256": "c088768c2401e4a137c507a949730bbb672b99c301d75d9e9a9d897565dc3385"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0dde06e0870959c3931aa2a6c3abd-bash.txt.tmp",
+      "bytes": 65,
+      "sha256": "3f01d586637998ee8407a8020a71f5fb0c0adae1e84f3c94271f18c6be1f89c9"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0dde0e0cb74c0a6a6dc6c148ff31b-bash.txt.tmp",
+      "bytes": 465,
+      "sha256": "67836d0243358074d1118ca1224d6481d42573d06894048d3b03c3e777b852d3"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0dde13b99721199e8573d3ab88c79-bash.txt.tmp",
+      "bytes": 4482,
+      "sha256": "0fb14537aa1a2ab07a63f0d2c227b1fcae040d9fedc644c826ebe32668e0fc37"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0dde4ce6475539b6a6a4cb7613a1b-bash.txt.tmp",
+      "bytes": 427,
+      "sha256": "859ff7aa0224f31f5452d4173ab514497af218b2b282016e3159f8902d066e24"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0dde6061470a7a7f2f05be6d1291f-bash.txt.tmp",
+      "bytes": 182,
+      "sha256": "060c5c4d71952b81693b8192df6227864db5ebffab9be1bfbe387f8d95129c74"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0dde6476e753b94ea69b7fdf9cd83-bash.txt.tmp",
+      "bytes": 338,
+      "sha256": "bf082756717bb600ad8433bfca4cf352b640c6c9d6c25ed58a7096aaf3b6bffd"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0dde6a6b0728fb8d3ea94fad0ba19-bash.txt.tmp",
+      "bytes": 100,
+      "sha256": "f56345290b4631b84c8aa6111507433adaca4b281a13c989c2a70a609ca7a7d1"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0dde6ebac728896880eb2b8b482fc-bash.txt.tmp",
+      "bytes": 88,
+      "sha256": "e52928fb2f227cb6f99776d183887aac939913552f87c47029c9b0efa38f84ce"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0dde792277287860af6e7202d4b0e-bash.txt.tmp",
+      "bytes": 1491,
+      "sha256": "859870e98a349dc61e4c7f061d229e41300983f959b2042c81ab232e1206324a"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0dde7e71f74ad965ddcb0935fc34d-bash.txt.tmp",
+      "bytes": 420,
+      "sha256": "f76791498a8967e127f969faf97670d99a872d8c8703aed888d59efdd9cb7b06"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddecb695715a9723b4fca2d04ec1-bash.txt.tmp",
+      "bytes": 196,
+      "sha256": "82c344bf21836c8478020db8026a4c46c392b3472b498e39b507cd9fef201e9e"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddee1f567429a4ca27d16440fe80-bash.txt.tmp",
+      "bytes": 236,
+      "sha256": "762a0d8af98323b2f808f4409a53a8e70be7234ac397ec4bb43e2eadedf5d8d1"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddee601d709e991d7d7a4cf5550b-bash.txt.tmp",
+      "bytes": 554,
+      "sha256": "f2b9af2d9d5362fb13fbd883f65350cd80c8b73d922cad66bfca6f3d3e714b26"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddeefcf1772da4fabda181ce5217-bash.txt.tmp",
+      "bytes": 100,
+      "sha256": "1b0e1c2c2dc3f51a657e4d6cdd3db203b7e91b39833be11129723ae7d05425da"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddef44af73b1940f5981e889f92b-bash.txt.tmp",
+      "bytes": 690,
+      "sha256": "8d3fd75a6512e6f9f0a09a43aee91f5a381805dd7713f8422b1a03154d674720"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddef9dbe74a9b1c0291f30eae805-bash.txt.tmp",
+      "bytes": 25,
+      "sha256": "4e91c8ea8b716c25b5fc7235bbfe3d9071ca4d93dc502c228a8ddeed84814ab8"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddf0313671638780c595807a35f1-bash.txt.tmp",
+      "bytes": 1913,
+      "sha256": "81283b4a342b8b84340d321a5ffddebd7f65f7c9874c41ce54950cf43234929a"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddf203ce74f9bfad3e22d21d6d91-bash.txt.tmp",
+      "bytes": 371,
+      "sha256": "9ff3f0b8fcbfb58562318bd807c6f9114bdc128e4e3db9c8507a5f8db3ce644d"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddf45d327252b0a70ecd58211d21-bash.txt.tmp",
+      "bytes": 87,
+      "sha256": "6b491e34b0a5e18bc3e60b9a40d5e851cc0d7a5532e443efb758314a6d8acc93"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddf499b572dba753cb66e504ee45-bash.txt.tmp",
+      "bytes": 394,
+      "sha256": "52b764b331ed4bf78dacfc6f096fecbcc1414314066e6be2f685822cc288459c"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddf4df6f7182a2f9469dcd1cb4e6-bash.txt.tmp",
+      "bytes": 9,
+      "sha256": "d95ad9f59ed65122a5999ac957cefc3f186e504d67cde886e1a5a2bf8840f21d"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddf82c14752bbc1e7826392ed1d8-bash.txt.tmp",
+      "bytes": 225,
+      "sha256": "d9bcbc1b1861d5b71f5c6f11a438636f48273054acd52f2bcaff7ac2f66b13bf"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddfa8c14723fa4e1a9c29592b4ec-bash.txt.tmp",
+      "bytes": 192,
+      "sha256": "4326aecf7240e68a735ae19724185fcb6838292042eed7e569a82e2d0bcc5e67"
+    },
+    {
+      "path": "session/tool-outputs/.spool/call_01a0ddfb03f976829ae30043f8df1c53-bash.txt.tmp",
+      "bytes": 110,
+      "sha256": "6bd547a06e1162ce13081188da2948fb8ccad46309661ed7941e217a6afad577"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddd4-49cb-7cb1-824a-a9fdf88a5b38/call_01a0ddd43c5972ed8eab05391dbb2d01-web_fetch-page.txt",
+      "bytes": 22637,
+      "sha256": "365fcaa61c374038cef704f7fe4c2cff3b29fc408178f7bb973d9a5fe33cc619"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddd9-b337-7bf3-bb74-8b726c441daa/call_01a0ddd970ac71eea5cf9bf8deebeb7c-tool_patch.json",
+      "bytes": 689,
+      "sha256": "940e74f6ae61e7713886c0bb0d4d87afd2468be37e547b91ca422503892ddad4"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddd9-b359-7c21-836d-4feb721fb770/call_01a0ddd97e257344aa8080135db52337-tool_patch.json",
+      "bytes": 368,
+      "sha256": "ab1e39e45ff24a6c609fd80d5addd37caaee5992d88b24ee9629b7538c69b1a4"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddd9-b37b-7430-97bc-db63ae5e92ac/call_01a0ddd98664705b899e69358176b460-tool_patch.json",
+      "bytes": 1105,
+      "sha256": "1c6a29bb5dedd1d75a1f076a44a5ad4e7e1fb9f615b092235fcc04f0ccdb5047"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddd9-b39d-7fe1-869e-0e7b35436c9f/call_01a0ddd99a1576c9acca41c340854ae6-tool_patch.json",
+      "bytes": 1101,
+      "sha256": "b4687506d029c79ee8a21c05dbfe7cc4528b18a5e7b231e74ac901f56b251321"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddda-5b5c-7961-9701-57112a35ee4b/call_01a0ddd9ba57774eba2b7ae89a2643b7-tool_patch.json",
+      "bytes": 5605,
+      "sha256": "a89dc2d5c757c9fd3f5d2f4894e458d9c03871cafa7bcf25d46869331c5666c3"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddda-5b83-7030-9cb7-1433159096c5/call_01a0ddda179875c8bbbc146368085229-tool_patch.json",
+      "bytes": 1855,
+      "sha256": "0f389283045018161821b5739d541a70db829ef65f18feed0a65b2d4a19781d2"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddda-5bb0-7d23-a249-8a2532ffe283/call_01a0ddda419c73b8999c82e3c92ad815-tool_patch.json",
+      "bytes": 1610,
+      "sha256": "20b9fb5151f42be2dd92b1dd0effdce3e95610af5e9cd78b8c9a1774b865ecff"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddda-e507-7f01-9add-d100446679e4/call_01a0ddda759071b9aa10d0411830b16d-tool_patch.json",
+      "bytes": 2335,
+      "sha256": "4dbee9c77855a2e438cf88e32dc6812448383abe4c6f1adf0980a7e0b98f8055"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddda-e52b-7013-8026-bce104bd99dc/call_01a0ddda9b647438a07437b0f3560bb7-tool_patch.json",
+      "bytes": 2315,
+      "sha256": "817fe919f1937919d58440293cea39cfbec43e440fbd5fa74e9fff2ff0b56395"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddda-e554-7642-b74d-d66c3d798b0b/call_01a0dddabde172fdaa2a6d505d1a1e93-tool_patch.json",
+      "bytes": 2047,
+      "sha256": "cf871d4005907fbcc7097404383c5b631b6e672bf1c61439d422469b1e99522c"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddda-e57f-7a01-ad59-80b48c567f9d/call_01a0dddadf0c76d9b304689bdd396116-tool_patch.json",
+      "bytes": 256,
+      "sha256": "4b8c99237ae9fd5a500db271bd9b162c38c97151303e4a051ad6c2f45bd71058"
+    },
+    {
+      "path": "session/tool-outputs/01a0dddb-9113-7601-ae92-5c50afc0d524/call_01a0dddaefc270a1b9eec8d1bd5e369d-tool_patch.json",
+      "bytes": 7460,
+      "sha256": "26859274edaa2918d0ce5b795d34f08d76d7dd2387ce2c6f5977ddf0aec1866d"
+    },
+    {
+      "path": "session/tool-outputs/01a0dddb-913b-7873-bb71-1088bf25660e/call_01a0dddb5c3577faa3dabf051fdaa508-tool_patch.json",
+      "bytes": 1820,
+      "sha256": "fe96c9b0d238a0fdc419ba3fc090e4fad25a95c1a9b90d775290ca773d35e962"
+    },
+    {
+      "path": "session/tool-outputs/01a0dddb-915e-7361-b067-585ed989eb4e/call_01a0dddb803375b5a909a245581ec89b-tool_patch.json",
+      "bytes": 216,
+      "sha256": "65fd6d2ea47c9aa73aa5f23c52132cc782000ef66df6bcd0163c1322f0a35bd1"
+    },
+    {
+      "path": "session/tool-outputs/01a0dddb-9188-70f2-9280-b456bf138bdb/call_01a0dddb86f374f6ae9e784de7b0d037-tool_patch.json",
+      "bytes": 463,
+      "sha256": "37ec839868177171cb57332fdbac3c5f226914dfc3e13d1034a299a9c6d2c821"
+    },
+    {
+      "path": "session/tool-outputs/01a0dddc-2d02-7401-b4d9-504da4208342/call_01a0dddc12fb77968881cda14bd883a1-tool_patch.json",
+      "bytes": 556,
+      "sha256": "3d813529d1d571de5b4e52b81da61e1c28f527b43b4fe44ee3f22bdcacec81fa"
+    },
+    {
+      "path": "session/tool-outputs/01a0dddc-2d29-74a2-9d96-88cdf2c1a6b5/call_01a0dddc1d1374268d0d3b110fe5df13-tool_patch.json",
+      "bytes": 751,
+      "sha256": "e2c6eee7f26e778b21e92453554a2711c33339bfe55a481c00570c8784d5b492"
+    },
+    {
+      "path": "session/tool-outputs/01a0dddc-d9cb-7471-9dad-94dd16cd4822/call_01a0dddcc63f7595bd265871475d8db8-tool_patch.json",
+      "bytes": 256,
+      "sha256": "ae1daff9647b30fe449ca306e83e99cb0ec726e070f45a0dc728e31ce15cb134"
+    },
+    {
+      "path": "session/tool-outputs/01a0dddc-d9f6-7b13-af0c-831e3bfb910c/call_01a0dddccbb574ce939d9a41905bb766-tool_patch.json",
+      "bytes": 684,
+      "sha256": "4863b8d29f9e982b8fc64078c552a0a0669cdf668da950f22d81199ce4d1d4b1"
+    },
+    {
+      "path": "session/tool-outputs/01a0dddc-ef43-7ee3-b43d-c6c951382003/call_01a0dddcdf0570ff828a17612dc87824-tool_patch.json",
+      "bytes": 877,
+      "sha256": "b6256cbd827aa278bc658273c07cdf52a1f8247b4c0267858e3f3419d464f0eb"
+    },
+    {
+      "path": "session/tool-outputs/01a0dddd-04c4-7493-9f51-f349d883de7f/call_01a0dddcf8617198836900affdb11f0c-tool_patch.json",
+      "bytes": 607,
+      "sha256": "637de26113eb1952e0b4f6d2053fd2c21b2709b63462a7931becba4b6f8303d7"
+    },
+    {
+      "path": "session/tool-outputs/01a0dddd-213f-70a0-9a5a-0a1ddc9330af/call_01a0dddd0c2973618ee26bda36fe8ab6-tool_patch.json",
+      "bytes": 455,
+      "sha256": "a008262d149a783126b0ae8ff233d2322dcb48c3017722e0b18b4ef7fe38bfc2"
+    },
+    {
+      "path": "session/tool-outputs/01a0dddd-52fb-7cb3-a09f-5839fb006820/call_01a0dddd497973debce35b6ecdcda4f5-tool_patch.json",
+      "bytes": 705,
+      "sha256": "f116bbb3996260dae63795f8b79b0a3d43a76039fa85b34b5a2f6ebdc669db3c"
+    },
+    {
+      "path": "session/tool-outputs/01a0dde0-5d3d-79f3-a2fc-0d671c11bb1c/call_01a0dde048a17259a3b51c598ee9d8ec-tool_patch.json",
+      "bytes": 390,
+      "sha256": "01c81917b003cf30abb425a2c74352de7f6dc446e88e37bb79ad8b59c20aa1f7"
+    },
+    {
+      "path": "session/tool-outputs/01a0dde0-5d60-7801-8c2e-a915a99fb9e9/call_01a0dde04e4d7548a2d190cb988c11ac-tool_patch.json",
+      "bytes": 419,
+      "sha256": "976d162ab4e935d67f8b0b5701bd86aed99e912f3f948e2a05f8c4b1a8693b9e"
+    },
+    {
+      "path": "session/tool-outputs/01a0dde0-5d83-7553-b274-7336abd0c59e/call_01a0dde055b973b186d8a67082813d4f-tool_patch.json",
+      "bytes": 708,
+      "sha256": "4f473bd23cc6ff0dd8059ed0ac83c4f68300d0b5235dbdee459c584d8cda8c0b"
+    },
+    {
+      "path": "session/tool-outputs/01a0dde1-35d2-77c2-8b0f-812e7041d268/call_01a0dde12b7172e3a365ef671358778f-tool_patch.json",
+      "bytes": 656,
+      "sha256": "0dbf05cb95de51babcc3fa8b1d0755d21c64abd1334f1480d7bb2c4044cf45d3"
+    },
+    {
+      "path": "session/tool-outputs/01a0dde2-682a-74d1-a680-9e08fd6d6ece/call_01a0dde25f76772aa7e3ebe356947068-tool_patch.json",
+      "bytes": 531,
+      "sha256": "6c34f87833d4b6623f79ba912b94b79f562b7da42b00cb255c8afb897d485823"
+    },
+    {
+      "path": "session/tool-outputs/01a0dde2-e44d-7491-9588-8ec7202e7294/call_01a0dde26f08742db3434725fe1b2a4d-tool_patch.json",
+      "bytes": 6339,
+      "sha256": "dc9d2384d3d44b5589c02dcfdd6917dabc936787f22633cb1f24471475d9df2d"
+    },
+    {
+      "path": "session/tool-outputs/01a0dde3-4c67-7d23-aec6-339f85e7578b/call_01a0dde2ed8172059cd28a1ecefd0f8a-tool_patch.json",
+      "bytes": 5306,
+      "sha256": "f1b0d362c18490f7ba03e0dd7661f686094031008d97a4ea748d52ace00ea30b"
+    },
+    {
+      "path": "session/tool-outputs/01a0dde3-73cf-7552-8e22-db6280d19a98/call_01a0dde360da70498ba2a2bceb9b2494-tool_patch.json",
+      "bytes": 765,
+      "sha256": "b66610c9856cf6c81741f966b136b0e2f6bfda9e01167ca7aeb625931ada767d"
+    },
+    {
+      "path": "session/tool-outputs/01a0dde3-73f7-7cd1-a1ef-47f608f2c06e/call_01a0dde36a98705eb5d150b2aede7d3f-tool_patch.json",
+      "bytes": 508,
+      "sha256": "914a2fcf4d8ca71516e41e3b068cd35486210b68b58111bc38f8a91b4eecffa6"
+    },
+    {
+      "path": "session/tool-outputs/01a0dde3-bc9b-7bb2-b74c-93a68d72588a/call_01a0dde37fcb70d5a0794813eddeca18-tool_patch.json",
+      "bytes": 2440,
+      "sha256": "2d49dc72a4e6b50675697cfaa2717c5c3af193c626d7fd65150a219d7167c77b"
+    },
+    {
+      "path": "session/tool-outputs/01a0dde3-bcc3-7610-bd9c-dda039f52ab1/call_01a0dde3b0f871b0985576b8f6bfc71a-tool_patch.json",
+      "bytes": 682,
+      "sha256": "9f9f9b3e3741713543d858ff7415669edbb5aba37b89c3fe1410790c87510174"
+    },
+    {
+      "path": "session/tool-outputs/01a0dde3-fa58-78e2-b920-518402e16337/call_01a0dde3c2f2718991cd1b1c1fba5330-tool_patch.json",
+      "bytes": 2789,
+      "sha256": "6366936c2a4df46d25a58beab666efb61d5226401ecfebde0e71f5f45aff3df3"
+    },
+    {
+      "path": "session/tool-outputs/01a0dde3-fa80-7ae1-b381-6a45b7e1a593/call_01a0dde3f14c77d89ac85af380bc8a4f-tool_patch.json",
+      "bytes": 402,
+      "sha256": "f9d28e8673c0f981c49aa358a24b1eb3bcc028c4757f2b41b4342173a45681ff"
+    },
+    {
+      "path": "session/tool-outputs/01a0dde4-1f18-70a0-9184-b89af3fdbde1/call_01a0dde3fffb733bbe32879e4714a241-tool_patch.json",
+      "bytes": 1821,
+      "sha256": "cb2a5a543ed68d910a8b7f53066e57f1cd5f904c8f36017b6a9a2a54c6dcc052"
+    },
+    {
+      "path": "session/tool-outputs/01a0dde4-b100-75f3-9635-eac2381e2045/call_01a0dde42c3f7346b6f7a6bc3d28bb59-tool_patch.json",
+      "bytes": 5540,
+      "sha256": "e02d8cc7fcf2cd0a0e271d2175586af02d263d40954ce6dfef27bdd5a652e6de"
+    },
+    {
+      "path": "session/tool-outputs/01a0dde4-c955-7133-afb6-c3a609e7c964/call_01a0dde4bc7474ecb4c1150a34237fd0-tool_patch.json",
+      "bytes": 776,
+      "sha256": "198bb66c784fa2eb7f2d255e1e0f9630a9f054d75bedcfa4d7a71f66f67901ad"
+    },
+    {
+      "path": "session/tool-outputs/01a0dde5-e7be-7f41-a404-003ea8a22131/call_01a0dde5d728730bb06f2cfac9038469-tool_patch.json",
+      "bytes": 885,
+      "sha256": "0215e855a32e4026478deca021b0e08c5389484cb229a6ee97e0f6db3a256340"
+    },
+    {
+      "path": "session/tool-outputs/01a0dde6-002c-7e23-89bd-793cdc85ce95/call_01a0dde5f21e74d8b0eb02b7585c38fd-tool_patch.json",
+      "bytes": 561,
+      "sha256": "ebb10ca6754cebf7b5c454762e65fd7e208f6ad5e313b82a0cc2077eb103fe9d"
+    },
+    {
+      "path": "session/tool-outputs/01a0dde6-9fc7-7703-8a82-cf4826aaa3c7/call_01a0dde689c7746688f7a95bc823c0e1-tool_patch.json",
+      "bytes": 1080,
+      "sha256": "e75a42a692037d0626e32a2a131bcf3849472ad10650b45da4a372ad3acb51c8"
+    },
+    {
+      "path": "session/tool-outputs/01a0dde6-9feb-79b0-b21d-33e390eb0e39/call_01a0dde6952373a8af7da0f8e4f29e06-tool_patch.json",
+      "bytes": 586,
+      "sha256": "0fb7af22ea4e9173c121c3fe56761d6fc37908f28ebab838bc8b5ce8682089bb"
+    },
+    {
+      "path": "session/tool-outputs/01a0dde7-d7ec-7bb1-ad76-8dd7080c08b7/call_01a0dde7c19671aa92db9640d992463a-tool_patch.json",
+      "bytes": 504,
+      "sha256": "d7d05836e23898669e1f6a5e1b9046126299f43156462b765cd7c4034dc47355"
+    },
+    {
+      "path": "session/tool-outputs/01a0dde7-d81c-7fd2-bbb6-c14f9ff0ad26/call_01a0dde7cc46770fa0ec61603bcc1a5c-tool_patch.json",
+      "bytes": 507,
+      "sha256": "f46ff8437dd5a63a54a2691fb15912d048826ba919ac0de3adcffca82d779453"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddea-ed69-72b2-a5ce-a323b2b3e0c3/call_01a0ddea520e72b1908efb51aeb96d62-tool_patch.json",
+      "bytes": 8101,
+      "sha256": "54a62d3f1f7ede1b987b1de6bb7ac76dcd5098281a7928df45b2ab6630802ee8"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddeb-7cc0-7d02-a6c8-b1a2af1932b8/call_01a0ddeb62c477c9886b61c5bc9602bc-tool_patch.json",
+      "bytes": 373,
+      "sha256": "fb69d7529227ad892600175b6907713a80ff42f23071c9d5db89da7c665a84a5"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddeb-7ce6-7b11-93aa-feef161e0e30/call_01a0ddeb6cb871b9840dca60bff01006-tool_patch.json",
+      "bytes": 489,
+      "sha256": "5a47165d16d2c201318dd094f94a077abb716467e2d69488839042e1944734fb"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddeb-e5af-7fa3-bb07-563dda242d4d/call_01a0ddeb90bb736cbb5e7fa603833508-tool_patch.json",
+      "bytes": 2516,
+      "sha256": "79b6d5b35654a2ffd655394def6025894a5b02e5796eb0fed5fa5905bed37c70"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddec-342e-72d0-878d-f78aa835a6cd/call_01a0ddec1e017442aaa29fd641023e79-tool_patch.json",
+      "bytes": 632,
+      "sha256": "5ff8f97f346b2568d72f0074107de247bda60bda90670919048f771c2f6cb191"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddec-3451-73f3-9e62-05392e79568a/call_01a0ddec26eb70fa980b924d3d034c1a-tool_patch.json",
+      "bytes": 882,
+      "sha256": "617e96fd50cc8c65031199cf74af33775a2364c1843aa31ddd2d9d641af73e58"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddec-6218-7801-ab9d-a36e4a761c25/call_01a0ddec55ac763a924f17689ee6ff99-tool_patch.json",
+      "bytes": 357,
+      "sha256": "32fe8a4c918afefb0a042ca0e47c3b90e3f432b7c1402e7ea895b6a5b868704f"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddec-a904-71b1-a306-3dc0278a3d4e/call_01a0ddec9d4476ada47d398e01f91fc0-tool_patch.json",
+      "bytes": 694,
+      "sha256": "509e3b7c072d8b722e3d020a00d87d251fe9736f535d429b3f3df6197637bb02"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddec-f382-7ec3-8fd2-347d7e03bd87/call_01a0ddecc9ba72db815a8c776da3ebc1-tool_patch.json",
+      "bytes": 1792,
+      "sha256": "aea875099b904f40e3b23364a00badba7e14d2f64e7dff4cb53a9d428f78305a"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddec-f3a5-7c91-b132-343e5b169792/call_01a0ddece92c75b8ac322261ff6e1285-tool_patch.json",
+      "bytes": 456,
+      "sha256": "e52780e3fcd56fef4503eec6c6fdadb1b530a0e8ace5f7759a1c6fa917a81ce7"
+    },
+    {
+      "path": "session/tool-outputs/01a0dded-2f09-7010-9eb3-38a0b3125bf0/call_01a0dded046574d7be83fba3092b4446-tool_patch.json",
+      "bytes": 2104,
+      "sha256": "f4119a71aad5117d92f147c73609d1c95c8d80981f07fa1a7295fccfe80d641c"
+    },
+    {
+      "path": "session/tool-outputs/01a0dded-de47-7262-abda-fcb54bf5a747/call_01a0dded63b171a685e41e737424daab-tool_patch.json",
+      "bytes": 7098,
+      "sha256": "b52ffa9baa37cced647f2897c826ad5bb37d2dea617dd175c04a619545b1dfa8"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddee-da98-70d2-bb58-cc1b297254b6/call_01a0ddeeb29270769c365043bc5ecef6-tool_patch.json",
+      "bytes": 2899,
+      "sha256": "88e9cc2090cf91bcec6fbdc701f0ffe427471472e5bcf38b08584981f290f467"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddef-fbe8-7581-aa12-b6e16fc29841/call_01a0ddefd5f074f4a82d7149a15f79d4-tool_patch.json",
+      "bytes": 578,
+      "sha256": "7b3a807159f1a861edfe2fbd87853fa1d7156c317ad666a21dcc593a5eabef57"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddef-fc0d-7f93-a94e-5e16bd45d58b/call_01a0ddefe61c7492b6f03fa619938360-tool_patch.json",
+      "bytes": 477,
+      "sha256": "118dd883caac784acc5b75b86956a7714eb84b1047feb5195ec1dea529db9cfe"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddef-fc5a-7502-9448-43c14d419c02/call_01a0ddefeecb729191f5ecd153b0fb43-tool_patch.json",
+      "bytes": 523,
+      "sha256": "8256b3c6a20a6562c356ee101f5dec4406848cf209cb5c85710d7eb960b3d88e"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf0-16fb-7a63-8e90-c299f9dbfbd3/call_01a0ddf00a6874198af87df833454d4c-tool_patch.json",
+      "bytes": 493,
+      "sha256": "a715092fa7c8ee0b2a77873bb4742dba16822ba043e736ea684b7d99b4c35fe8"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf1-ec68-7f03-bcd3-497cf7fff3b5/call_01a0ddf1d64776c9ba703d9c7e80c4b3-tool_patch.json",
+      "bytes": 566,
+      "sha256": "d643be3fdcc1f8ca30e49c352cb5fcd55acb7338729e66d3f0413687886a1532"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf1-ec90-7192-9bec-395f8121645b/call_01a0ddf1e125762ba7086f3e073bb589-tool_patch.json",
+      "bytes": 444,
+      "sha256": "c522034d99e1ff8305cb6f2f9a6bdd6937e8125625d634d2f9896bab5696f3f4"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf6-60f7-7843-bb22-e8005e7206d0/call_01a0ddf60b0b7465b0c645908d8843d1-tool_patch.json",
+      "bytes": 2064,
+      "sha256": "8dab805a8bfc7835104c289a25e3c5fb1d2d9071c5396b86c6ed9ea801b1be92"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf6-6119-7f01-8ba4-f697dc6652c5/call_01a0ddf62c56714b915b136d25204574-tool_patch.json",
+      "bytes": 2928,
+      "sha256": "ade3609f3be4670a0a896fc9d0a3baca1a5d573080d9bc7f291ce80b22fc98ba"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf7-015a-76f1-b448-3f02eb8bb0cd/call_01a0ddf66bb573bd9f8d2250cb7da420-tool_patch.json",
+      "bytes": 8136,
+      "sha256": "3422f3a7aee729440b8d067e14938f02b34fdf1be9e31668e4e4a1d518ae3712"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf7-2474-7e42-a896-76f376552851/call_01a0ddf719cc748ca9a4f140dd713b03-tool_patch.json",
+      "bytes": 836,
+      "sha256": "3c89e05fa515698df123d4844aad5fefe94c646dc16ca75e80f8156909782b10"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf7-3c5d-7bd0-89b2-7e321f90911e/call_01a0ddf7316e77d2a0e541bfcfb448fd-tool_patch.json",
+      "bytes": 579,
+      "sha256": "2fe18ee0e7cbcbcfc43682c272bf4b24b8d274e05b9340b7549f1fb7d34801d1"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf7-9d54-7bb0-b338-924c13860153/call_01a0ddf76d2073b983f8d7879beea264-tool_patch.json",
+      "bytes": 382,
+      "sha256": "63e187b87683845b673f93dc085d78f07aa13ff6ad7f61f08783ea150afe743b"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf7-9d76-7180-a0c5-d00bb3762359/call_01a0ddf775f1779e97aeec6c9a03bb7e-tool_patch.json",
+      "bytes": 1284,
+      "sha256": "40d754248078a847994ad925ce6d84d028bb1508417b4a1f1b13bb4cfc424c4c"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf7-9dbd-7ba1-a1b3-f9aafddfdb97/call_01a0ddf789b2753eb2eeced99d2f1f9a-tool_patch.json",
+      "bytes": 1301,
+      "sha256": "a1caabdc05005b0941bcd59313374bd8c569cff01d82e2c0eb28f3e862c04efe"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf7-c492-7810-9254-e3be38966072/call_01a0ddf7a46273be9bc6f7de9dea21b9-tool_patch.json",
+      "bytes": 589,
+      "sha256": "4ef9f36b7a54a34e9e9d3b7415127e39fb4a9c45e9090357340cad657ff35388"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf7-c4b5-7123-8870-6b4dda0221ad/call_01a0ddf7b3c4700bb558df36ff08da60-tool_patch.json",
+      "bytes": 761,
+      "sha256": "bc8c4ae53aedae45387770eea9595075365157daf44f2ce000622a3765bc9690"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf7-e7bb-7301-baf1-b20b80a9d6dc/call_01a0ddf7d05876ae80da13734d293617-tool_patch.json",
+      "bytes": 1265,
+      "sha256": "eae6903494f29a791fb8c6804bb52665a58089ab3f1c6a11ac7d8b8507863b21"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf8-223b-7710-bf5d-e2e3d64ba0de/call_01a0ddf7f4b8766683f30e274ff63c54-tool_patch.json",
+      "bytes": 1908,
+      "sha256": "077e4488927bac4863e113dc05e4e596c850ab53663bf0c52c23b711aa6d5caa"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf8-5f2d-7442-a8dc-51deab6df128/call_01a0ddf84c2f77df92daa700c2d307e5-tool_patch.json",
+      "bytes": 357,
+      "sha256": "40fe64ad74250cbd9ae8a6de5092064e0eb3416204007059f610d048997f3171"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf8-5f50-7ab1-97db-bcf36772e1eb/call_01a0ddf853b5776491400564573bc47a-tool_patch.json",
+      "bytes": 810,
+      "sha256": "7b274f510862e185fb72cddae541c298b15a79e4cb42b49b3d3b6b838aed8f57"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf8-9746-7073-8e6c-74b30ec8acf7/call_01a0ddf87b98739392fa996d9d335f9a-tool_patch.json",
+      "bytes": 598,
+      "sha256": "f616f819b5f4dd9930c05808344531a2afcec8b9375d53b3c5ae30fe9e19c1af"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf8-9768-7bf1-9777-14fd0db4e34f/call_01a0ddf88a3c728a9e87ace1fba2f2b4-tool_patch.json",
+      "bytes": 728,
+      "sha256": "d9be449dcb4a203cd599b3ff9d9bf598ed5783e5beeee1a968706100d28b2ea2"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf8-eee1-7fa0-bce7-6bdb16c9cfe4/call_01a0ddf8aeb17248bf856836542ac63a-tool_patch.json",
+      "bytes": 1413,
+      "sha256": "1709219fbc4cd73236a504bc0a143511d67f153eee122b576b8a1a920fc3b1f1"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf8-ef0b-7ab3-8aba-50d910fe5498/call_01a0ddf8cc5f76bc8879b093dbe27839-tool_patch.json",
+      "bytes": 1946,
+      "sha256": "55334de9c727bc2b6e8122a48dc741e6b42e457f671deb47449446811ee954cc"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddf9-26b7-7d53-bb97-1ab413a6dd34/call_01a0ddf8f5c07039a71b5a0d17116fcc-tool_patch.json",
+      "bytes": 2916,
+      "sha256": "a8be318512ff9ef26b266b429daf498cf37af0eba82356bed7166803ef6fb5dc"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddfa-2da9-7823-ba08-8fec8723e671/call_01a0ddf9945173288249431cea703eb5-tool_patch.json",
+      "bytes": 9525,
+      "sha256": "5181d5c863bc12911112eb1fa2739ffe105428941341c4f4282bce0fd0abfa8d"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddfa-7297-74e0-a5c4-d8bbbe3a6008/call_01a0ddfa5da771d89cad4ec7f728f5d1-tool_patch.json",
+      "bytes": 1621,
+      "sha256": "16e19794b1baca8893abd1229038790de13e192b51776fc59cbf32e3e27cc323"
+    },
+    {
+      "path": "session/tool-outputs/01a0ddfa-f529-7312-af2a-a7892f340c3d/call_01a0ddfae7e27746bd50c2ea3b339dba-tool_patch.json",
+      "bytes": 474,
+      "sha256": "553b797b4718925823cc7647398eb83869e6f262a84c0fc14fadff8b739df4f4"
+    },
+    {
+      "path": "session/transcript.md",
+      "bytes": 7131,
+      "sha256": "d8f1b9c40de7fb0397d91e8caaff583514a4a33adfc6dcf9582213b02d22437d"
+    },
+    {
+      "path": "validation/original-session-last-tests.json",
+      "bytes": 622,
+      "sha256": "c63195dd0ff410fb232d1f89fb8c09d5f067d3db363048b6f1acc81525bb50d1"
+    },
+    {
+      "path": "validation/original-session-last-tests.txt",
+      "bytes": 230,
+      "sha256": "94e428c0f8f96ddd789ec3ad1e61df69c00fe8723ae4765502577f6093ca3579"
+    },
+    {
+      "path": "validation/recovery-checks.json",
+      "bytes": 2161,
+      "sha256": "464013af20e8f559a038745701c3525e89cb392aff4459c55f3f312b4419e402"
+    },
+    {
+      "path": "working-tree/milestone4.patch",
+      "bytes": 35372,
+      "sha256": "caebaf04b1383b93acac64df818f55533008c9c33b61a71f32a654f869c6faeb"
+    },
+    {
+      "path": "working-tree/status-before-recovery.txt",
+      "bytes": 260,
+      "sha256": "15374e8ab5fe699cf232d114766d77e4770c94b51b1bfa88d62f07be056d9e6e"
+    }
+  ],
+  "excluded": [
+    "Session runtime locks",
+    "cron.db and session peer-history SQLite/cache databases",
+    "Virtual environment and generated caches",
+    "Unrelated Muse sessions"
+  ],
+  "integrity_note": "Hashes cover all archive files except this manifest. Source-snapshot hashes are historical; source may evolve later."
+}

@@ -1,0 +1,3 @@
+openalex_search -> 25
+semscholar_search FAILED: Client error '429 ' for url 'https://api.semanticscholar.org/graph/v1/paper/search?query=factors+related+to+mortality+in+advanced+cervical+cancer&limit=25&fields=title%2Cabstract%2Cauthors%2Cyear%2Cvenue%2Cdoi%2Curl%2CcitationCount%2CexternalIds'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429

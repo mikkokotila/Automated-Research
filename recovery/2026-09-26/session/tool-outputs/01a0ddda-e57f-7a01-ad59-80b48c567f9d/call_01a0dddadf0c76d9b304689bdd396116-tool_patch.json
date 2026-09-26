@@ -1,0 +1,1 @@
+{"files":[{"path":"/Users/mikkokotila/Automated-Research/src/autoresearch/__main__.py","hunks":[{"oldStart":1,"oldLines":0,"newStart":1,"newLines":4,"lines":["+from .cli import main","+","+if __name__ == \"__main__\":","+    raise SystemExit(main())"]}]}]}

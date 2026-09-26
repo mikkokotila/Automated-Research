@@ -1,5 +1,9 @@
 # Automated Research
 
+## Recovered work and continuation
+
+The 26 September 2026 build session, all saved run artefacts, and the unfinished self-reflection/self-improvement work are preserved. Start with [docs/HANDOFF.md](docs/HANDOFF.md) and the [recovery inventory](recovery/2026-09-26/README.md). **M4 remains unfinished: host/container isolation is not implemented or verified. Do not run self-modifying modes on the host.**
+
 Explain a research question in plain words, get a **cited answer** in return.
 Milestone 1: automated literature review.
 

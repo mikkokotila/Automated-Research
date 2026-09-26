@@ -1,0 +1,1 @@
+{"files":[{"path":"/Users/mikkokotila/Automated-Research/.gitignore","hunks":[{"oldStart":1,"oldLines":0,"newStart":1,"newLines":6,"lines":["+__pycache__/","+*.pyc","+.venv/","+*.egg-info/","+out/","+.DS_Store"]}]}]}

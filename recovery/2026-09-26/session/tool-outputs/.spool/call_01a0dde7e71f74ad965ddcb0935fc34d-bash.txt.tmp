@@ -1,0 +1,14 @@
+leak-check-done
+M  README.md
+M  pyproject.toml
+A  src/autoresearch/analysis.py
+M  src/autoresearch/cli.py
+A  src/autoresearch/data.py
+A  src/autoresearch/modeling.py
+M  src/autoresearch/muse_client.py
+M  src/autoresearch/report.py
+M  tests/test_milestone1.py
+A  tests/test_milestone2.py
+M  uv.lock
+5e38d8c Milestone 2: CSV hypothesis testing + contributor model
+a971a81 Milestone 1: cited literature review via Muse API

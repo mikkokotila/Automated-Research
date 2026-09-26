@@ -1,0 +1,5 @@
+        "preprocessing": prep.preprocessing,
+        "data_notes": list(p.notes),
+    }
+    (out / "provenance.json").write_text(json.dumps(provenance, indent=2), encoding="utf-8")
+    return out

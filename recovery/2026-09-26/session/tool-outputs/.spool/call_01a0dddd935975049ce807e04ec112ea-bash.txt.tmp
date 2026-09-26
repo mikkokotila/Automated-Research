@@ -1,0 +1,17 @@
+A  .github/workflows/ci.yml
+A  .gitignore
+A  README.md
+A  pyproject.toml
+A  src/autoresearch/__init__.py
+A  src/autoresearch/__main__.py
+A  src/autoresearch/cli.py
+A  src/autoresearch/muse_client.py
+A  src/autoresearch/papers.py
+A  src/autoresearch/rank.py
+A  src/autoresearch/report.py
+A  src/autoresearch/retrieval.py
+A  src/autoresearch/spec.py
+A  src/autoresearch/synthesize.py
+A  tests/test_milestone1.py
+A  uv.lock
+a971a81 Milestone 1: cited literature review via Muse API
