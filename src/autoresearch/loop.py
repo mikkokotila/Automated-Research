@@ -143,6 +143,7 @@ def run_loop(
     improve_rounds: int = 1,
     repo_root: str | None = None,
     check_cmd: list[str] | None = None,
+    outbox: dict | None = None,
 ) -> LoopResult:
     if not 1 <= max_iterations <= MAX_ITERATIONS:
         raise ValueError(f"max_iterations must be 1..{MAX_ITERATIONS}")
@@ -152,6 +153,7 @@ def run_loop(
     http = http or httpx.Client(headers={"User-Agent": "Automated-Research/0.1"})
     iterations: list[Iteration] = []
     stopped = "converged"
+    failed_q: str | None = None
     improving = self_improve and repo_root is not None
     if self_improve and repo_root is None:
         emit(journal, "loop", "improve-disabled", "self_improve needs repo_root")
@@ -167,8 +169,9 @@ def run_loop(
                 hint = f"{csv} (target {target})" if csv else "none — reviews only"
                 try:
                     followups = propose(history, hint, muse)
-                except Exception:
+                except Exception as e:
                     followups = []
+                    emit(journal, "loop", "propose-failed", f"{type(e).__name__}: {str(e)[:200]}")
                 if not csv:  # no dataset: only reviews are executable
                     followups = [f for f in followups if f.kind == "review"]
                 fresh: list[Followup] = []
@@ -189,6 +192,7 @@ def run_loop(
                     it = run_review(job.question, max_papers, http, muse, journal)
             except Exception as e:
                 stopped = f"failed: {e}"
+                failed_q = job.question
                 emit(journal, "loop", "failed", str(e)[:300])
                 break
             it.n = len(iterations) + 1
@@ -200,7 +204,7 @@ def run_loop(
                 stopped = "max_iterations"
         if not iterations:
             raise RuntimeError(stopped)
-        unanswered = tuple(j.question for j in pending)
+        unanswered = tuple(([failed_q] if failed_q else []) + [j.question for j in pending])
         history = "\n\n---\n\n".join(f"[iter {i.n}] {i.summary}" for i in iterations)
         tail = f"\n\nUnanswered (budget ran out, carry forward): {list(unanswered)}" if unanswered else ""
         synthesis = muse.complete(SYNTHESIS_SYSTEM, f"Iterations:\n{history}{tail}")
@@ -212,11 +216,13 @@ def run_loop(
                 from .improve import improve_from_journal
 
                 outcome = f"{len(iterations)} iterations, stopped={stopped}"
-                _, rep = improve_from_journal(
+                doc, rep = improve_from_journal(
                     journal.text() if journal else "", outcome, repo_root, muse,
                     rounds=improve_rounds, check_cmd=check_cmd, journal=journal,
                 )
                 emit(journal, "loop", "improved", f"kept={rep.kept} reverted={rep.reverted} skipped={rep.skipped}")
+                if outbox is not None:
+                    outbox["improvement"] = (doc, rep)
             except Exception as e:
                 emit(journal, "loop", "improve-failed", str(e)[:200])
         return LoopResult(tuple(iterations), synthesis, muse.model, stopped, unanswered)
@@ -226,7 +232,11 @@ def run_loop(
 
 
 def _mid_run_improve(journal: Journal | None, it: Iteration, repo_root: str | None, muse: Completer, check_cmd: list[str] | None) -> None:
-    """One bounded improve pass on the latest iteration's notes. Never raises."""
+    """One bounded improve pass on the latest iteration's notes. Never raises.
+
+    Note: kept patches land on disk and are validated, but this process keeps
+    running the already-imported modules. Improvements activate on the next run.
+    """
     if journal is None or repo_root is None:
         return
     try:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
 import httpx
 
@@ -15,7 +16,7 @@ from .spec import ResearchSpec
 
 
 def review(question: str, max_papers: int, year_from: int | None, out_dir: str) -> str:
-    j = Journal()
+    j = Journal(Path(out_dir) / "journal.jsonl")
     emit(j, "review", "start", question[:200])
     spec = ResearchSpec(question=question, max_papers=max_papers, year_from=year_from)
     with httpx.Client(headers={"User-Agent": "Automated-Research/0.1"}) as http:
@@ -80,17 +81,37 @@ def loop(
     question: str, csv: str | None, target: str | None, max_iterations: int, max_papers: int, out_dir: str,
     self_improve: bool = False, improve_rounds: int = 1, repo: str = ".",
 ) -> str:
-    j = Journal()
+    j = Journal(Path(out_dir) / "journal.jsonl")
+    outbox: dict = {}
     res = loopmod.run_loop(
         question, csv, target, max_iterations, max_papers, MuseClient(), journal=j,
-        self_improve=self_improve, improve_rounds=improve_rounds, repo_root=repo,
+        self_improve=self_improve, improve_rounds=improve_rounds, repo_root=repo, outbox=outbox,
     )
     path = report.write_loop_bundle(out_dir, question, res, j)
+    if self_improve and outbox.get("improvement"):
+        _maybe_publish(repo, outbox["improvement"], j)
+        j.save(path / "journal.jsonl")  # persist publish notes too
     return str(path / "synthesis.md")
 
 
+def _maybe_publish(repo: str, improvement, j: Journal) -> None:
+    import os
+
+    if not os.environ.get("GITHUB_TOKEN"):
+        emit(j, "publish", "skipped", "no GITHUB_TOKEN; local-only")
+        print("publish: skipped (no GITHUB_TOKEN)")
+        return
+    from .github_ops import GitHub, resolve_repo, resolve_token
+    from .improve import new_run_id, publish_round
+
+    doc, rep = improvement
+    gh = GitHub(resolve_token(), resolve_repo(repo))
+    pub = publish_round(repo, new_run_id(), doc, rep, j, gh)
+    print(f"publish: issue={pub.issue_url or 'none'} pr={pub.pr_url or 'none'} merged={pub.merged}")
+
+
 def analyze(csv: str, target: str, question: str, out_dir: str) -> str:
-    j = Journal()
+    j = Journal(Path(out_dir) / "journal.jsonl")
     emit(j, "analyze", "start", f"{csv} target={target}")
     df = datamod.load_csv(csv)
     prep = datamod.prepare(df, target)
@@ -105,8 +126,6 @@ def analyze(csv: str, target: str, question: str, out_dir: str) -> str:
 
 
 def improve(run_dir: str, repo: str, rounds: int, out: str | None) -> str:
-    from pathlib import Path
-
     jr = Journal.load(Path(run_dir) / "journal.jsonl")
     outcome = f"past run at {run_dir}: {len(jr)} notes"
     for cand in ("run.json", "provenance.json"):
@@ -120,6 +139,8 @@ def improve(run_dir: str, repo: str, rounds: int, out: str | None) -> str:
     (dest / "reflection.md").write_text(doc.markdown + "\n", encoding="utf-8")
     jr.save(dest / "journal.jsonl")
     print(f"improve: kept={rep.kept} reverted={rep.reverted} skipped={rep.skipped}")
+    _maybe_publish(repo, (doc, rep), jr)
+    jr.save(dest / "journal.jsonl")
     return str(dest / "reflection.md")
 
 

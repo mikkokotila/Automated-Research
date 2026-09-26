@@ -137,3 +137,43 @@ def test_analysis_bundle(tmp_path, clf_csv):
     md = (out / "analysis.md").read_text()
     assert "Plain findings." in md and "## Evidence" in md
     assert (out / "provenance.json").exists()
+
+
+def test_latin1_csv_loads(tmp_path):
+    p = tmp_path / "latin.csv"
+    body = "name,val,t\n" + ("caf\xe9,1,0\nz\xfcrich,2,1\n" * 15)
+    p.write_bytes(body.encode("latin-1"))
+    df = datamod.load_csv(p)
+    assert len(df) == 30 and "caf\xe9" in df["name"].tolist()
+
+
+def test_row_cap_samples_deterministically(monkeypatch):
+    monkeypatch.setattr(datamod, "ROW_CAP", 50)
+    rng = np.random.RandomState(0)
+    df = pd.DataFrame({"f": rng.rand(80), "t": (rng.rand(80) > 0.5).astype(int)})
+    a = datamod.prepare(df, "t")
+    b = datamod.prepare(df, "t")
+    assert len(a.y_train) + len(a.y_test) == 50
+    assert "sampled 50/" in a.preprocessing
+    assert list(a.y_train) == list(b.y_train)
+
+
+def test_all_missing_categorical_dropped():
+    df = pd.DataFrame({"gone": [None] * 30, "f": np.random.RandomState(0).rand(30)})
+    df["t"] = (df["f"] > 0.5).astype(int)
+    prof = datamod.profile_frame(df, "t")
+    assert "gone" in prof.dropped_features
+    prep = datamod.prepare(df, "t")  # must not crash the imputer
+    assert not np.isnan(prep.X_train).any()
+
+
+def test_singleton_class_survives_split_and_cv():
+    rng = np.random.RandomState(0)
+    df = pd.DataFrame({"f1": rng.rand(40), "f2": rng.rand(40)})
+    df["t"] = 0
+    df.loc[0, "t"] = 1  # lone member
+    prep = datamod.prepare(df, "t")
+    assert "pinned 1" in prep.preprocessing
+    assert 1 in set(prep.y_train)
+    res = modeling.run(prep)
+    assert any("degenerate" in w for w in res.warnings)

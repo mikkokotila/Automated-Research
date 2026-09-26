@@ -9,14 +9,27 @@ Safety properties:
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
+import uuid
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 
 from .journal import Journal, emit
 from .reflect import Proposal, ReflectionDoc, reflect
 from .synthesize import Completer
+
+
+def require_sandbox() -> None:
+    """Self-modification runs only in the sandbox container. Enforced, not advised."""
+    if os.environ.get("AUTORESEARCH_SANDBOXED") == "1" or Path("/.dockerenv").exists():
+        return
+    raise RuntimeError(
+        "refusing: self-modification runs only inside the sandbox container "
+        "(see scripts/container_run.sh); AUTORESEARCH_SANDBOXED=1 not set"
+    )
 
 DIFF_SYSTEM = (
     "You emit ONLY a unified diff (git format with a/ b/ paths, no fences, no "
@@ -86,8 +99,18 @@ def checks_pass(repo: Path, check_cmd: list[str], journal: Journal | None = None
     return r.returncode == 0
 
 
-def request_diff(proposal: Proposal, client: Completer) -> str:
-    user = f"Target file: {proposal.target}\nRequested change: {proposal.change}\nReason: {proposal.reason}\n\nEmit the diff."
+def request_diff(proposal: Proposal, client: Completer, repo: Path | None = None) -> str:
+    context = "(target content unavailable)"
+    if repo is not None:
+        p = repo / proposal.target
+        try:
+            context = p.read_text(encoding="utf-8")[:8000] if p.exists() else "(file does not exist yet)"
+        except OSError:
+            context = "(target unreadable)"
+    user = (
+        f"Target file: {proposal.target}\nRequested change: {proposal.change}\nReason: {proposal.reason}\n\n"
+        f"Current content of {proposal.target}:\n```\n{context}\n```\n\nEmit the diff."
+    )
     return client.complete(DIFF_SYSTEM, user)
 
 
@@ -104,20 +127,23 @@ def apply_one(repo: Path, proposal: Proposal, diff: str, check_cmd: list[str], j
         if reason:
             emit(journal, "improve", "rejected", f"{proposal.id}: {t} forbidden ({reason})")
             return PatchOutcome(proposal.id, t, False, False, f"forbidden target {t}: {reason}")
+    snapshot: dict[str, bytes | None] = {}
+    for t in targets:
+        p = repo / t
+        snapshot[t] = p.read_bytes() if p.exists() else None
     ap = subprocess.run(["git", "apply", "-"], input=diff, cwd=repo, capture_output=True, text=True, timeout=60)
     if ap.returncode != 0:
         return PatchOutcome(proposal.id, proposal.target, False, False, f"git apply failed: {ap.stderr.strip()[:200]}")
     emit(journal, "improve", "applied", f"{proposal.id}: {', '.join(targets)}")
     if checks_pass(repo, check_cmd, journal):
         return PatchOutcome(proposal.id, proposal.target, True, True, "checks green, kept")
-    # revert: restore tracked files, delete files the patch added
-    for t in targets:
+    for t, data in snapshot.items():  # restore pre-patch bytes, never HEAD (keeps earlier patches)
         p = repo / t
-        tracked = subprocess.run(["git", "ls-files", "--error-unmatch", t], cwd=repo, capture_output=True).returncode == 0
-        if tracked:
-            subprocess.run(["git", "checkout", "--", t], cwd=repo, capture_output=True)
-        elif p.exists():
-            p.unlink()
+        if data is None:
+            if p.exists():
+                p.unlink()
+        else:
+            p.write_bytes(data)
     emit(journal, "improve", "reverted", f"{proposal.id}: checks failed")
     return PatchOutcome(proposal.id, proposal.target, True, False, "checks failed, reverted")
 
@@ -132,6 +158,7 @@ def improve_round(
     repo = Path(repo)
     check_cmd = check_cmd or ["pytest", "-q"]
     report = ImproveReport()
+    require_sandbox()
     if not tree_clean(repo):
         emit(journal, "improve", "aborted", "tree not clean")
         report.skipped = len(doc.proposals)
@@ -142,7 +169,7 @@ def improve_round(
         return report
     for proposal in doc.proposals[:MAX_PROPOSALS_PER_ROUND]:
         try:
-            diff = request_diff(proposal, client)
+            diff = request_diff(proposal, client, repo)
         except Exception as e:
             report.outcomes.append(PatchOutcome(proposal.id, proposal.target, False, False, f"diff request failed: {e}"))
             report.skipped += 1
@@ -181,3 +208,78 @@ def improve_from_journal(
         if rep.kept == 0:
             break
     return doc, total
+
+
+def new_run_id() -> str:
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    return f"{ts}-{uuid.uuid4().hex[:6]}"
+
+
+@dataclass
+class PublishReport:
+    issue_number: int = 0
+    issue_url: str = ""
+    pr_url: str = ""
+    merged: bool = False
+    branch: str = ""
+
+
+def publish_round(
+    repo: str | Path,
+    run_id: str,
+    doc: ReflectionDoc,
+    rep: ImproveReport,
+    journal: Journal,
+    gh,  # GitHub client (duck-typed for tests)
+    merge_timeout_s: float = 900,
+    merge_interval_s: float = 20,
+) -> PublishReport:
+    """File the round as an Issue; ship kept patches via auto-merged PR."""
+    from .github_ops import commit_and_push
+
+    repo = Path(repo)
+    runs = repo / "runs"
+    runs.mkdir(exist_ok=True)
+    (runs / f"{run_id}-reflection.md").write_text(doc.markdown + "\n", encoding="utf-8")
+    journal.save(runs / f"{run_id}-journal.jsonl")
+    rows = [f"| {o.proposal_id} | {o.target} | {'kept' if o.kept else 'reverted' if o.applied else 'skipped'} | {o.reason} |"
+            for o in rep.outcomes] or ["| — | — | no proposals | — |"]
+    body = f"{doc.markdown}\n\n## Patches (kept={rep.kept} reverted={rep.reverted} skipped={rep.skipped})\n\n" + \
+        "| id | target | result | reason |\n|---|---|---|---|\n" + "\n".join(rows)
+    issue = gh.create_issue(f"Self-improvement {run_id}", body)
+    emit(journal, "publish", "issue", f"#{issue.number}")
+    report = PublishReport(issue_number=issue.number, issue_url=issue.url)
+    if rep.kept == 0:
+        return report
+    branch = f"auto/improve-{run_id}"
+    files = commit_and_push(repo, branch, f"auto: self-improvement {run_id}", _token())
+    emit(journal, "publish", "pushed", f"{branch} ({len(files)} files)")
+    pr = gh.create_pr(
+        f"auto: self-improvement {run_id}",
+        f"Closes #{issue.number}\n\n{body}",
+        head=branch,
+    )
+    report.pr_url = pr.url
+    report.branch = branch
+    emit(journal, "publish", "pr", pr.url)
+    try:
+        gh.wait_and_merge(pr, timeout_s=merge_timeout_s, interval_s=merge_interval_s)
+        report.merged = True
+        gh.comment(issue.number, f"Merged: {pr.url}")
+        try:
+            gh.delete_branch(branch)
+        except Exception:
+            pass
+    except Exception as e:
+        gh.comment(issue.number, f"Auto-merge failed, needs a human: {e}\n\nPR: {pr.url}")
+        emit(journal, "publish", "merge-failed", str(e)[:200])
+    return report
+
+
+def _token() -> str:
+    import os
+
+    token = os.environ.get("GITHUB_TOKEN", "")
+    if not token:
+        raise RuntimeError("GITHUB_TOKEN required to push")
+    return token

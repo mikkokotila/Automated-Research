@@ -162,6 +162,39 @@ def test_search_text_strips_query_breakers():
     assert retrieval.search_text("cervical cancer: 2023-24") == "cervical cancer: 2023-24"
 
 
+def test_get_retries_transient_then_succeeds(monkeypatch):
+    import time as _t
+
+    monkeypatch.setattr(_t, "sleep", lambda s: None)
+    calls = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        if len(calls) < 3:
+            return httpx.Response(429, json={})
+        return httpx.Response(200, json={"results": []})
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    resp = retrieval._get(client, "https://x", {})
+    assert resp.status_code == 200 and len(calls) == 3
+
+
+def test_get_raises_client_errors_immediately(monkeypatch):
+    import time as _t
+
+    monkeypatch.setattr(_t, "sleep", lambda s: None)
+    calls = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        return httpx.Response(400, json={})
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    with pytest.raises(httpx.HTTPStatusError):
+        retrieval._get(client, "https://x", {})
+    assert len(calls) == 1
+
+
 # --- muse client ---
 
 
@@ -176,6 +209,69 @@ def test_resolve_api_key_prefers_muse_first():
     assert resolve_api_key({"META_API_KEY": "c"}) == "c"
     with pytest.raises(RuntimeError, match="MUSE_API_KEY"):
         resolve_api_key({})
+
+
+class _StubCompletions:
+    def __init__(self, script):
+        self.script = script
+        self.calls = 0
+
+    def create(self, **kw):
+        self.calls += 1
+        item = self.script[min(self.calls - 1, len(self.script) - 1)]
+        if isinstance(item, Exception):
+            raise item
+        return item
+
+
+class _StubClient:
+    def __init__(self, script):
+        self.chat = type("C", (), {})()
+        self.chat.completions = _StubCompletions(script)
+
+
+def _resp(text, finish="stop"):
+    msg = type("M", (), {"content": text})()
+    choice = type("Ch", (), {"message": msg, "finish_reason": finish})()
+    return type("R", (), {"choices": [choice]})()
+
+
+def test_muse_retries_transient(monkeypatch):
+    import time as _t
+
+    import openai
+
+    monkeypatch.setattr(_t, "sleep", lambda s: None)
+    err = openai.APIConnectionError(message="boom", request=httpx.Request("POST", "https://x"))
+    stub = _StubClient([err, err, _resp("hello")])
+    from autoresearch.muse_client import MuseClient
+
+    assert MuseClient(api_key="k", client=stub).complete("s", "u") == "hello"
+    assert stub.chat.completions.calls == 3
+
+
+def test_muse_no_retry_on_auth(monkeypatch):
+    import time as _t
+
+    import openai
+
+    monkeypatch.setattr(_t, "sleep", lambda s: None)
+    resp = httpx.Response(401, request=httpx.Request("POST", "https://x"))
+    err = openai.AuthenticationError("bad key", response=resp, body=None)
+    stub = _StubClient([err])
+    from autoresearch.muse_client import MuseClient
+
+    with pytest.raises(openai.AuthenticationError):
+        MuseClient(api_key="k", client=stub).complete("s", "u")
+    assert stub.chat.completions.calls == 1
+
+
+def test_muse_empty_reports_finish_reason():
+    stub = _StubClient([_resp("  ", finish="length")])
+    from autoresearch.muse_client import MuseClient
+
+    with pytest.raises(RuntimeError, match="finish=length"):
+        MuseClient(api_key="k", client=stub).complete("s", "u")
 
 
 # --- synthesize ---
@@ -203,6 +299,13 @@ def test_synthesize_rejects_empty():
         synthesize.synthesize("q", [], FakeCompleter("x"))
     with pytest.raises(RuntimeError, match="empty"):
         synthesize.synthesize("q", [paper()], FakeCompleter("  "))
+
+
+def test_build_prompt_truncates_huge_lists(monkeypatch):
+    monkeypatch.setattr(synthesize, "MAX_PROMPT_CHARS", 500)
+    papers = [paper(title=f"t{i}", abstract="a" * 500) for i in range(10)]
+    prompt = synthesize.build_prompt("q", papers)
+    assert len(prompt) <= 540 and prompt.endswith("[truncated for length]")
 
 
 # --- report ---

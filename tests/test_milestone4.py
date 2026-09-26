@@ -54,6 +54,11 @@ DIFF_TESTS = """--- a/tests/test_x.py
 """
 
 
+@pytest.fixture(autouse=True)
+def _sandbox(monkeypatch):
+    monkeypatch.setenv("AUTORESEARCH_SANDBOXED", "1")
+
+
 @pytest.fixture()
 def repo(tmp_path):
     r = tmp_path / "repo"
@@ -95,12 +100,20 @@ def test_journal_roundtrip_and_emit(tmp_path):
     assert len(Journal.load(p)) == 1
 
 
-def test_journal_text_tail_caps():
+def test_journal_text_keeps_head_and_tail():
     j = Journal()
     for i in range(50):
         j.note("p", f"e{i}", "x" * 200)
-    assert len(j.text(100)) == 100
-    assert j.text(10**9).endswith(j.text(100))  # keeps the most recent notes
+    t = j.text(400)
+    assert len(t) <= 400 and "elided" in t
+    assert "e0" in t and "e49" in t  # start and end survive
+
+
+def test_journal_appends_durably(tmp_path):
+    p = tmp_path / "sub" / "j.jsonl"
+    j = Journal(p)
+    j.note("a", "b", "c")
+    assert len(Journal.load(p)) == 1  # on disk before any explicit save
 
 
 # --- reflection ---

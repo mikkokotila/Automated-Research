@@ -15,6 +15,7 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 MIN_ROWS = 20
 MAX_CAT_CARDINALITY = 50
+ROW_CAP = 100_000
 RANDOM_STATE = 42
 
 
@@ -49,6 +50,8 @@ def load_csv(path: str | Path) -> pd.DataFrame:
         raise FileNotFoundError(f"CSV not found: {p}")
     try:
         df = pd.read_csv(p)
+    except UnicodeDecodeError:
+        df = pd.read_csv(p, encoding="latin-1")  # fallback for legacy exports
     except Exception as e:
         raise ValueError(f"could not parse CSV {p}: {e}") from e
     if df.empty or len(df.columns) == 0:
@@ -92,7 +95,10 @@ def profile_frame(df: pd.DataFrame, target: str) -> Profile:
             else:
                 numeric.append(c)
         else:
-            if col.nunique(dropna=True) > MAX_CAT_CARDINALITY:
+            if col.isna().all():
+                dropped.append(c)
+                notes.append(f"dropped all-missing column '{c}'")
+            elif col.nunique(dropna=True) > MAX_CAT_CARDINALITY:
                 dropped.append(c)
                 notes.append(f"dropped high-cardinality column '{c}' (likely an id)")
             else:
@@ -113,15 +119,43 @@ def profile_frame(df: pd.DataFrame, target: str) -> Profile:
     )
 
 
+def _split(X: pd.DataFrame, y: pd.Series, task: str, test_size: float) -> tuple:
+    """Stratified split that survives singleton classes (pinned to train)."""
+    notes: list[str] = []
+    if task != "classification":
+        idx_tr, idx_te = train_test_split(X.index.to_numpy(), test_size=test_size, random_state=RANDOM_STATE)
+        return idx_tr, idx_te, notes
+    counts = y.value_counts()
+    tiny = counts[counts < 2].index.tolist()
+    if not tiny:
+        idx_tr, idx_te = train_test_split(
+            X.index.to_numpy(), test_size=test_size, random_state=RANDOM_STATE, stratify=y.to_numpy()
+        )
+        return idx_tr, idx_te, notes
+    pinned = y[y.isin(tiny)].index.to_numpy()
+    rest = y[~y.isin(tiny)]
+    sub_size = test_size * len(y) / max(len(rest), 1)
+    sub_size = min(max(sub_size, 0.05), 0.9)
+    r_tr, r_te = train_test_split(
+        rest.index.to_numpy(), test_size=sub_size, random_state=RANDOM_STATE, stratify=rest.to_numpy()
+    )
+    notes.append(f"pinned {len(pinned)} singleton-class rows to train")
+    return np.concatenate([pinned, r_tr]), r_te, notes
+
+
 def prepare(df: pd.DataFrame, target: str, test_size: float = 0.25) -> Prepared:
     prof = profile_frame(df, target)
     work = df.dropna(subset=[target])
-    X = work[[*prof.numeric_features, *prof.categorical_features]]
-    y = work[target].to_numpy()
-    stratify = y if prof.task == "classification" else None
-    X_tr, X_te, y_tr, y_te = train_test_split(
-        X, y, test_size=test_size, random_state=RANDOM_STATE, stratify=stratify
-    )
+    extra: list[str] = []
+    if len(work) > ROW_CAP:  # deterministic cap: bound runtime on huge exports
+        work = work.sample(n=ROW_CAP, random_state=RANDOM_STATE).sort_index()
+        extra.append(f"sampled {ROW_CAP}/{prof.n_rows} rows")
+    feats = [*prof.numeric_features, *prof.categorical_features]
+    X = work[feats]
+    y = work[target]
+    idx_tr, idx_te, split_notes = _split(X, y, prof.task, test_size)
+    extra.extend(split_notes)
+    X_tr, X_te, y_tr, y_te = X.loc[idx_tr], X.loc[idx_te], y.loc[idx_tr].to_numpy(), y.loc[idx_te].to_numpy()
     steps: list[tuple[str, Pipeline, list[str]]] = []
     if prof.numeric_features:
         steps.append((
@@ -152,6 +186,8 @@ def prepare(df: pd.DataFrame, target: str, test_size: float = 0.25) -> Prepared:
         f"categorical(mode+onehot): {len(prof.categorical_features)}; "
         f"split 75/25 seed {RANDOM_STATE}"
     )
+    if extra:
+        desc += "; " + "; ".join(extra)
     return Prepared(
         X_train=np.asarray(Xt_tr, dtype=float),
         X_test=np.asarray(Xt_te, dtype=float),

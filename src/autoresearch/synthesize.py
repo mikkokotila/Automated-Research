@@ -16,6 +16,7 @@ SYSTEM = (
 )
 
 _CITE_RE = re.compile(r"\[(\d+)\]")
+MAX_PROMPT_CHARS = 120_000
 
 
 class Completer(Protocol):
@@ -41,7 +42,10 @@ def build_prompt(question: str, papers: list[Paper]) -> str:
         if p.url:
             lines.append(f"    Link: {p.url}")
     lines += ["", "Write the review with [n] citations, then open questions."]
-    return "\n".join(lines)
+    prompt = "\n".join(lines)
+    if len(prompt) > MAX_PROMPT_CHARS:  # guard: huge paper lists must not blow context
+        prompt = prompt[:MAX_PROMPT_CHARS] + "\n[truncated for length]"
+    return prompt
 
 
 def cited_indices(text: str, n_papers: int) -> tuple[int, ...]:

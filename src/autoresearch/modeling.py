@@ -5,12 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
+import pandas as pd
 from sklearn.dummy import DummyClassifier, DummyRegressor
 from sklearn.ensemble import HistGradientBoostingClassifier, HistGradientBoostingRegressor
 from sklearn.inspection import permutation_importance
 from sklearn.linear_model import LogisticRegression, Ridge
 from sklearn.metrics import accuracy_score, f1_score, mean_squared_error, r2_score
-from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import KFold, cross_val_score
 
 from .data import RANDOM_STATE, Prepared
 
@@ -62,7 +63,15 @@ def run(prep: Prepared) -> Results:
     task = prep.profile.task
     scoring = "accuracy" if task == "classification" else "neg_root_mean_squared_error"
     n = len(prep.y_train)
-    cv = min(5, max(2, n // 10))
+    cv: int | KFold = min(5, max(2, n // 10))
+    warnings: list[str] = []
+    if task == "classification":
+        min_count = int(pd.Series(prep.y_train).value_counts().min())
+        if min_count < 2:  # degenerate split: plain folds, flagged
+            cv = KFold(n_splits=2, shuffle=True, random_state=RANDOM_STATE)
+            warnings.append("a class has <2 train rows — CV folds are degenerate")
+        else:
+            cv = min(cv, min_count)
     better = max if task == "classification" else min
     scores: list[ModelScore] = []
     fitted: dict[str, object] = {}
@@ -70,10 +79,15 @@ def run(prep: Prepared) -> Results:
         cv_scores = cross_val_score(model, prep.X_train, prep.y_train, cv=cv, scoring=scoring)
         if task == "regression":
             cv_scores = -cv_scores
+        mean, std = float(np.nanmean(cv_scores)), float(np.nanstd(cv_scores))
+        if np.isnan(mean):  # every fold failed: worst possible, flagged below
+            mean = 0.0 if task == "classification" else float("inf")
+            std = 0.0
+            warnings.append(f"{name}: all CV folds failed")
         model.fit(prep.X_train, prep.y_train)
         _, test = test_metric(task, prep.y_test, model.predict(prep.X_test))
         fitted[name] = model
-        scores.append(ModelScore(name, float(cv_scores.mean()), float(cv_scores.std()), test))
+        scores.append(ModelScore(name, mean, std, test))
     non_dummy = [s for s in scores if s.name != "dummy"]
     best = better(non_dummy, key=lambda s: s.cv_mean)  # cv decides, test only reported
     baseline = next(s for s in scores if s.name == "dummy")
@@ -85,7 +99,6 @@ def run(prep: Prepared) -> Results:
     else:
         r2 = float(r2_score(prep.y_test, fitted[best.name].predict(prep.X_test)))  # type: ignore[union-attr]
         extra = f" (R² {r2:.3f})"
-    warnings: list[str] = []
     gap = abs(best.test - best.cv_mean)
     tol = 0.1 if task == "classification" else max(0.1 * abs(best.cv_mean), 1e-9)
     if gap > tol:

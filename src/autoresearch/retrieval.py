@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import time
 
 import httpx
 
@@ -12,7 +13,37 @@ from .spec import ResearchSpec
 
 OPENALEX_URL = "https://api.openalex.org/works"
 SEMANTIC_SCHOLAR_URL = "https://api.semanticscholar.org/graph/v1/paper/search"
-MAILTO = "autoresearch@example.com"  # polite OpenAlex contact; override via client
+MAILTO = "autoresearch@example.com"  # polite OpenAlex contact; override via OPENALEX_MAILTO
+MAX_ATTEMPTS = 3
+BACKOFF_S = (1.0, 3.0)
+
+
+def _get(client: httpx.Client, url: str, params: dict, headers: dict | None = None) -> httpx.Response:
+    """GET with retries on transient failures (429/5xx, timeouts)."""
+    last: Exception | None = None
+    for attempt in range(MAX_ATTEMPTS):
+        try:
+            resp = client.get(url, params=params, headers=headers, timeout=30.0)
+            if (resp.status_code == 429 or 500 <= resp.status_code <= 599) and attempt < MAX_ATTEMPTS - 1:
+                last = httpx.HTTPStatusError(f"transient {resp.status_code}", request=resp.request, response=resp)
+                time.sleep(BACKOFF_S[min(attempt, len(BACKOFF_S) - 1)])
+                continue
+            resp.raise_for_status()
+            return resp
+        except httpx.HTTPStatusError as e:
+            last = e
+            code = e.response.status_code if e.response is not None else 0
+            if (code == 429 or 500 <= code <= 599) and attempt < MAX_ATTEMPTS - 1:
+                time.sleep(BACKOFF_S[min(attempt, len(BACKOFF_S) - 1)])
+                continue
+            raise
+        except httpx.TimeoutException as e:
+            last = e
+            if attempt < MAX_ATTEMPTS - 1:
+                time.sleep(BACKOFF_S[min(attempt, len(BACKOFF_S) - 1)])
+                continue
+            raise
+    raise RuntimeError(f"GET {url} failed after {MAX_ATTEMPTS} attempts: {last}")
 
 
 def _clean(text: str | None) -> str:
@@ -43,12 +74,11 @@ def openalex_search(spec: ResearchSpec, client: httpx.Client, limit: int = 25) -
     params: dict[str, str] = {
         "search": search_text(spec.question),
         "per-page": str(min(limit, 50)),
-        "mailto": MAILTO,
+        "mailto": os.environ.get("OPENALEX_MAILTO", MAILTO),
     }
     if spec.year_from:
         params["filter"] = f"from_publication_date:{spec.year_from}-01-01"
-    resp = client.get(OPENALEX_URL, params=params, timeout=30.0)
-    resp.raise_for_status()
+    resp = _get(client, OPENALEX_URL, params)
     out: list[Paper] = []
     for w in resp.json().get("results", []):
         doi = _clean((w.get("doi") or "").replace("https://doi.org/", ""))
@@ -89,8 +119,7 @@ def semscholar_search(spec: ResearchSpec, client: httpx.Client, limit: int = 25)
     headers = {}
     if os.environ.get("SEMANTIC_SCHOLAR_API_KEY"):
         headers["x-api-key"] = os.environ["SEMANTIC_SCHOLAR_API_KEY"]
-    resp = client.get(SEMANTIC_SCHOLAR_URL, params=params, headers=headers, timeout=30.0)
-    resp.raise_for_status()
+    resp = _get(client, SEMANTIC_SCHOLAR_URL, params, headers)
     out: list[Paper] = []
     for p in resp.json().get("data", []):
         title = _clean(p.get("title"))

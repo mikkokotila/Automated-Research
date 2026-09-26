@@ -17,16 +17,25 @@ class Note:
 
 
 class Journal:
-    def __init__(self) -> None:
+    def __init__(self, path: str | Path | None = None) -> None:
         self.notes: list[Note] = []
+        self.path = Path(path) if path else None
 
     def note(self, phase: str, event: str, detail: str = "") -> None:
-        self.notes.append(Note(
+        n = Note(
             ts=datetime.now(timezone.utc).isoformat(),
             phase=phase,
             event=event,
             detail=detail[:2000],
-        ))
+        )
+        self.notes.append(n)
+        if self.path is not None:  # durable: a crash keeps everything so far
+            try:
+                self.path.parent.mkdir(parents=True, exist_ok=True)
+                with self.path.open("a", encoding="utf-8") as f:
+                    f.write(json.dumps(asdict(n)) + "\n")
+            except OSError:
+                pass
 
     def save(self, path: str | Path) -> Path:
         p = Path(path)
@@ -46,7 +55,10 @@ class Journal:
     def text(self, max_chars: int = 6000) -> str:
         lines = [f"[{n.ts}] {n.phase}/{n.event} {n.detail}".rstrip() for n in self.notes]
         out = "\n".join(lines)
-        return out[-max_chars:] if len(out) > max_chars else out
+        if len(out) <= max_chars:
+            return out
+        head, tail = max_chars // 4, max_chars - max_chars // 4 - 60
+        return out[:head] + f"\n…[{len(out) - max_chars} chars elided]…\n" + out[-tail:]
 
     def __len__(self) -> int:
         return len(self.notes)
