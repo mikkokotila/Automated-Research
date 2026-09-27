@@ -19,6 +19,7 @@ container-mode strings) ever authorizes revision.
 
 from __future__ import annotations
 
+import hashlib
 import re
 import subprocess
 import uuid
@@ -29,6 +30,8 @@ from pathlib import Path
 from .journal import Journal, emit
 from .muse_client import RequestBlocked
 from .assess import AssessmentError, Proposal, AssessmentDoc, assess, assess_journal
+from .changeset import (ChangesetError, check_policy, parse_unified_diff,
+                        verify_in_disposable, worktree_status_paths)
 from .memory import Memory
 from .synthesize import Completer
 
@@ -57,9 +60,12 @@ DIFF_SYSTEM = (
     "the patch must apply with git apply and keep the test suite passing."
 )
 
-FORBIDDEN_PREFIXES = ("tests/", ".github/")
+FORBIDDEN_PREFIXES = ("tests/", ".github/", "boundary/", "scripts/", "recovery/",
+                        "validation/")
 FORBIDDEN_NAMES = ("Dockerfile", ".dockerignore")
-FORBIDDEN_FILES = ("src/canary/revise.py", "src/canary/muse_client.py")
+FORBIDDEN_FILES = ("src/canary/revise.py", "src/canary/muse_client.py",
+                   "src/canary/changeset.py", "pyproject.toml",
+                   "docs/TRUST_BOUNDARY.md", "docs/TOKEN_BOUNDARY.md")
 MAX_DIFF_FILES = 5
 MAX_DIFF_LINES = 300
 MAX_PROPOSALS_PER_ROUND = 3
@@ -72,6 +78,9 @@ class PatchOutcome:
     applied: bool
     kept: bool
     reason: str
+    base_rev: str = ""
+    manifest: dict | None = None
+    assessment_id: str = ""
 
 
 @dataclass
@@ -87,16 +96,24 @@ def diff_targets(diff: str) -> list[str]:
 
 
 def target_allowed(target: str) -> str | None:
-    """None if allowed, else the reason it is forbidden."""
+    """None if allowed, else the reason it is forbidden.
+
+    The durable promotion policy: tests, evaluation, launcher, broker,
+    credentials, workflows, lockfiles, recovery evidence, and the gate itself
+    are outside worker control. Only src/canary/ worker code may be patched.
+    """
     t = target.strip()
     if not t or t.startswith("/") or ".." in Path(t).parts:
         return "absolute or escaping path"
     if t.startswith(FORBIDDEN_PREFIXES):
-        return "protected area (tests and workflows are immutable)"
-    if Path(t).name in FORBIDDEN_NAMES or t in FORBIDDEN_FILES:
+        return "protected area (tests, workflows, launcher, broker, evidence)"
+    name = Path(t).name
+    if name in FORBIDDEN_NAMES or t in FORBIDDEN_FILES:
         return "protected file"
-    if t.endswith(".lock"):
-        return "lockfiles are immutable"
+    if name == ".env" or name.startswith(".env."):
+        return "credentials are immutable"
+    if t.endswith((".lock", ".pem", ".key")):
+        return "lockfiles and keys are immutable"
     if not t.startswith("src/canary/"):
         return "only src/canary/ may be modified"
     return None
@@ -119,53 +136,173 @@ def checks_pass(repo: Path, check_cmd: list[str], journal: Journal | None = None
     return r.returncode == 0
 
 
-def request_diff(proposal: Proposal, client: Completer, repo: Path | None = None) -> str:
+def request_diff(proposal: Proposal, client: Completer, repo: Path | None = None,
+                 record: dict | None = None) -> str:
+    """Ask for a diff against real base context; record what was sent/omitted."""
+    from .redact import redact_text
+
+    base_rev = "unknown"
+    file_sha = "absent"
+    omitted = ""
     context = "(target content unavailable)"
     if repo is not None:
+        repo = Path(repo)
+        try:
+            base_rev = git(repo, "rev-parse", "HEAD").strip()
+        except Exception:
+            base_rev = "unknown"
         p = repo / proposal.target
         try:
-            context = p.read_text(encoding="utf-8")[:8000] if p.exists() else "(file does not exist yet)"
+            raw = p.read_bytes() if p.exists() else None
+            if raw is None:
+                context = "(file does not exist yet)"
+            else:
+                file_sha = hashlib.sha256(raw).hexdigest()
+                text = raw.decode("utf-8", "replace")
+                if len(text) > 8000:
+                    omitted = f"truncated to 8000 of {len(text)} chars"
+                    text = text[:8000]
+                context = text
         except OSError:
             context = "(target unreadable)"
+            omitted = "target unreadable"
+    redacted = redact_text(context)
+    if record is not None:
+        record.update({"base_rev": base_rev, "file_sha": file_sha,
+                       "bytes_included": len(redacted),
+                       "redacted": redacted != context, "omitted": omitted})
     user = (
         f"Target file: {proposal.target}\nRequested change: {proposal.change}\nReason: {proposal.reason}\n\n"
-        f"Current content of {proposal.target}:\n```\n{context}\n```\n\nEmit the diff."
+        f"Base revision: {base_rev}\nFile sha256: {file_sha}\n"
+        + (f"Omitted context: {omitted}\n" if omitted else "") +
+        f"Current content of {proposal.target}:\n```\n{redacted}\n```\n\nEmit the diff."
     )
     return client.complete(DIFF_SYSTEM, user)
 
 
-def apply_one(repo: Path, proposal: Proposal, diff: str, check_cmd: list[str], journal: Journal | None) -> PatchOutcome:
-    targets = diff_targets(diff)
-    if not targets:
-        return PatchOutcome(proposal.id, proposal.target, False, False, "diff has no file targets")
-    if len(targets) > MAX_DIFF_FILES:
-        return PatchOutcome(proposal.id, proposal.target, False, False, f"diff touches {len(targets)} files (cap {MAX_DIFF_FILES})")
-    if len(diff.splitlines()) > MAX_DIFF_LINES:
-        return PatchOutcome(proposal.id, proposal.target, False, False, f"diff too large (cap {MAX_DIFF_LINES} lines)")
-    for t in targets:
-        reason = target_allowed(t)
-        if reason:
-            emit(journal, "revise", "rejected", f"{proposal.id}: {t} forbidden ({reason})")
-            return PatchOutcome(proposal.id, t, False, False, f"forbidden target {t}: {reason}")
+def _file_sha(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else "absent"
+
+
+def save_candidate(assess_dir: str | Path, proposal: Proposal, diff: str,
+                   manifest: dict | None, context_record: dict | None,
+                   assessment_id: str, status: str, reason: str) -> Path:
+    """Provenance for one candidate: assessment, snapshot, benefit, raw diff.
+
+    The raw diff is redacted before persistence; secrets never land in records.
+    """
+    import json
+
+    from .redact import redact_text
+
+    out = Path(assess_dir) / "candidates"
+    out.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "proposal_id": proposal.id, "target": proposal.target, "change": proposal.change,
+        "reason": proposal.reason, "assessment_id": assessment_id, "status": status,
+        "detail": reason, "manifest": manifest,
+        "context": context_record or {},
+        "raw_diff": redact_text(diff),
+    }
+    path = out / f"{proposal.id}.json"
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    return path
+
+
+def apply_one(repo: Path, proposal: Proposal, diff: str, check_cmd: list[str], journal: Journal | None,
+              prior_diffs: tuple[str, ...] = (), assessment_id: str = "",
+              assess_dir: str | Path | None = None,
+              context_record: dict | None = None) -> PatchOutcome:
+    """Validate structurally, validate in a disposable checkout, then apply.
+
+    The candidate binds to an exact base revision and file hashes; any drift
+    between validation and evaluation rejects without editing. Post-apply, the
+    tree must contain exactly the manifest files (plus caches) or it reverts.
+    """
+    repo = Path(repo)
+
+    def _record(status: str, reason: str, manifest: dict | None) -> None:
+        if assess_dir is not None:
+            save_candidate(assess_dir, proposal, diff, manifest, context_record,
+                           assessment_id, status, reason)
+
+    try:
+        ops = parse_unified_diff(diff)
+        check_policy(ops, target_allowed)
+    except ChangesetError as e:
+        emit(journal, "revise", "rejected", f"{proposal.id}: {e}")
+        _record("rejected", str(e), None)
+        return PatchOutcome(proposal.id, proposal.target, False, False, str(e),
+                            assessment_id=assessment_id)
+    try:
+        manifest = verify_in_disposable(repo, diff, ops, prior_diffs)
+    except ChangesetError as e:
+        reason = f"disposable validation failed: {e}"
+        emit(journal, "revise", "rejected", f"{proposal.id}: {reason}"[:300])
+        _record("rejected", reason, None)
+        return PatchOutcome(proposal.id, proposal.target, False, False, reason,
+                            assessment_id=assessment_id)
+    if git(repo, "rev-parse", "HEAD").strip() != manifest.base_rev:
+        reason = "base revision moved between validation and evaluation"
+        _record("rejected", reason, manifest.to_dict())
+        return PatchOutcome(proposal.id, proposal.target, False, False, reason,
+                            manifest.base_rev, manifest.to_dict(), assessment_id)
+    for entry in manifest.files:
+        if _file_sha(repo / entry["path"]) != entry["old_sha"]:
+            reason = (f"source mutation: {entry['path']} changed between validation "
+                      "and evaluation")
+            _record("rejected", reason, manifest.to_dict())
+            return PatchOutcome(proposal.id, proposal.target, False, False, reason,
+                                manifest.base_rev, manifest.to_dict(), assessment_id)
+    targets = [entry["path"] for entry in manifest.files]
     snapshot: dict[str, bytes | None] = {}
     for t in targets:
         p = repo / t
         snapshot[t] = p.read_bytes() if p.exists() else None
-    ap = subprocess.run(["git", "apply", "-"], input=diff, cwd=repo, capture_output=True, text=True, timeout=60)
+    ap = subprocess.run(["git", "apply", "-"], input=diff, cwd=repo, capture_output=True,
+                        text=True, timeout=60)
     if ap.returncode != 0:
-        return PatchOutcome(proposal.id, proposal.target, False, False, f"git apply failed: {ap.stderr.strip()[:200]}")
+        reason = f"git apply failed: {ap.stderr.strip()[:200]}"
+        _record("rejected", reason, manifest.to_dict())
+        return PatchOutcome(proposal.id, proposal.target, False, False, reason,
+                            manifest.base_rev, manifest.to_dict(), assessment_id)
+
+    def _restore() -> None:
+        for t, data in snapshot.items():
+            p = repo / t
+            if data is None:
+                if p.exists():
+                    p.unlink()
+            else:
+                p.write_bytes(data)
+
+    for entry in manifest.files:  # the apply must produce exactly the manifest
+        if _file_sha(repo / entry["path"]) != entry["new_sha"]:
+            _restore()
+            reason = f"post-apply state mismatch on {entry['path']}"
+            _record("rejected", reason, manifest.to_dict())
+            return PatchOutcome(proposal.id, proposal.target, False, False, reason,
+                                manifest.base_rev, manifest.to_dict(), assessment_id)
     emit(journal, "revise", "applied", f"{proposal.id}: {', '.join(targets)}")
-    if checks_pass(repo, check_cmd, journal):
-        return PatchOutcome(proposal.id, proposal.target, True, True, "checks green, kept")
-    for t, data in snapshot.items():  # restore pre-patch bytes, never HEAD (keeps earlier patches)
-        p = repo / t
-        if data is None:
-            if p.exists():
-                p.unlink()
-        else:
-            p.write_bytes(data)
-    emit(journal, "revise", "reverted", f"{proposal.id}: checks failed")
-    return PatchOutcome(proposal.id, proposal.target, True, False, "checks failed, reverted")
+    if not checks_pass(repo, check_cmd, journal):
+        _restore()
+        emit(journal, "revise", "reverted", f"{proposal.id}: checks failed")
+        _record("reverted", "checks failed, reverted", manifest.to_dict())
+        return PatchOutcome(proposal.id, proposal.target, True, False,
+                            "checks failed, reverted", manifest.base_rev, manifest.to_dict(),
+                            assessment_id)
+    extras = {p for p in worktree_status_paths(repo, "src", "tests") if "__pycache__" not in p
+              and not p.endswith(".pyc")} - set(targets)
+    if extras:
+        _restore()
+        reason = f"unreported files changed: {sorted(extras)[:5]}"
+        emit(journal, "revise", "reverted", f"{proposal.id}: {reason}")
+        _record("reverted", reason, manifest.to_dict())
+        return PatchOutcome(proposal.id, proposal.target, True, False, reason,
+                            manifest.base_rev, manifest.to_dict(), assessment_id)
+    _record("kept", "checks green, kept", manifest.to_dict())
+    return PatchOutcome(proposal.id, proposal.target, True, True, "checks green, kept",
+                        manifest.base_rev, manifest.to_dict(), assessment_id)
 
 
 def revise_round(
@@ -174,6 +311,8 @@ def revise_round(
     client: Completer,
     journal: Journal | None = None,
     check_cmd: list[str] | None = None,
+    assess_dir: str | Path | None = None,
+    assessment_id: str = "",
 ) -> ReviseReport:
     repo = Path(repo)
     check_cmd = check_cmd or ["pytest", "-q"]
@@ -187,19 +326,23 @@ def revise_round(
         emit(journal, "revise", "aborted", "baseline checks not green")
         report.skipped = len(doc.proposals)
         return report
+    prior_diffs: list[str] = []
     for proposal in doc.proposals[:MAX_PROPOSALS_PER_ROUND]:
+        context_record: dict = {}
         try:
-            diff = request_diff(proposal, client, repo)
+            diff = request_diff(proposal, client, repo, context_record)
         except RequestBlocked:
             raise
         except Exception as e:
             report.outcomes.append(PatchOutcome(proposal.id, proposal.target, False, False, f"diff request failed: {e}"))
             report.skipped += 1
             continue
-        oc = apply_one(repo, proposal, diff, check_cmd, journal)
+        oc = apply_one(repo, proposal, diff, check_cmd, journal, tuple(prior_diffs),
+                       assessment_id, assess_dir, context_record)
         report.outcomes.append(oc)
         if oc.kept:
             report.kept += 1
+            prior_diffs.append(diff)
         elif oc.applied:
             report.reverted += 1
         else:
@@ -251,7 +394,7 @@ def revise_from_journal(
         doc = record.doc
         emit(journal, "revise", "assessed",
              f"{record.id}: {len(doc.proposals)} proposals, coverage={record.status}")
-        rep = revise_round(repo, doc, client, journal, check_cmd)
+        rep = revise_round(repo, doc, client, journal, check_cmd, adir, record.id)
         for oc in rep.outcomes:
             memory.record(text=f"{oc.proposal_id} {oc.target}: {oc.reason}",
                           target=oc.target, kept=oc.kept, assessment_id=record.id,
