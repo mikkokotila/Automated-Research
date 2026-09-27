@@ -1,6 +1,8 @@
 # Build 03 validation record
 
-Step: #4 — PR: (link on open)
+Step: #4 — PR: #23
+CI: https://github.com/mikkokotila/Canary/actions/runs/36329266458
+(smoke 16s, matrix 20-23s, docker 1m59s with the extended 27-check verify)
 Code: hardened `scripts/container_run.sh` + `scripts/verify_boundary.py`
 launcher checks + `scripts/make_fixture_wheel.py` + `tests/test_launcher_support.py`.
 
