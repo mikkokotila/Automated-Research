@@ -10,4 +10,5 @@ if [ "${CANARY_PREBUILT:-0}" != "1" ]; then
   docker build -q -t "$IMG" .
   docker build -q -f boundary/Dockerfile -t "$GATE_IMG" .
 fi
-python3 scripts/verify_boundary.py --image "$IMG" --gate-image "$GATE_IMG"
+python3 scripts/verify_boundary.py --image "$IMG" --gate-image "$GATE_IMG" \
+  --report "${CONTAINMENT_REPORT:-containment-report.json}"

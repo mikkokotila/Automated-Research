@@ -22,6 +22,7 @@ def main():
     ap=argparse.ArgumentParser()
     ap.add_argument("--image",required=True)
     ap.add_argument("--gate-image",required=True)
+    ap.add_argument("--report",default=None,help="write the machine-readable report here too")
     args=ap.parse_args()
     suffix=uuid.uuid4().hex[:10]
     network="canary-check-"+suffix
@@ -100,8 +101,16 @@ with httpx.Client(trust_env=False,timeout=5) as c:
         info=json.loads(call(["inspect",name]))[0]
         result['no_host_bind_mounts']=not any(m['Type']=='bind' for m in info['Mounts'])
         result['no_published_ports']=not info['HostConfig']['PortBindings']
+        tree_before=subprocess.run(["git","status","--porcelain","--","src","tests"],
+            capture_output=True,text=True,timeout=60).stdout
         result.update(launcher_checks(args.image,network,name))
+        result.update(containment_checks(args.image,network))
+        tree_after=subprocess.run(["git","status","--porcelain","--","src","tests"],
+            capture_output=True,text=True,timeout=60).stdout
+        result["source_checkout_untouched"]=tree_before==tree_after
         print(json.dumps(result,indent=2))
+        if args.report:
+            Path(args.report).write_text(json.dumps(result,indent=2),encoding="utf-8")
         if not all(result.values()):
             raise SystemExit(1)
     finally:
@@ -147,6 +156,75 @@ except socket.gaierror:
     out['public_dns_blocked'] = True
 Path('/work/out/net.json').write_text(json.dumps(out))
 """
+
+
+ISOLATION_PROBE = r"""
+import json, shutil, socket
+from pathlib import Path
+r = {}
+pids = [p for p in Path('/proc').iterdir() if p.name.isdigit()]
+r['pid_namespace_small'] = len(pids) < 50
+try:
+    Path('/sys/fs/cgroup/pids.max').write_text('1000000')
+    r['cgroup_locked'] = False
+except OSError:
+    r['cgroup_locked'] = True
+r['no_docker_cli'] = shutil.which('docker') is None
+for ip in ('10.0.0.1', '192.168.1.1', 'fe80::1'):
+    try:
+        socket.create_connection((ip, 80), 2).close()
+        r['blocked_' + ip] = False
+    except OSError:
+        r['blocked_' + ip] = True
+print(json.dumps(r))
+"""
+
+PIDS_PROBE = r"""
+import json, subprocess
+from pathlib import Path
+procs, limited = [], False
+try:
+    for _ in range(400):
+        try:
+            procs.append(subprocess.Popen(['sleep', '30']))
+        except OSError:
+            limited = True
+            break
+finally:
+    for p in procs:
+        p.kill()
+    for p in procs:
+        p.wait()
+print(json.dumps({'pids_limited': limited, 'spawned': len(procs)}))
+"""
+
+EGRESS_PROBE = r"""
+import json, socket
+try:
+    socket.create_connection(('1.1.1.1', 443), 5).close()
+    print(json.dumps({'egress_open': True}))
+except OSError:
+    print(json.dumps({'egress_open': False}))
+"""
+
+
+def containment_checks(image, network):
+    """Build 04: isolation depth plus a negative control for the egress probe."""
+    checks = {}
+    worker = ["run", "--rm", "-i", "--network", network, "--user", "10002:10002",
+              "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
+              "--pids-limit", "256", "--tmpfs", "/tmp:rw,size=64m",
+              "--entrypoint", "python", image, "-I", "-"]
+    checks.update(json.loads(call(worker, input=ISOLATION_PROBE)))
+    bomb = json.loads(call(worker, input=PIDS_PROBE))
+    checks["pids_limit_enforced"] = bomb["pids_limited"] is True and bomb["spawned"] < 400
+    # Negative control: the same probe on an egress-enabled worker MUST see
+    # openness, proving the denials above are real detections, not vacuous.
+    unsafe = ["run", "--rm", "-i", "--network", "bridge",
+              "--entrypoint", "python", image, "-I", "-"]
+    checks["egress_probe_detects_open_network"] = json.loads(
+        call(unsafe, input=EGRESS_PROBE))["egress_open"] is True
+    return checks
 
 
 def launcher_checks(image, network, gate):
@@ -203,7 +281,7 @@ def launcher_checks(image, network, gate):
                            "from pathlib import Path; print(sorted(p.name for p in Path('/work/out').iterdir()))"])
         checks["workspaces_independent"] = (
             r2.returncode == 0 and "[]" in r2.stdout
-            and not any(out2.iterdir()))
+            and {p.name for p in out2.iterdir()} <= {"manifest.canary.json"})
 
         # 3. forbidden destinations fail closed from the guest
         out3 = tmp / "out3"
@@ -253,7 +331,20 @@ def launcher_checks(image, network, gate):
         checks["unreachable_stage_refused"] = (
             ru.returncode != 0 and not Path(str(outu) + ".receipt.json").exists())
 
-        # 8. tripwire: launcher never imports candidate code or evals guest shell
+        # 8. exported leaks are caught by the maintainer-side scanner
+        outs = tmp / "out-scan"
+        rs = launch(outs, ["exec", "python", "-c",
+                           "from pathlib import Path; "
+                           "Path('/work/out/leak.txt').write_text('token ghp_fixture_planted_0123456789abcdef')"])
+        sys.path.insert(0, str(root))
+        from scripts.scan_export import scan_export
+        flagged = scan_export(outs)
+        checks["scanner_flags_exported_leak"] = (
+            rs.returncode == 0 and not flagged["clean"]
+            and flagged["findings"] == [{"file": "leak.txt", "pattern": "github_token"}]
+            and flagged["manifest_problems"] == [])
+
+        # 9. tripwire: launcher never imports candidate code or evals guest shell
         text = (root / "scripts" / "container_run.sh").read_text()
         checks["launcher_imports_nothing"] = (
             "import canary" not in text and "from canary" not in text
