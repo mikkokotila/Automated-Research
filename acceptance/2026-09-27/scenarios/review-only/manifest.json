@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "run_id": "20260927-223537-ca6610",
+  "run_id": "20260927-224953-09d8db",
   "kind": "review",
   "spec": {
     "version": 1,
@@ -20,23 +20,23 @@
     "out_dir": "acceptance/2026-09-27/scenarios/review-only"
   },
   "status": "completed",
-  "started_at": "2026-09-27T22:35:37.309752+00:00",
-  "finished_at": "2026-09-27T22:35:37.312480+00:00",
+  "started_at": "2026-09-27T22:49:53.400149+00:00",
+  "finished_at": "2026-09-27T22:49:53.403681+00:00",
   "artefacts": [
     {
       "path": "journal.jsonl",
-      "sha256": "f2f4e1bb9fe62b9cbdb292a25f302d7994e9e6664520714fe4011988b34b29ef",
+      "sha256": "6665b4ecb399d739f5c29a053c757f0d10e9b7f66ef1931c0be519a24e9827c3",
       "size": 371
     },
     {
       "path": "provenance.json",
-      "sha256": "1549236b8765f316f78aa63e3b1e0b9c7f7b8a4cb5224c1fb420a3e0ce2bf4fe",
+      "sha256": "bb54b1ea2dd068c98fe514d4b894c89b318d54eaddbbb59e655d54039f99548a",
       "size": 1595
     },
     {
       "path": "retrieval.jsonl",
-      "sha256": "7a2355efcbba1948a93fc42e3dbf217cd9bb7e55dee85a609fc8a8b1d6c6d87f",
-      "size": 2568
+      "sha256": "94cda6f04cd51ba2e9b52ef4c5353affa66a0492af6a861554bb58b8d473ad6a",
+      "size": 1284
     },
     {
       "path": "review.md",

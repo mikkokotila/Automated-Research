@@ -358,8 +358,10 @@ def scenario_containment(out: Path) -> dict:
 
 def scenario_export(out: Path, bundle_src: Path) -> dict:
     dest = out / "exported"
+    tar_env = dict(os.environ)
+    tar_env["COPYFILE_DISABLE"] = "1"  # no AppleDouble members on macOS
     tar = subprocess.run(["tar", "-cf", "-", "-C", str(bundle_src), "."],
-                         capture_output=True, timeout=120)
+                         capture_output=True, timeout=120, env=tar_env)
     assert tar.returncode == 0, tar.stderr.decode()[-300:]
     exp = subprocess.run([sys.executable, "scripts/export_bundle.py", str(dest)],
                          input=tar.stdout, cwd=ROOT, capture_output=True, timeout=120)
@@ -370,6 +372,14 @@ def scenario_export(out: Path, bundle_src: Path) -> dict:
     assert scan.returncode == 0, f"export scan failed:\n{scan.stdout[-1000:]}"
     manifest = json.loads((dest / "manifest.canary.json").read_text(encoding="utf-8"))
     assert manifest["count"] > 0 and manifest["files"]
+    # The exporter's 0700 default protects untrusted guest content on the
+    # host. This committed copy is synthetic, scanned, and public, so it is
+    # relaxed to standard modes: 0700 dirs inside the build context break
+    # the worker image (non-root entrypoint cannot traverse them).
+    for path in sorted(dest.rglob("*")):
+        path.chmod(0o755 if path.is_dir() and not path.is_symlink() else 0o644)
+    dest.chmod(0o755)
+    assert not list(dest.rglob("._*")), "AppleDouble members leaked into the export"
     return {"Detail": f"{manifest['count']} files exported, manifest valid, scan clean",
             "artefacts": ["exported/manifest.canary.json", "scan.log"]}
 
@@ -408,6 +418,7 @@ def main(argv=None) -> int:
     for name, fn in SCENARIOS:
         start = time.monotonic()
         sdir = out / "scenarios" / name
+        shutil.rmtree(sdir, ignore_errors=True)  # re-runs start clean
         sdir.mkdir(parents=True, exist_ok=True)
         try:
             result = fn(sdir)
@@ -430,6 +441,7 @@ def main(argv=None) -> int:
     if not failed:
         start = time.monotonic()
         sdir = out / "scenarios" / "export-scan"
+        shutil.rmtree(sdir, ignore_errors=True)  # re-runs start clean
         sdir.mkdir(parents=True, exist_ok=True)
         try:
             result = scenario_export(sdir, out / "scenarios" / "cycle-research")

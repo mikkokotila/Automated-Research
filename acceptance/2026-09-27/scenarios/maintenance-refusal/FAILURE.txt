@@ -1,9 +1,0 @@
-Traceback (most recent call last):
-  File "/Users/mikkokotila/Canary/scripts/run_acceptance.py", line 413, in main
-    result = fn(sdir)
-             ^^^^^^^^
-  File "/Users/mikkokotila/Canary/scripts/run_acceptance.py", line 207, in scenario_maintenance_refusal
-    repo.mkdir()
-  File "/Users/mikkokotila/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/pathlib.py", line 1311, in mkdir
-    os.mkdir(self, mode)
-FileExistsError: [Errno 17] File exists: 'acceptance/2026-09-27/scenarios/maintenance-refusal/repo'

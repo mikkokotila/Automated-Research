@@ -1,11 +1,11 @@
-{"ts": "2026-09-27T22:36:12.907974+00:00", "phase": "cycle", "event": "start", "detail": "seed=seed? max_iter=5", "seq": 1, "source": "worker", "run_id": "20260927-223612-a4486c", "v": 1}
-{"ts": "2026-09-27T22:36:12.908673+00:00", "phase": "review", "event": "start", "detail": "seed?", "seq": 2, "source": "worker", "run_id": "20260927-223612-a4486c", "v": 1}
-{"ts": "2026-09-27T22:36:12.909286+00:00", "phase": "review", "event": "retrieved", "detail": "1 candidates", "seq": 3, "source": "worker", "run_id": "20260927-223612-a4486c", "v": 1}
-{"ts": "2026-09-27T22:36:12.909403+00:00", "phase": "review", "event": "coverage-warning", "detail": "weak relevance: best candidate doi:10.1/x covers 0/1 question terms (needs 1); citations do not establish relevance", "seq": 4, "source": "worker", "run_id": "20260927-223612-a4486c", "v": 1}
-{"ts": "2026-09-27T22:36:12.909842+00:00", "phase": "review", "event": "synthesized", "detail": "1 papers, cited 1", "seq": 5, "source": "worker", "run_id": "20260927-223612-a4486c", "v": 1}
-{"ts": "2026-09-27T22:36:12.910953+00:00", "phase": "cycle", "event": "iter-done", "detail": "n=1 kind=review", "seq": 6, "source": "worker", "run_id": "20260927-223612-a4486c", "v": 1}
-{"ts": "2026-09-27T22:36:12.911038+00:00", "phase": "schedule", "event": "decide", "detail": "research: research first", "seq": 7, "source": "worker", "run_id": "20260927-223612-a4486c", "v": 1}
-{"ts": "2026-09-27T22:36:12.911288+00:00", "phase": "cycle", "event": "proposed", "detail": "q2? parent=iter1 gap=", "seq": 8, "source": "worker", "run_id": "20260927-223612-a4486c", "v": 1}
-{"ts": "2026-09-27T22:36:12.912108+00:00", "phase": "cycle", "event": "finalize-reserve", "detail": "holding 1 calls for the final report", "seq": 9, "source": "worker", "run_id": "20260927-223612-a4486c", "v": 1}
-{"ts": "2026-09-27T22:36:12.912199+00:00", "phase": "cycle", "event": "budget-exhausted", "detail": "model-call budget exhausted (2/2)", "seq": 10, "source": "worker", "run_id": "20260927-223612-a4486c", "v": 1}
-{"ts": "2026-09-27T22:36:12.913330+00:00", "phase": "bundle", "event": "sealed", "detail": "stopped=budget_exhausted", "seq": 11, "source": "trusted", "run_id": "20260927-223612-a4486c", "v": 1}
+{"ts": "2026-09-27T22:50:29.643501+00:00", "phase": "cycle", "event": "start", "detail": "seed=seed? max_iter=5", "seq": 1, "source": "worker", "run_id": "20260927-225029-b34e6e", "v": 1}
+{"ts": "2026-09-27T22:50:29.644244+00:00", "phase": "review", "event": "start", "detail": "seed?", "seq": 2, "source": "worker", "run_id": "20260927-225029-b34e6e", "v": 1}
+{"ts": "2026-09-27T22:50:29.644879+00:00", "phase": "review", "event": "retrieved", "detail": "1 candidates", "seq": 3, "source": "worker", "run_id": "20260927-225029-b34e6e", "v": 1}
+{"ts": "2026-09-27T22:50:29.644999+00:00", "phase": "review", "event": "coverage-warning", "detail": "weak relevance: best candidate doi:10.1/x covers 0/1 question terms (needs 1); citations do not establish relevance", "seq": 4, "source": "worker", "run_id": "20260927-225029-b34e6e", "v": 1}
+{"ts": "2026-09-27T22:50:29.645586+00:00", "phase": "review", "event": "synthesized", "detail": "1 papers, cited 1", "seq": 5, "source": "worker", "run_id": "20260927-225029-b34e6e", "v": 1}
+{"ts": "2026-09-27T22:50:29.646734+00:00", "phase": "cycle", "event": "iter-done", "detail": "n=1 kind=review", "seq": 6, "source": "worker", "run_id": "20260927-225029-b34e6e", "v": 1}
+{"ts": "2026-09-27T22:50:29.646834+00:00", "phase": "schedule", "event": "decide", "detail": "research: research first", "seq": 7, "source": "worker", "run_id": "20260927-225029-b34e6e", "v": 1}
+{"ts": "2026-09-27T22:50:29.647129+00:00", "phase": "cycle", "event": "proposed", "detail": "q2? parent=iter1 gap=", "seq": 8, "source": "worker", "run_id": "20260927-225029-b34e6e", "v": 1}
+{"ts": "2026-09-27T22:50:29.647743+00:00", "phase": "cycle", "event": "finalize-reserve", "detail": "holding 1 calls for the final report", "seq": 9, "source": "worker", "run_id": "20260927-225029-b34e6e", "v": 1}
+{"ts": "2026-09-27T22:50:29.647836+00:00", "phase": "cycle", "event": "budget-exhausted", "detail": "model-call budget exhausted (2/2)", "seq": 10, "source": "worker", "run_id": "20260927-225029-b34e6e", "v": 1}
+{"ts": "2026-09-27T22:50:29.648957+00:00", "phase": "bundle", "event": "sealed", "detail": "stopped=budget_exhausted", "seq": 11, "source": "trusted", "run_id": "20260927-225029-b34e6e", "v": 1}

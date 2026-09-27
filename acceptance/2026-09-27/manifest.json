@@ -1,13 +1,13 @@
 {
-  "generated_at": "2026-09-27T22:36:23.926401+00:00",
-  "repo_rev": "7719f16a312985e745ca47582c4297f0ada2c772",
+  "generated_at": "2026-09-27T22:51:33.850254+00:00",
+  "repo_rev": "71538d106b475d4cf4261e244382d6f05306019c",
   "python": "3.12.12",
   "verdicts": [
     {
       "scenario": "review-only",
       "status": "pass",
       "detail": "cited=1 grounded=1",
-      "duration_s": 1.0,
+      "duration_s": 1.1,
       "artefacts": [
         "scenarios/review-only/review.md",
         "scenarios/review-only/provenance.json",
@@ -18,7 +18,7 @@
       "scenario": "synthetic-csv",
       "status": "pass",
       "detail": "best=logreg test=0.25 seed=810278876",
-      "duration_s": 1.5,
+      "duration_s": 1.6,
       "artefacts": [
         "scenarios/synthetic-csv/analysis.md",
         "scenarios/synthetic-csv/analysis.json",
@@ -38,18 +38,18 @@
     },
     {
       "scenario": "maintenance-refusal",
-      "status": "fail",
-      "detail": "FileExistsError: [Errno 17] File exists: 'acceptance/2026-09-27/scenarios/maintenance-refusal/repo'",
+      "status": "pass",
+      "detail": "refused before any work: refusing: revision has no trusted execution path yet (see docs/TRUST_BOUNDARY.md, Builds 03-04); environment flags and container evidence are not authorization",
       "duration_s": 0.0,
       "artefacts": [
-        "scenarios/maintenance-refusal/FAILURE.txt"
+        "scenarios/maintenance-refusal/journal.jsonl"
       ]
     },
     {
       "scenario": "maintenance-logic",
       "status": "pass",
-      "detail": "91 passed in 30.34s",
-      "duration_s": 31.0,
+      "detail": "91 passed in 30.83s",
+      "duration_s": 31.4,
       "artefacts": [
         "scenarios/maintenance-logic/pytest.log"
       ]
@@ -89,17 +89,27 @@
     },
     {
       "scenario": "containment",
-      "status": "fail",
-      "detail": "AssertionError: boundary suite: rc=1 true=0/43",
-      "duration_s": 10.0,
+      "status": "pass",
+      "detail": "43/43 boundary checks, no leftovers",
+      "duration_s": 63.1,
       "artefacts": [
-        "scenarios/containment/FAILURE.txt"
+        "scenarios/containment/container_verify.log"
+      ]
+    },
+    {
+      "scenario": "export-scan",
+      "status": "pass",
+      "detail": "15 files exported, manifest valid, scan clean",
+      "duration_s": 0.1,
+      "artefacts": [
+        "scenarios/export-scan/exported/manifest.canary.json",
+        "scenarios/export-scan/scan.log"
       ]
     }
   ],
   "counts": {
-    "pass": 7,
-    "fail": 2,
+    "pass": 10,
+    "fail": 0,
     "skip": 0
   }
 }

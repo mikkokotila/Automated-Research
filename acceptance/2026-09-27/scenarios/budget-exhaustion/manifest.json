@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "run_id": "20260927-223612-a4486c",
+  "run_id": "20260927-225029-b34e6e",
   "kind": "cycle",
   "spec": {
     "version": 1,
@@ -20,23 +20,23 @@
     "out_dir": "acceptance/2026-09-27/scenarios/budget-exhaustion"
   },
   "status": "budget_exhausted",
-  "started_at": "2026-09-27T22:36:12.906455+00:00",
-  "finished_at": "2026-09-27T22:36:12.913667+00:00",
+  "started_at": "2026-09-27T22:50:29.641196+00:00",
+  "finished_at": "2026-09-27T22:50:29.649258+00:00",
   "artefacts": [
     {
       "path": "checkpoints/checkpoint-0000.json",
-      "sha256": "6448e07943e72dc3acece15cf852b90e1228fb461f1e944e94bcf60047c67568",
+      "sha256": "9da7ae733274d514685cb3ab0c1435b51f781b45907fad817423864fc6bcf562",
       "size": 1751
     },
     {
       "path": "checkpoints/checkpoint-0001.json",
-      "sha256": "ec69c60aa1da168bce68620405063056a92e79e16330babc467e299ab0d3afb6",
-      "size": 3665
+      "sha256": "20b54b49f0f1b15456ae0262ab5d954177c89fea824e394f8d72dc8ff0cd2170",
+      "size": 3664
     },
     {
       "path": "checkpoints/checkpoint-0002.json",
-      "sha256": "98561ba1655eafefc6fafb18966ba95212872f3659109b38aa9e75fa0f1017c7",
-      "size": 3804
+      "sha256": "6d852d6c076a21a5da22cc190c0dda3eaa8e69b9a8b458d624e26f1743c8ff9d",
+      "size": 3803
     },
     {
       "path": "iterations/iter1-review.md",
@@ -50,22 +50,22 @@
     },
     {
       "path": "journal.jsonl",
-      "sha256": "910c1d08fbca723616a5ed7bb3c72d01d059fb8462a1f2f21d5ddb89bbe39efd",
+      "sha256": "85a3c3809607ff897813732c4955c09b49e71148817de1b0a533afb5773475f1",
       "size": 2223
     },
     {
       "path": "ops.jsonl",
-      "sha256": "a53939e8a15c64ad0cd47c14dda6c308692c1bcc6f152c12c8fe70d72dffe5f3",
-      "size": 1204
+      "sha256": "ae02298681fd9188206c68c0f97111178516def94a2ad6d685f36b8f5e50bc6f",
+      "size": 602
     },
     {
       "path": "retrieval.jsonl",
-      "sha256": "603aec3dd83c786fac1fd17196c19567afa1d42635ed9da3ae268e81c4208ff3",
-      "size": 2524
+      "sha256": "d73be16aa094335244d69406b8bf5c8f46b22af31a10147ce2f42f542d5db1b0",
+      "size": 1262
     },
     {
       "path": "run.json",
-      "sha256": "266f253427905e5d70ad085d1abeb0b66d361a3215f8138babba574ec2c0add2",
+      "sha256": "f47d065e2841ec6866bb1208506a6612f60ae70e375bfdf261c96cee9ba5b8ff",
       "size": 1764
     },
     {

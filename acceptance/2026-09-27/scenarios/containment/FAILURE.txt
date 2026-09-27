@@ -1,8 +1,0 @@
-Traceback (most recent call last):
-  File "/Users/mikkokotila/Canary/scripts/run_acceptance.py", line 413, in main
-    result = fn(sdir)
-             ^^^^^^^^
-  File "/Users/mikkokotila/Canary/scripts/run_acceptance.py", line 350, in scenario_containment
-    assert proc.returncode == 0 and count == CONTAINER_CHECKS, \
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-AssertionError: boundary suite: rc=1 true=0/43

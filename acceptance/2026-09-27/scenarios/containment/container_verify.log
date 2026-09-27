@@ -1,17 +1,47 @@
-sha256:b57d7a7081db40cd282f9332d331337c84e7dbcdb02a097974ea6bf4b0ba0dd0
-sha256:d311ca855cca231d9aeb39fdd4d39f5da5bb036c24fb3742b1f01e412ac3e66e
-Traceback (most recent call last):
-  File "/Users/mikkokotila/Canary/scripts/verify_boundary.py", line 391, in <module>
-    main()
-  File "/Users/mikkokotila/Canary/scripts/verify_boundary.py", line 106, in main
-    result.update(launcher_checks(args.image,network,name))
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/mikkokotila/Canary/scripts/verify_boundary.py", line 295, in launcher_checks
-    r1 = launch(out1, ["exec", "python", "-c", GUEST_FIXTURE],
-         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/mikkokotila/Canary/scripts/verify_boundary.py", line 278, in launch
-    raise RuntimeError(f"launcher {args} exited {proc.returncode}: "
-RuntimeError: launcher ['exec', 'python', '-c', "\nimport json, subprocess, sys\nfrom pathlib import Path\npage = Path('/inputs/page.html').read_text()\nr = subprocess.run([sys.executable, '-m', 'pip', 'install', '--quiet', '--no-index',\n    '--no-deps', '--target', '/tmp/site', '--find-links', '/wheels', 'fixture_pkg'],\n    capture_output=True, text=True, timeout=120)\nassert r.returncode == 0, r.stderr[-500:]\nsys.path.insert(0, '/tmp/site')\nimport fixture_pkg\nlocked = {}\nfor p in ('/etc/launcher-probe', '/app/launcher-probe'):\n    try:\n        Path(p).write_text('x')\n        locked[p] = False\n    except OSError:\n        locked[p] = True\nPath('/work/out/result.json').write_text(json.dumps(\n    {'answer': fixture_pkg.answer(), 'page': page, 'locked': locked}))\n"] exited 1: Exported 0 files
-exit=1 out=/var/folders/zg/pwnp530s7m5731gmlbhqyh_r0000gn/T/launcher-vjv89hcj/out1 receipt=/var/folders/zg/pwnp530s7m5731gmlbhqyh_r0000gn/T/launcher-vjv89hcj/out1.receipt.json
- cp: cannot access '/app/./acceptance/2026-09-27/scenarios/export-scan/exported': Permission denied
-
+sha256:e18940c39fa7a6c14e71ebd98936d41b21ea912391357f3cf236c42740693911
+sha256:9feec675f07abc4003c8e9a6a8558e48abb8e3aa8112e7b747c6c538f38dbf70
+{
+  "provider_key_absent": true,
+  "ledger_absent": true,
+  "docker_socket_absent": true,
+  "direct_egress_blocked_api.meta.ai": true,
+  "direct_egress_blocked_1.1.1.1": true,
+  "wrong_model_blocked": true,
+  "alternate_endpoint_blocked": true,
+  "cap_survives_service_restart": true,
+  "request_blocked_before_provider": true,
+  "private_network": true,
+  "no_host_bind_mounts": true,
+  "no_published_ports": true,
+  "launcher_exit_zero": true,
+  "receipt_records_image": true,
+  "receipt_records_outcome": true,
+  "guest_installed_wheel": true,
+  "guest_read_staged_input": true,
+  "guest_image_locked": true,
+  "workspaces_independent": true,
+  "run_tokens_scoped_per_run": true,
+  "guest_metadata_blocked": true,
+  "guest_public_dns_blocked": true,
+  "timeout_kills_and_releases": true,
+  "unsafe_network_host_refused": true,
+  "unsafe_network_bridge_refused": true,
+  "colon_stage_split": true,
+  "unreachable_stage_refused": true,
+  "scanner_flags_exported_leak": true,
+  "launcher_imports_nothing": true,
+  "pid_namespace_small": true,
+  "cgroup_locked": true,
+  "no_docker_cli": true,
+  "blocked_10.0.0.1": true,
+  "blocked_192.168.1.1": true,
+  "blocked_fe80::1": true,
+  "pids_limit_enforced": true,
+  "egress_probe_detects_open_network": true,
+  "minted_token_valid": true,
+  "revoke_token": true,
+  "revoked_token_rejected": true,
+  "expired_token_rejected": true,
+  "preflight_reports_unknown": true,
+  "source_checkout_untouched": true
+}

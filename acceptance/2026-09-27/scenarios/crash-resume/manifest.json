@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "run_id": "20260927-223611-2e4f0f",
+  "run_id": "20260927-225028-f7bda4",
   "kind": "cycle",
   "spec": {
     "version": 1,
@@ -20,37 +20,32 @@
     "out_dir": "acceptance/2026-09-27/scenarios/crash-resume"
   },
   "status": "converged",
-  "started_at": "2026-09-27T22:36:11.848568+00:00",
-  "finished_at": "2026-09-27T22:36:11.860334+00:00",
+  "started_at": "2026-09-27T22:50:28.584403+00:00",
+  "finished_at": "2026-09-27T22:50:28.598043+00:00",
   "artefacts": [
     {
       "path": "checkpoints/checkpoint-0000.json",
-      "sha256": "4dfce7649bbbeeae6183619fdb5fb8aae2d0c69e0c8fdff9dc6fdfcae79db1db",
+      "sha256": "dcb3f1e2583a2aff67900c42707264c13e1a0d7252c5e3afcc65e81f23643bc5",
       "size": 1747
     },
     {
       "path": "checkpoints/checkpoint-0001.json",
-      "sha256": "90e332e2595d37679ab8d0a05d11bf2847d4ed7c74dfd5f601a64e6cf4b911e5",
+      "sha256": "1f6520e63b218674fe8dfbf740389ff91e061a9be25f77cc0de3ca8076a84d6e",
       "size": 3661
     },
     {
       "path": "checkpoints/checkpoint-0002.json",
-      "sha256": "8ba9f3ec869c12cf2497b20a6441d3c183498077115dd60150e96980ef395cea",
+      "sha256": "26eda25cd75a992457785b0dad0967ec6e427424039fe6e147ac9b3f7374ffc7",
       "size": 3800
     },
     {
       "path": "checkpoints/checkpoint-0003.json",
-      "sha256": "fc8603aec0816c7771a0cc8faaedcf9f1f89e017e1bc45fe91d62e569b4d714c",
+      "sha256": "c7bb557128bf909058c0393650ff34559ff5523fd9d731c29708ba953f7cedaf",
       "size": 3801
     },
     {
       "path": "checkpoints/checkpoint-0004.json",
-      "sha256": "74597921e49b16cdc53b04c10d599ce0780184cad8e48c038cc1d65cdb6629dd",
-      "size": 5455
-    },
-    {
-      "path": "checkpoints/checkpoint-0005.json",
-      "sha256": "1acb7b959a750e9158011a5c0525aebe91a219e1d90033d2737a59097d6cc5b2",
+      "sha256": "ef27cb944a59f36d032b76c738d27b0d9816b2b6282ff20bf2ff7017a6675da8",
       "size": 5455
     },
     {
@@ -75,22 +70,22 @@
     },
     {
       "path": "journal.jsonl",
-      "sha256": "d19e020ecff3e4e4f5c4a66d8a6f239f97968256b3591a82f7572d677aa494dd",
-      "size": 7284
+      "sha256": "ebf6f7f202dd71a994a77910349500cd81827d13515f720b122884d4d4d16bc1",
+      "size": 4108
     },
     {
       "path": "ops.jsonl",
-      "sha256": "fdf6e7a01bfc2b180ea94d8f4bbb59ebef7a75727ebdfc7eb22de167537f20f5",
-      "size": 2573
+      "sha256": "7dcec18ea76f4e9eb848bd4663528c869300a18db865f72dc2bb6f0ced25f138",
+      "size": 1418
     },
     {
       "path": "retrieval.jsonl",
-      "sha256": "b423780087b0c13952b1387183932667bb4b5d4934b0359469cc7f7505fe0455",
-      "size": 5713
+      "sha256": "e3fb1ccd877657448095a3d4ce2c75c0663cd838f7bf5fdb4fbdf290f6290add",
+      "size": 3388
     },
     {
       "path": "run.json",
-      "sha256": "e0a961a3f04d6f81bfbcf40dbaa6ff1473b771a92140c8699145e1e1c7cda93e",
+      "sha256": "d747d65077b9f74cb9682a9887698b56675dfa7ab172883b7a781199580176d3",
       "size": 2657
     },
     {
