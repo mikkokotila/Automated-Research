@@ -169,18 +169,19 @@ def test_oversize_rejected(repo):
 
 
 def test_source_mutation_between_validation_and_apply_rejects(repo):
-    real_verify = revmod.verify_in_disposable
+    from canary import promote as promotemod
 
-    def tampering_verify(r, diff, ops, prior=()):
-        manifest = real_verify(r, diff, ops, prior)
-        (repo / "src/canary/foo.py").write_text("X = 999\n", encoding="utf-8")
-        return manifest
-
-    import unittest.mock as _mock
-
-    with _mock.patch.object(revmod, "verify_in_disposable", tampering_verify):
-        oc = revmod.apply_one(repo, prop(), DIFF_OK, ["true"], Journal())
-    assert not oc.applied and "changed between validation" in oc.reason
+    store = promotemod.Store(repo / "runs" / "promotions")
+    store.init_from_worktree(repo)
+    cand = promotemod.evaluate(store, prop(), DIFF_OK, ["true"], "a1", Journal())
+    assert cand.state == "testing" and cand.test["exit"] == 0
+    # Tamper the base snapshot between evaluation and promotion.
+    (store.revs / cand.base_rev / "tree" / "src" / "canary" / "foo.py").write_text(
+        "X = 999\n", encoding="utf-8")
+    with pytest.raises(promotemod.PromotionError, match="drifted"):
+        promotemod.promote(store, cand, Journal())
+    assert store.latest_rev() == cand.base_rev  # accepted untouched
+    assert store.load_candidate(cand.id).state == "rejected"
 
 
 def test_stale_context_diff_rejected(repo):

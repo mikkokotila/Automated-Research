@@ -88,6 +88,10 @@ def main(argv: list[str] | None = None) -> int:
     am = sub.add_parser("assess", help="assess a run's journal without changing any code")
     am.add_argument("--run-dir", required=True, help="bundle dir containing journal.jsonl")
     am.add_argument("--out", default=None, help="dir for assessment records (default: run dir)")
+    pb = sub.add_parser("publish", help="maintainer-only export of a recorded round")
+    pb.add_argument("--repo", default=".", help="repo checkout holding the promotion store")
+    pb.add_argument("--run-dir", required=True, help="bundle dir containing journal.jsonl")
+    pb.add_argument("--round", default="latest", help="recorded round id to publish")
     args = ap.parse_args(argv)
     if args.cmd == "inspect":
         print(json.dumps(report.read_bundle(args.bundle), indent=2, default=str))
@@ -110,6 +114,14 @@ def main(argv: list[str] | None = None) -> int:
             print(f"canary: error: {e}", file=sys.stderr)
             return 1
         print(path)
+        return 0
+    if args.cmd == "publish":
+        try:
+            url = publish_recorded(args.repo, args.run_dir, args.round)
+        except Exception as e:
+            print(f"canary: error: {e}", file=sys.stderr)
+            return 1
+        print(url)
         return 0
     try:
         spec = build_spec(args)
@@ -163,8 +175,9 @@ def cycle(spec: RunSpec, repo: str = ".") -> str:
     path = report.write_cycle_bundle(spec.out_dir, spec.question, res, j, spec,
                                      outbox.get("revision"))
     if spec.maintenance and outbox.get("revision"):
-        _maybe_publish(repo, outbox["revision"], j)
-        j.save(path / "journal.jsonl")  # persist publish notes too
+        emit(j, "publish", "deferred",
+             "export is a separate maintainer action: run `canary publish` explicitly")
+        j.save(path / "journal.jsonl")
     return str(path / "synthesis.md")
 
 
@@ -201,20 +214,25 @@ def assess_only(run_dir: str, out: str | None) -> str:
     return str(dest / f"{record.id}.md")
 
 
-def _maybe_publish(repo: str, revision, j: Journal) -> None:
-    import os
+def publish_recorded(repo: str, run_dir: str, round_id: str = "latest") -> str:
+    """Maintainer-only export of a recorded revision round. Separate process.
 
-    if not os.environ.get("GITHUB_TOKEN"):
-        emit(j, "publish", "skipped", "no GITHUB_TOKEN; local-only")
-        print("publish: skipped (no GITHUB_TOKEN)")
-        return
+    The worker never calls this: it requires GITHUB_TOKEN, which the worker
+    refuses to hold. The round's doc/report are rebuilt from the store record.
+    """
+    from . import promote as promotemod
     from .github_ops import GitHub, resolve_repo, resolve_token
-    from .revise import new_run_id, publish_round
+    from .revise import load_round, new_run_id, publish_round
 
-    doc, rep = revision
+    store = promotemod.Store(Path(repo) / "runs" / "promotions")
+    doc, rep = load_round(store, round_id)
+    jr = Journal.load(Path(run_dir) / "journal.jsonl")
     gh = GitHub(resolve_token(), resolve_repo(repo))
-    pub = publish_round(repo, new_run_id(), doc, rep, j, gh)
-    print(f"publish: issue={pub.issue_url or 'none'} pr={pub.pr_url or 'none'} merged={pub.merged}")
+    pub = publish_round(repo, new_run_id(), doc, rep, jr, gh)
+    jr.save(Path(run_dir) / "journal.jsonl")
+    print(f"publish: issue={pub.issue_url or 'none'} pr={pub.pr_url or 'none'} "
+          f"merged={pub.merged}")
+    return pub.pr_url or pub.issue_url or ""
 
 
 def analyze(spec: RunSpec) -> str:
@@ -253,7 +271,8 @@ def revise(run_dir: str, repo: str, rounds: int, out: str | None) -> str:
     (dest / "assessment.md").write_text(doc.markdown + "\n", encoding="utf-8")
     jr.save(dest / "journal.jsonl")
     print(f"revise: kept={rep.kept} reverted={rep.reverted} skipped={rep.skipped}")
-    _maybe_publish(repo, (doc, rep), jr)
+    emit(jr, "publish", "deferred",
+         "export is a separate maintainer action: run `canary publish` explicitly")
     jr.save(dest / "journal.jsonl")
     return str(dest / "assessment.md")
 

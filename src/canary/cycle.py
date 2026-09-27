@@ -352,8 +352,9 @@ def run_cycle(
                         maintenance=maintenance, max_iterations=max_iterations,
                         revise_rounds=revise_rounds))
     if maintenance and repo_root is not None:
-        from .revise import require_revision_trust
+        from .revise import refuse_maintainer_credentials, require_revision_trust
 
+        refuse_maintainer_credentials()  # no export credentials in the worker
         require_revision_trust()  # fail the maintained run before any work
     if budget is None:
         budget = (RunBudget.from_dict(resumed["budget"]) if resumed else

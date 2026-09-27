@@ -21,9 +21,10 @@ from __future__ import annotations
 
 import hashlib
 import re
+import shutil
 import subprocess
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -33,6 +34,7 @@ from .assess import AssessmentError, Proposal, AssessmentDoc, assess, assess_jou
 from .changeset import (ChangesetError, check_policy, parse_unified_diff,
                         verify_in_disposable, worktree_status_paths)
 from .memory import Memory
+from . import promote as promotemod
 from .synthesize import Completer
 
 
@@ -130,10 +132,24 @@ def tree_clean(repo: Path) -> bool:
     return git(repo, "status", "--porcelain", "--", "src", "tests").strip() == ""
 
 
-def checks_pass(repo: Path, check_cmd: list[str], journal: Journal | None = None) -> bool:
-    r = subprocess.run(check_cmd, cwd=repo, capture_output=True, text=True, timeout=600)
+def checks_pass(repo: Path, check_cmd: list[str], journal: Journal | None = None,
+                timeout_s: int = 600) -> bool:
+    try:
+        r = subprocess.run(check_cmd, cwd=repo, capture_output=True, text=True, timeout=timeout_s)
+    except subprocess.TimeoutExpired:
+        emit(journal, "revise", "checks", f"cmd={' '.join(check_cmd)} TIMEOUT after {timeout_s}s")
+        return False
     emit(journal, "revise", "checks", f"cmd={' '.join(check_cmd)} rc={r.returncode} tail={r.stdout[-300:] + r.stderr[-300:]}")
     return r.returncode == 0
+
+
+def refuse_maintainer_credentials() -> None:
+    """The revision worker must never hold export credentials. Fail closed."""
+    import os
+
+    if os.environ.get("GITHUB_TOKEN"):
+        raise ContainmentBlocked("GITHUB_TOKEN must not enter the revision worker; "
+                                 "export via a separate `canary publish` process")
 
 
 def request_diff(proposal: Proposal, client: Completer, repo: Path | None = None,
@@ -209,17 +225,38 @@ def save_candidate(assess_dir: str | Path, proposal: Proposal, diff: str,
     return path
 
 
+def _outcome_manifest(cand) -> dict:
+    """PatchOutcome-shaped manifest from a promotion candidate record."""
+    base_files = cand.manifest.get("base_files", {})
+    new_hashes = cand.manifest.get("new_hashes", {})
+    files = []
+    for entry in cand.manifest.get("files", []):
+        path = entry["path"]
+        files.append({"path": path, "op": entry.get("op", "modified"),
+                      "old_sha": base_files.get(path, "absent"),
+                      "new_sha": new_hashes.get(path, "absent")})
+    return {"base_rev": cand.base_rev, "diff_sha": cand.diff_sha, "files": files}
+
+
 def apply_one(repo: Path, proposal: Proposal, diff: str, check_cmd: list[str], journal: Journal | None,
-              prior_diffs: tuple[str, ...] = (), assessment_id: str = "",
+              assessment_id: str = "",
               assess_dir: str | Path | None = None,
               context_record: dict | None = None) -> PatchOutcome:
-    """Validate structurally, validate in a disposable checkout, then apply.
+    """Evaluate transactionally, then sync the live tree to the new accepted rev.
 
-    The candidate binds to an exact base revision and file hashes; any drift
-    between validation and evaluation rejects without editing. Post-apply, the
-    tree must contain exactly the manifest files (plus caches) or it reverts.
+    Validation, application, and testing happen in a disposable copy of the
+    latest accepted revision. Only the exact passing candidate promotes; the
+    live tree is then synced to accepted (and must match it afterwards).
+    Failed candidates never touch the live tree or the accepted revision.
     """
     repo = Path(repo)
+    store = promotemod.Store(repo / "runs" / "promotions")
+    if store.latest_rev() is None:
+        if not tree_clean(repo):
+            return PatchOutcome(proposal.id, proposal.target, False, False,
+                                "worktree not clean; cannot anchor revision zero",
+                                assessment_id=assessment_id)
+        store.init_from_worktree(repo)
 
     def _record(status: str, reason: str, manifest: dict | None) -> None:
         if assess_dir is not None:
@@ -227,82 +264,57 @@ def apply_one(repo: Path, proposal: Proposal, diff: str, check_cmd: list[str], j
                            assessment_id, status, reason)
 
     try:
-        ops = parse_unified_diff(diff)
-        check_policy(ops, target_allowed)
-    except ChangesetError as e:
-        emit(journal, "revise", "rejected", f"{proposal.id}: {e}")
-        _record("rejected", str(e), None)
-        return PatchOutcome(proposal.id, proposal.target, False, False, str(e),
-                            assessment_id=assessment_id)
+        cand = promotemod.evaluate(store, proposal, diff, check_cmd, assessment_id,
+                                   journal)
+    except promotemod.PromotionHalt as e:
+        raise RuntimeError(f"promotion store halted: {e}") from e
+    manifest = _outcome_manifest(cand)
+    if cand.state != "testing" or cand.test.get("exit") != 0:
+        applied = any(t["state"] in ("applied", "testing") for t in cand.transitions)
+        status = "rejected"
+        _record(status, cand.reason_detail, manifest)
+        return PatchOutcome(proposal.id, proposal.target, applied, False,
+                            cand.reason_detail, cand.base_rev, manifest, assessment_id)
     try:
-        manifest = verify_in_disposable(repo, diff, ops, prior_diffs)
-    except ChangesetError as e:
-        reason = f"disposable validation failed: {e}"
-        emit(journal, "revise", "rejected", f"{proposal.id}: {reason}"[:300])
-        _record("rejected", reason, None)
-        return PatchOutcome(proposal.id, proposal.target, False, False, reason,
-                            assessment_id=assessment_id)
-    if git(repo, "rev-parse", "HEAD").strip() != manifest.base_rev:
-        reason = "base revision moved between validation and evaluation"
-        _record("rejected", reason, manifest.to_dict())
-        return PatchOutcome(proposal.id, proposal.target, False, False, reason,
-                            manifest.base_rev, manifest.to_dict(), assessment_id)
-    for entry in manifest.files:
-        if _file_sha(repo / entry["path"]) != entry["old_sha"]:
-            reason = (f"source mutation: {entry['path']} changed between validation "
-                      "and evaluation")
-            _record("rejected", reason, manifest.to_dict())
-            return PatchOutcome(proposal.id, proposal.target, False, False, reason,
-                                manifest.base_rev, manifest.to_dict(), assessment_id)
-    targets = [entry["path"] for entry in manifest.files]
-    snapshot: dict[str, bytes | None] = {}
-    for t in targets:
-        p = repo / t
-        snapshot[t] = p.read_bytes() if p.exists() else None
-    ap = subprocess.run(["git", "apply", "-"], input=diff, cwd=repo, capture_output=True,
-                        text=True, timeout=60)
-    if ap.returncode != 0:
-        reason = f"git apply failed: {ap.stderr.strip()[:200]}"
-        _record("rejected", reason, manifest.to_dict())
-        return PatchOutcome(proposal.id, proposal.target, False, False, reason,
-                            manifest.base_rev, manifest.to_dict(), assessment_id)
+        rev_id = promotemod.promote(store, cand, journal)
+    except promotemod.PromotionError as e:
+        _record("rejected", str(e), manifest)
+        return PatchOutcome(proposal.id, proposal.target, True, False, str(e),
+                            cand.base_rev, manifest, assessment_id)
+    emit(journal, "revise", "applied", f"{proposal.id}: rev {rev_id}")
+    sync_worktree_to_accepted(repo, store, journal)
+    _record("kept", f"checks green, kept as {rev_id}", manifest)
+    return PatchOutcome(proposal.id, proposal.target, True, True,
+                        f"checks green, kept as {rev_id}",
+                        cand.base_rev, manifest, assessment_id)
 
-    def _restore() -> None:
-        for t, data in snapshot.items():
-            p = repo / t
-            if data is None:
-                if p.exists():
-                    p.unlink()
-            else:
-                p.write_bytes(data)
 
-    for entry in manifest.files:  # the apply must produce exactly the manifest
-        if _file_sha(repo / entry["path"]) != entry["new_sha"]:
-            _restore()
-            reason = f"post-apply state mismatch on {entry['path']}"
-            _record("rejected", reason, manifest.to_dict())
-            return PatchOutcome(proposal.id, proposal.target, False, False, reason,
-                                manifest.base_rev, manifest.to_dict(), assessment_id)
-    emit(journal, "revise", "applied", f"{proposal.id}: {', '.join(targets)}")
-    if not checks_pass(repo, check_cmd, journal):
-        _restore()
-        emit(journal, "revise", "reverted", f"{proposal.id}: checks failed")
-        _record("reverted", "checks failed, reverted", manifest.to_dict())
-        return PatchOutcome(proposal.id, proposal.target, True, False,
-                            "checks failed, reverted", manifest.base_rev, manifest.to_dict(),
-                            assessment_id)
-    extras = {p for p in worktree_status_paths(repo, "src", "tests") if "__pycache__" not in p
-              and not p.endswith(".pyc")} - set(targets)
-    if extras:
-        _restore()
-        reason = f"unreported files changed: {sorted(extras)[:5]}"
-        emit(journal, "revise", "reverted", f"{proposal.id}: {reason}")
-        _record("reverted", reason, manifest.to_dict())
-        return PatchOutcome(proposal.id, proposal.target, True, False, reason,
-                            manifest.base_rev, manifest.to_dict(), assessment_id)
-    _record("kept", "checks green, kept", manifest.to_dict())
-    return PatchOutcome(proposal.id, proposal.target, True, True, "checks green, kept",
-                        manifest.base_rev, manifest.to_dict(), assessment_id)
+def sync_worktree_to_accepted(repo: Path, store: "promotemod.Store",
+                              journal: Journal | None = None) -> None:
+    """Bring the live tree to the latest accepted snapshot. Halts on drift."""
+    repo = Path(repo)
+    rev_id = store.latest_rev()
+    manifest = store.rev_manifest(rev_id) if rev_id else None
+    if rev_id is None or manifest is None:
+        raise RuntimeError("promotion store has no accepted revision to sync")
+    live = promotemod.hash_tree(repo)
+    want = manifest["files"]
+    for path in sorted(set(live) ^ set(want)):
+        target = repo / path
+        if path in want:  # missing locally: restore from the snapshot
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(store.revs / rev_id / "tree" / path, target)
+        else:  # extra locally: only accepted-side files may appear, never delete
+            raise RuntimeError(f"worktree has unaccepted file {path}; reconcile manually")
+    for path in sorted(set(live) & set(want)):
+        if live[path] != want[path]:
+            target = repo / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(store.revs / rev_id / "tree" / path, target)
+    ok, divergent = promotemod.worktree_matches(store, repo)
+    if not ok:
+        raise RuntimeError(f"worktree sync failed, divergent: {divergent}")
+    emit(journal, "revise", "synced", f"worktree matches {rev_id}")
 
 
 def revise_round(
@@ -317,16 +329,26 @@ def revise_round(
     repo = Path(repo)
     check_cmd = check_cmd or ["pytest", "-q"]
     report = ReviseReport()
+    refuse_maintainer_credentials()
     require_revision_trust()
-    if not tree_clean(repo):
-        emit(journal, "revise", "aborted", "tree not clean")
-        report.skipped = len(doc.proposals)
-        return report
+    store = promotemod.Store(repo / "runs" / "promotions")
+    if store.latest_rev() is None:
+        if not tree_clean(repo):
+            emit(journal, "revise", "aborted", "tree not clean")
+            report.skipped = len(doc.proposals)
+            return report
+        store.init_from_worktree(repo)
+    else:
+        ok, divergent = promotemod.worktree_matches(store, repo)
+        if not ok:
+            emit(journal, "revise", "aborted",
+                 f"worktree differs from {store.latest_rev()}: {divergent}")
+            report.skipped = len(doc.proposals)
+            return report
     if not checks_pass(repo, check_cmd, journal):
         emit(journal, "revise", "aborted", "baseline checks not green")
         report.skipped = len(doc.proposals)
         return report
-    prior_diffs: list[str] = []
     for proposal in doc.proposals[:MAX_PROPOSALS_PER_ROUND]:
         context_record: dict = {}
         try:
@@ -337,17 +359,56 @@ def revise_round(
             report.outcomes.append(PatchOutcome(proposal.id, proposal.target, False, False, f"diff request failed: {e}"))
             report.skipped += 1
             continue
-        oc = apply_one(repo, proposal, diff, check_cmd, journal, tuple(prior_diffs),
+        oc = apply_one(repo, proposal, diff, check_cmd, journal,
                        assessment_id, assess_dir, context_record)
         report.outcomes.append(oc)
         if oc.kept:
             report.kept += 1
-            prior_diffs.append(diff)
         elif oc.applied:
             report.reverted += 1
         else:
             report.skipped += 1
+    save_round(store, doc, report, assessment_id, journal)
     return report
+
+
+def save_round(store: "promotemod.Store", doc: AssessmentDoc, rep: ReviseReport,
+               assessment_id: str, journal: Journal | None = None) -> str:
+    """Persist the round for the separate maintainer publish step."""
+    import json
+
+    rounds = store.root / "rounds"
+    rounds.mkdir(parents=True, exist_ok=True)
+    round_id = new_run_id()
+    payload = {
+        "round_id": round_id, "assessment_id": assessment_id,
+        "accepted": store.latest_rev(),
+        "doc": {"markdown": doc.markdown,
+                "proposals": [asdict(p) for p in doc.proposals]},
+        "rep": {"kept": rep.kept, "reverted": rep.reverted, "skipped": rep.skipped,
+                "outcomes": [asdict(o) for o in rep.outcomes]},
+    }
+    (rounds / f"{round_id}.json").write_text(json.dumps(payload, indent=2) + "\n",
+                                             encoding="utf-8")
+    (rounds / "latest.json").write_text(json.dumps(payload, indent=2) + "\n",
+                                        encoding="utf-8")
+    emit(journal, "revise", "round-saved", round_id)
+    return round_id
+
+
+def load_round(store: "promotemod.Store", round_id: str = "latest") -> tuple[AssessmentDoc, ReviseReport]:
+    """Rebuild a recorded round for `canary publish`. No execution involved."""
+    import json
+
+    payload = json.loads((store.root / "rounds" / f"{round_id}.json").read_text(encoding="utf-8"))
+    doc = AssessmentDoc(markdown=payload["doc"]["markdown"],
+                        proposals=tuple(Proposal(**p) for p in payload["doc"]["proposals"]))
+    rep = ReviseReport(kept=payload["rep"]["kept"], reverted=payload["rep"]["reverted"],
+                       skipped=payload["rep"]["skipped"],
+                       outcomes=[PatchOutcome(**{k: o[k] for k in PatchOutcome.__dataclass_fields__
+                                                  if k in o})
+                                 for o in payload["rep"]["outcomes"]])
+    return doc, rep
 
 
 def revise_from_journal(
@@ -369,6 +430,7 @@ def revise_from_journal(
     """
     from .report import code_revision
 
+    refuse_maintainer_credentials()  # no export credentials in the worker
     require_revision_trust()  # before the assess model call, not after it
     repo = Path(repo)
     adir = Path(assess_dir) if assess_dir else repo / "runs" / "assessments"
