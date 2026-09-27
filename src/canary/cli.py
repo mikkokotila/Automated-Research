@@ -38,6 +38,13 @@ def review(spec: RunSpec) -> str:
     top = ranked[:rspec.max_papers]
     synth = synthesize.synthesize(rspec.question, top, MuseClient(budget=RunBudget.from_spec(spec)))
     emit(j, "review", "synthesized", f"{len(top)} papers, cited {len(synth.cited)}")
+    for marker in synth.validation.get("dangling_citations", []):
+        emit(j, "review", "dangling-citation", f"[{marker}] points at no paper")
+    for problem in synth.validation.get("rejected", []):
+        emit(j, "review", "claim-rejected", problem[:250])
+    supported = [c for c in synth.claims if c.support in ("supported", "partial")]
+    if not synth.cited and not supported:
+        raise RuntimeError("retrieved material does not support an answer to this question")
     path = report.write_bundle(spec.out_dir, rspec, top, synth, j, warning)
     return str(path / "review.md")
 
