@@ -40,7 +40,7 @@ jobs:
       - run: uv run --no-sync pytest -q --durations=10
       - run: uv run --no-sync pytest -q -m containment
   docker:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
@@ -51,16 +51,16 @@ jobs:
           context: .
           tags: canary:ci
           load: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=canary-main
+          cache-to: ${{ (github.ref == 'refs/heads/main' || github.head_ref == 'build-01-reproducible-baseline') && 'type=gha,mode=max,scope=canary-main' || '' }}
       - uses: docker/build-push-action@v6
         with:
           context: .
           file: boundary/Dockerfile
           tags: canary-boundary:check
           load: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=canary-gate
+          cache-to: ${{ (github.ref == 'refs/heads/main' || github.head_ref == 'build-01-reproducible-baseline') && 'type=gha,mode=max,scope=canary-gate' || '' }}
       - run: ./scripts/container_verify.sh
         env:
           IMG: canary:ci
