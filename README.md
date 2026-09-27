@@ -24,6 +24,8 @@ Optional `--maintenance` and `revise` paths currently refuse: revision has no tr
 
 The launcher enforces wall-time (`CANARY_TIMEOUT_S`, default 1800s), stages operator-approved wheels read-only at `/wheels` (`CANARY_WHEELS`, installed with `pip install --no-index --find-links /wheels`) and inputs read-only at `/inputs` (`CANARY_STAGE`, `https://...` or host-file sources), and writes a run receipt (`<out>.receipt.json`) with the image digest, limits, and outcome next to the exported bundle. Guests have no direct egress; host, LAN, metadata, and public DNS stay unreachable by design.
 
+Every run validates a versioned spec before any external call and enforces hard budgets (iterations, model calls, tokens, wall time) with distinct terminal reasons (`converged`, `budget_exhausted`, `insufficient_evidence`, `cancelled`, `provider_blocked`, `invalid_input`, `failed`). Exhaustion saves an honest partial bundle with remaining questions and exact usage; `cycle --max-calls`, `--max-tokens`, and `--wall-time-s` tune the finite defaults.
+
 ## Development and evidence
 
 From a fresh checkout, set up the locked environment and run the offline suite with no provider keys present:

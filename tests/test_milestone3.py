@@ -122,7 +122,8 @@ def test_cycle_respects_max_iterations_and_tracks_unanswered():
     ]
     muse.queues["final"] = ["Final with leftovers."]
     res = cyclemod.run_cycle("q1?", None, None, 2, 5, muse, mock_http())
-    assert len(res.iterations) == 2 and res.stopped == "max_iterations"
+    # Build 06 taxonomy: hitting the iteration cap with work left is budget_exhausted.
+    assert len(res.iterations) == 2 and res.stopped == "budget_exhausted"
     assert res.unanswered == ("q3?",)
 
 

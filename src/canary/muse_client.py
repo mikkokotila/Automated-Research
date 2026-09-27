@@ -5,8 +5,9 @@ import time
 from typing import Any
 import httpx
 
+from .spec import DEFAULT_MODEL, RunBudget  # re-exported; single locked value
+
 BASE_URL = "https://api.meta.ai/v1"  # identity, not a worker destination
-DEFAULT_MODEL = "muse-spark-1.3-contributor"
 KEY_VARS = ("MUSE_API_KEY", "MODEL_API_KEY", "META_API_KEY")
 TIMEOUT_S = 330
 MAX_ATTEMPTS = 3
@@ -28,13 +29,14 @@ def resolve_api_key(env: dict | None = None) -> str:
 
 class MuseClient:
     def __init__(self, api_key: str | None = None, model: str = DEFAULT_MODEL,
-                 client: Any | None = None) -> None:
+                 client: Any | None = None, budget: RunBudget | None = None) -> None:
         if model != DEFAULT_MODEL:
             raise RequestBlocked("Only " + DEFAULT_MODEL + " is permitted")
         if api_key is not None:
             raise RequestBlocked("Provider credentials belong only in the trusted request service")
         self.calls = 0
         self.receipts: list[dict] = []
+        self.budget = budget or RunBudget(25, 20_000_000, 1800)
         self._url = os.environ.get("CANARY_GATE_URL", "http://canary-gate:8787").rstrip("/")
         self._token = os.environ.get("CANARY_GATE_TOKEN", "")
         if not self._token:
@@ -48,9 +50,7 @@ class MuseClient:
     def complete(self, system: str, user: str, max_tokens: int = 8000) -> str:
         payload = {"model": DEFAULT_MODEL, "system": system, "user": user, "max_tokens": max_tokens}
         for attempt in range(MAX_ATTEMPTS):
-            cap = int(os.environ.get("MUSE_MAX_CALLS", "0") or 0)
-            if cap > 0 and self.calls >= cap:
-                raise RequestBlocked(f"MUSE_MAX_CALLS budget exhausted ({cap} calls)")
+            self.budget.reserve_call()  # Cancelled/BudgetExhausted propagate distinctly
             self.calls += 1
             try:
                 response = self._client.post(self._url + "/v1/complete", json=payload,
@@ -76,6 +76,11 @@ class MuseClient:
                                      str(body.get("message", "request denied")))
             if body.get("model") != DEFAULT_MODEL:
                 raise RequestBlocked("Request-service model mismatch")
+            usage = body.get("usage") or {}
+            prompt, completion = usage.get("prompt_tokens"), usage.get("completion_tokens")
+            if type(prompt) is not int or type(completion) is not int or prompt < 0 or completion < 0:
+                raise RequestBlocked("Request-service usage missing; cannot account")
+            self.budget.note_usage(prompt, completion)
             self.receipts.append({**{k: body[k] for k in ("model", "usage", "receipt")},
                                   "finish_reason": body.get("finish_reason", "unknown")})
             text = body.get("text", "").strip()

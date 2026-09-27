@@ -12,11 +12,12 @@ from .data import Prepared
 from .journal import Journal
 from .modeling import Results
 from .papers import Paper
-from .spec import ResearchSpec
+from .spec import ResearchSpec, StopReason
 from .synthesize import Synthesis
 
 if TYPE_CHECKING:
     from .cycle import CycleResult
+    from .spec import RunSpec
 
 
 def render_markdown(spec: ResearchSpec, papers: list[Paper], synth: Synthesis) -> str:
@@ -137,7 +138,8 @@ def write_analysis_bundle(
     return out
 
 
-def write_cycle_bundle(out_dir: str | Path, seed: str, res: "CycleResult", journal: Journal | None = None) -> Path:
+def write_cycle_bundle(out_dir: str | Path, seed: str, res: "CycleResult",
+                       journal: Journal | None = None, spec: "RunSpec | None" = None) -> Path:
     out = Path(out_dir)
     iters = out / "iterations"
     iters.mkdir(parents=True, exist_ok=True)
@@ -145,12 +147,18 @@ def write_cycle_bundle(out_dir: str | Path, seed: str, res: "CycleResult", journ
         journal.save(out / "journal.jsonl")
     for i in res.iterations:
         (iters / f"iter{i.n}-{i.kind}.md").write_text(i.detail, encoding="utf-8")
+    stopped = res.stopped.value if isinstance(res.stopped, StopReason) else res.stopped
+    usage = res.usage or {}
+    usage_line = (f"model calls: {usage.get('model_calls', '?')}, "
+                  f"tokens: {usage.get('tokens', '?')}"
+                  f"{'' if usage.get('tokens_reported') else ' (tokens not reported by client)'}")
     lines = [
         f"# Unattended run: {seed}",
         "",
-        f"_Iterations: {len(res.iterations)} | stopped: {res.stopped} | model: {res.model}_",
+        f"_Iterations: {len(res.iterations)} | stopped: {stopped} | model: {res.model}_",
+        f"_{usage_line}_",
         "",
-        res.synthesis,
+        res.synthesis or "_No final synthesis: see stopped reason and unanswered questions._",
         "",
         "## Trail",
         "",
@@ -165,12 +173,16 @@ def write_cycle_bundle(out_dir: str | Path, seed: str, res: "CycleResult", journ
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "kind": "cycle",
         "seed": seed,
-        "stopped": res.stopped,
+        "stopped": stopped,
         "model": res.model,
         "unanswered": list(res.unanswered),
+        "usage": usage,
+        "spec": spec.to_dict() if spec is not None else None,
         "iterations": [
             {"n": i.n, "kind": i.kind, "question": i.question, **i.provenance} for i in res.iterations
         ],
     }
     (out / "run.json").write_text(json.dumps(provenance, indent=2), encoding="utf-8")
+    if spec is not None:
+        (out / "spec.json").write_text(json.dumps(spec.to_dict(), indent=2), encoding="utf-8")
     return out
