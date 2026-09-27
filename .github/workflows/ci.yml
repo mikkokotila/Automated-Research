@@ -64,3 +64,4 @@ jobs:
       - run: ./scripts/container_verify.sh
         env:
           IMG: canary:ci
+          CANARY_PREBUILT: "1"
