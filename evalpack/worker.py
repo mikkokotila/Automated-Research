@@ -151,21 +151,29 @@ def _task_resume(payload: dict) -> dict:
                                   journal=journal, spec=spec, budget=budget,
                                   record_dir=str(out))
 
+    def grounded(prefix):
+        # Anchored supported claim: under the Build 16 grounding contract,
+        # marker-only output truthfully stops no_progress; this fixture tests
+        # crash/resume equivalence under convergence, so it grounds its output.
+        return (f"{prefix} [1].\n```claims\n" + json.dumps([{
+            "id": "c1", "text": "X was studied", "support": "supported",
+            "evidence": [{"paper": 1, "span": "Study on X"}]}]) + "\n```")
+
     crash_on = int(payload.get("crash_on", 3))
     follow_first = ['[{"question": "q2?", "kind": "review", "rationale": "r"}]']
     tmp = Path(tempfile.mkdtemp(prefix="eval-resume-"))
     whole = fresh(tmp / "whole", Scripted({
-        "review": ["R1 [1].", "R2 [1]."],
+        "review": [grounded("R1"), grounded("R2")],
         "follow": follow_first + ["[]"],
         "final": ["Final."]}))
     fresh(tmp / "broken", Crash(
-        {"review": ["R1 [1].", "R2 [1]."], "follow": list(follow_first),
+        {"review": [grounded("R1"), grounded("R2")], "follow": list(follow_first),
          "final": ["Final."]}, crash_on=crash_on))
     # Crash inside propose (call 2) leaves pending empty: the resume must
     # re-propose; a later crash leaves queued work to continue instead.
     resume_follow = follow_first + ["[]"] if crash_on == 2 else ["[]"]
     resumed, _, _, _ = cyclemod.resume_cycle(tmp / "broken", Scripted({
-        "review": ["R2 [1]."], "follow": resume_follow, "final": ["Final."]}),
+        "review": [grounded("R2")], "follow": resume_follow, "final": ["Final."]}),
         mock_http())
     same = ([i.question for i in resumed.iterations] ==
             [i.question for i in whole.iterations] and
