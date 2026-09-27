@@ -24,7 +24,13 @@ Optional `--maintenance` and `revise` paths assess notes and test proposed revis
 
 ## Development and evidence
 
-Run the test suite in the Linux development container with `python -m pytest -q`. `scripts/container_verify.sh` exercises actual network, credential and persistent-ledger boundaries using fixture credentials only. `scripts/profile_cycle.py --fixture` provides an explicitly synthetic timing workload; `--live` requires the deployed service.
+From a fresh checkout, set up the locked environment and run the offline suite with no provider keys present:
+
+```bash
+uv sync --locked && uv run pytest -q
+```
+
+`pytest -q` runs the portable offline suite only. Linux/Docker checks run via `uv run pytest -q -m containment`, and live provider checks (none implemented yet) via `-m live`. `scripts/container_verify.sh` exercises actual network, credential and persistent-ledger boundaries using fixture credentials only. `scripts/profile_cycle.py --fixture` provides an explicitly synthetic timing workload; `--live` requires the deployed service.
 
 Read [the handoff](docs/HANDOFF.md), [contributor guidance](GUIDANCE.md), [the earlier naming comparison](docs/VALIDATION.md), and [current boundary verification](validation/token-boundary/verification.json). An offline fixture does not establish live latency or scientific quality.
 

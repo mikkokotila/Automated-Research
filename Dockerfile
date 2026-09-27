@@ -1,4 +1,5 @@
 FROM python:3.12-slim
+COPY --from=ghcr.io/astral-sh/uv:0.9.13 /uv /bin/uv
 
 ENV LANG=C.UTF-8 \
     PYTHONUNBUFFERED=1 \
@@ -12,7 +13,9 @@ RUN apt-get update \
 
 WORKDIR /app
 COPY . /app
-RUN pip install --no-cache-dir -e . pytest \
+RUN uv export --frozen --all-groups --no-emit-project -o /tmp/frozen.txt \
+    && pip install --no-cache-dir --require-hashes -r /tmp/frozen.txt \
+    && pip install --no-cache-dir -e . --no-deps \
     && python -c "import canary; print('canary', canary.__file__)"
 
 COPY scripts/container_entrypoint.sh /usr/local/bin/container_entrypoint.sh

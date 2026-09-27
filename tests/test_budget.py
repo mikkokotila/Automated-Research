@@ -143,6 +143,7 @@ def _process_attempt(path):
         return False
 
 
+@pytest.mark.containment  # needs Linux boot_id + spawn; runs in CI, not in the portable default suite
 def test_processes_share_one_ledger(tmp_path):
     ledger = Ledger.initialize(tmp_path / "usage.sqlite3")
     with multiprocessing.get_context("spawn").Pool(4) as pool:
