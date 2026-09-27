@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "run_id": "20260927-225028-f7bda4",
+  "run_id": "20260927-225246-6b4eb4",
   "kind": "cycle",
   "spec": {
     "version": 1,
@@ -20,33 +20,33 @@
     "out_dir": "acceptance/2026-09-27/scenarios/crash-resume"
   },
   "status": "converged",
-  "started_at": "2026-09-27T22:50:28.584403+00:00",
-  "finished_at": "2026-09-27T22:50:28.598043+00:00",
+  "started_at": "2026-09-27T22:52:46.525481+00:00",
+  "finished_at": "2026-09-27T22:52:46.539557+00:00",
   "artefacts": [
     {
       "path": "checkpoints/checkpoint-0000.json",
-      "sha256": "dcb3f1e2583a2aff67900c42707264c13e1a0d7252c5e3afcc65e81f23643bc5",
-      "size": 1747
+      "sha256": "bfc99b6484ca02fea947f2fe6701c43e14162c6b8157781561844296bced3018",
+      "size": 1748
     },
     {
       "path": "checkpoints/checkpoint-0001.json",
-      "sha256": "1f6520e63b218674fe8dfbf740389ff91e061a9be25f77cc0de3ca8076a84d6e",
+      "sha256": "ed151375f953179d7572d0c91b7840fd3a3a3c9463920f7b2e71879b2708965e",
       "size": 3661
     },
     {
       "path": "checkpoints/checkpoint-0002.json",
-      "sha256": "26eda25cd75a992457785b0dad0967ec6e427424039fe6e147ac9b3f7374ffc7",
+      "sha256": "2f959dd404981b9fb3e3fee435062ecdd5e1b16e687d7d7ab8cedff9a6c97fb3",
       "size": 3800
     },
     {
       "path": "checkpoints/checkpoint-0003.json",
-      "sha256": "c7bb557128bf909058c0393650ff34559ff5523fd9d731c29708ba953f7cedaf",
+      "sha256": "815d5b51347f244d631ff6a02fa6376936ebc9bd56460cabc4b35501f3dfdb9a",
       "size": 3801
     },
     {
       "path": "checkpoints/checkpoint-0004.json",
-      "sha256": "ef27cb944a59f36d032b76c738d27b0d9816b2b6282ff20bf2ff7017a6675da8",
-      "size": 5455
+      "sha256": "35bb8e9b6c90a8eda535bc8661453a53a4a47e043c3af3a5dd0ba4bca88c6318",
+      "size": 5456
     },
     {
       "path": "iterations/iter1-review.md",
@@ -70,22 +70,22 @@
     },
     {
       "path": "journal.jsonl",
-      "sha256": "ebf6f7f202dd71a994a77910349500cd81827d13515f720b122884d4d4d16bc1",
+      "sha256": "b1a53d3ffe58976fcfb6c8ec26dbe7b26f379e985c3f83761bd5d9889866cf5b",
       "size": 4108
     },
     {
       "path": "ops.jsonl",
-      "sha256": "7dcec18ea76f4e9eb848bd4663528c869300a18db865f72dc2bb6f0ced25f138",
+      "sha256": "64fbf269d8dbe454ceb079b6af68df99e61daea80fa6069f998c1859fc73a5c4",
       "size": 1418
     },
     {
       "path": "retrieval.jsonl",
-      "sha256": "e3fb1ccd877657448095a3d4ce2c75c0663cd838f7bf5fdb4fbdf290f6290add",
+      "sha256": "4473c24f6913e31126c17b89ce1e909b10a063cec269789634d17dc2d512ef45",
       "size": 3388
     },
     {
       "path": "run.json",
-      "sha256": "d747d65077b9f74cb9682a9887698b56675dfa7ab172883b7a781199580176d3",
+      "sha256": "787fea714a185ba0b190cc9c049d71267b9293b36c0bc38677ff6516b9508eda",
       "size": 2657
     },
     {

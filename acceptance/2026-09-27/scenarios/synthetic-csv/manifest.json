@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "run_id": "20260927-224954-8a3952",
+  "run_id": "20260927-225212-69700b",
   "kind": "analyze",
   "spec": {
     "version": 1,
@@ -20,12 +20,12 @@
     "out_dir": "acceptance/2026-09-27/scenarios/synthetic-csv"
   },
   "status": "completed",
-  "started_at": "2026-09-27T22:49:54.545581+00:00",
-  "finished_at": "2026-09-27T22:49:55.078866+00:00",
+  "started_at": "2026-09-27T22:52:12.055128+00:00",
+  "finished_at": "2026-09-27T22:52:12.453733+00:00",
   "artefacts": [
     {
       "path": "analysis.jsonl",
-      "sha256": "89908763156ca8cfb07e1dc8ae98c28f674718a6cbbc512b4e15f0ac79c58504",
+      "sha256": "3d1dfdca5037664cca07a8abe52bcd245d570fcf9284926a211b39640ffca9ea",
       "size": 865
     },
     {
@@ -40,12 +40,12 @@
     },
     {
       "path": "journal.jsonl",
-      "sha256": "bceac60f51c6d8b3207091c44aa650194945723e356a73e9fb1a1a1c3d49b440",
+      "sha256": "6c57ba123a5edc2d4de30ac9866a85c01ac2a271c2a7cb80f0c7e4f98566eb13",
       "size": 189
     },
     {
       "path": "provenance.json",
-      "sha256": "37e7b99dbd8c87afccc37a3ccc379e3e3b31c5af14b5a145ee6af5529787ae47",
+      "sha256": "dcbae41b13628d1419881503bec23ed37f423a66bcd74765c0169ac4ea99cc0d",
       "size": 1468
     }
   ],

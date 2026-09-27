@@ -1,6 +1,6 @@
 # Acceptance 2026-09-27
 
-Revision: `71538d106b475d4cf4261e244382d6f05306019c` | Python 3.12.12
+Revision: `8b1b32c7ded5682bab1edc19ecadd20fdacc9fc0` | Python 3.12.12
 
 | scenario | status | detail |
 |---|---|---|
@@ -8,7 +8,7 @@ Revision: `71538d106b475d4cf4261e244382d6f05306019c` | Python 3.12.12
 | synthetic-csv | pass | best=logreg test=0.25 seed=810278876 |
 | cycle-research | pass | 2 iterations, converged, 5 calls |
 | maintenance-refusal | pass | refused before any work: refusing: revision has no trusted execution path yet (see docs/TRUST_BOUNDARY.md, Builds 03-04); environment flags and container evidence are not authorization |
-| maintenance-logic | pass | 91 passed in 30.83s |
+| maintenance-logic | pass | 91 passed in 31.36s |
 | crash-resume | pass | crash at call 3, resumed to converged, 5 calls carried |
 | budget-exhaustion | pass | stopped honestly at 2/2 calls, q2? carried forward |
 | provider-restriction | pass | run blocked honestly; keyless client refuses (CANARY_GATE_TOKEN required; direct provider access is disabled) |

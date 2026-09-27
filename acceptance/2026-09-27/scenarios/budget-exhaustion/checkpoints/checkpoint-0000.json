@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "seq": 0,
-  "run_id": "20260927-225029-b34e6e",
+  "run_id": "20260927-225247-eb9e3c",
   "spec": {
     "version": 1,
     "question": "seed?",
@@ -44,7 +44,7 @@
     "calls": 0,
     "tokens": 0,
     "tokens_reported": false,
-    "elapsed_s": 0.0015350000030593947
+    "elapsed_s": 0.001306083009694703
   },
   "scheduler": {
     "assess_every": 1,

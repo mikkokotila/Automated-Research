@@ -1,13 +1,13 @@
 {
-  "generated_at": "2026-09-27T22:51:33.850254+00:00",
-  "repo_rev": "71538d106b475d4cf4261e244382d6f05306019c",
+  "generated_at": "2026-09-27T22:53:51.836825+00:00",
+  "repo_rev": "8b1b32c7ded5682bab1edc19ecadd20fdacc9fc0",
   "python": "3.12.12",
   "verdicts": [
     {
       "scenario": "review-only",
       "status": "pass",
       "detail": "cited=1 grounded=1",
-      "duration_s": 1.1,
+      "duration_s": 1.0,
       "artefacts": [
         "scenarios/review-only/review.md",
         "scenarios/review-only/provenance.json",
@@ -18,7 +18,7 @@
       "scenario": "synthetic-csv",
       "status": "pass",
       "detail": "best=logreg test=0.25 seed=810278876",
-      "duration_s": 1.6,
+      "duration_s": 1.4,
       "artefacts": [
         "scenarios/synthetic-csv/analysis.md",
         "scenarios/synthetic-csv/analysis.json",
@@ -29,7 +29,7 @@
       "scenario": "cycle-research",
       "status": "pass",
       "detail": "2 iterations, converged, 5 calls",
-      "duration_s": 1.0,
+      "duration_s": 1.1,
       "artefacts": [
         "scenarios/cycle-research/synthesis.md",
         "scenarios/cycle-research/run.json",
@@ -48,8 +48,8 @@
     {
       "scenario": "maintenance-logic",
       "status": "pass",
-      "detail": "91 passed in 30.83s",
-      "duration_s": 31.4,
+      "detail": "91 passed in 31.36s",
+      "duration_s": 32.0,
       "artefacts": [
         "scenarios/maintenance-logic/pytest.log"
       ]
@@ -58,7 +58,7 @@
       "scenario": "crash-resume",
       "status": "pass",
       "detail": "crash at call 3, resumed to converged, 5 calls carried",
-      "duration_s": 1.1,
+      "duration_s": 1.0,
       "artefacts": [
         "scenarios/crash-resume/synthesis.md",
         "scenarios/crash-resume/run.json",

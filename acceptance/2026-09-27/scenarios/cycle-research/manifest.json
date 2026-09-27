@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "run_id": "20260927-224956-306e35",
+  "run_id": "20260927-225213-3ef496",
   "kind": "cycle",
   "spec": {
     "version": 1,
@@ -20,28 +20,28 @@
     "out_dir": "acceptance/2026-09-27/scenarios/cycle-research"
   },
   "status": "converged",
-  "started_at": "2026-09-27T22:49:56.120619+00:00",
-  "finished_at": "2026-09-27T22:49:56.131171+00:00",
+  "started_at": "2026-09-27T22:52:13.502256+00:00",
+  "finished_at": "2026-09-27T22:52:13.514014+00:00",
   "artefacts": [
     {
       "path": "checkpoints/checkpoint-0000.json",
-      "sha256": "a198c072c6437aa66b1db9b1717d6e8acbd9bd45630503da61ced98c9b0031d7",
+      "sha256": "9135958e5a66751ed298a06ea28fb98a1e5157ed73d63167ca6f0f2387059f66",
       "size": 1749
     },
     {
       "path": "checkpoints/checkpoint-0001.json",
-      "sha256": "404815e59d4e6c225b895f3d43196932273b45e9829304d71566dcd16cbe593e",
+      "sha256": "fa4fa43ada733149ed1651000c8c4255779b82168f4d76917c55422ca3faef7a",
       "size": 3663
     },
     {
       "path": "checkpoints/checkpoint-0002.json",
-      "sha256": "710e2450bd3d3e91f19c3a2c32f09055ef45e65369c9e119bb7c86330349a328",
+      "sha256": "c4d5157d8d9a6503a64c704ad0802a2705201f812e9767a3e095893a135eb1f0",
       "size": 3802
     },
     {
       "path": "checkpoints/checkpoint-0003.json",
-      "sha256": "1177a457822a978472cbd4b8ea554c241f61c49b4110e08f2d1bc101756bf1d2",
-      "size": 5458
+      "sha256": "6b08d0a88e233abc1ee1941a73dd59fb3b49dd73ffef81393135c72f10065efb",
+      "size": 5457
     },
     {
       "path": "iterations/iter1-review.md",
@@ -65,22 +65,22 @@
     },
     {
       "path": "journal.jsonl",
-      "sha256": "e1165682ba56ad5db1c3715a46df3a0487d475619c0319af67979410e571d113",
+      "sha256": "130cc6be948d33c7ce145e74eb1dadeefa2ec4f1e36b2fd2cb7d38586c576dcb",
       "size": 2913
     },
     {
       "path": "ops.jsonl",
-      "sha256": "fb249bbb94ac8cd991061b141cd9a047b8ddfbc89676f89d5d43874cc47143e8",
+      "sha256": "9d31a4fe8b45469e7d2d40a888af753146c672a4a3c97467342d6caf3a129aa2",
       "size": 1239
     },
     {
       "path": "retrieval.jsonl",
-      "sha256": "2fee63da2bfb9977340516458556e3717940ac2477b343b7660dfb44d8612313",
+      "sha256": "d478b274dcfb2ac064e721eb10c10ffd95d009ecaa6158c5aaa277e5ec94e57c",
       "size": 2325
     },
     {
       "path": "run.json",
-      "sha256": "d1c012c891596e53fb9e7b07f8498943c9fcb0bc842df19d6c6ccfc17b06c023",
+      "sha256": "cde49c63286cf8f27a8b6b6587f4d9821af22fba0bb936349c89ac1121fbdcba",
       "size": 2659
     },
     {

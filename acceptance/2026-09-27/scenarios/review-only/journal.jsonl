@@ -1,2 +1,2 @@
-{"ts": "2026-09-27T22:49:53.401072+00:00", "phase": "review", "event": "start", "detail": "Does X matter?", "seq": 1, "source": "worker", "run_id": "20260927-224953-09d8db", "v": 1}
-{"ts": "2026-09-27T22:49:53.403347+00:00", "phase": "bundle", "event": "sealed", "detail": "artefacts finalized", "seq": 2, "source": "trusted", "run_id": "20260927-224953-09d8db", "v": 1}
+{"ts": "2026-09-27T22:52:11.008535+00:00", "phase": "review", "event": "start", "detail": "Does X matter?", "seq": 1, "source": "worker", "run_id": "20260927-225211-9685e7", "v": 1}
+{"ts": "2026-09-27T22:52:11.010505+00:00", "phase": "bundle", "event": "sealed", "detail": "artefacts finalized", "seq": 2, "source": "trusted", "run_id": "20260927-225211-9685e7", "v": 1}

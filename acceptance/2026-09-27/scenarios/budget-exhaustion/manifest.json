@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "run_id": "20260927-225029-b34e6e",
+  "run_id": "20260927-225247-eb9e3c",
   "kind": "cycle",
   "spec": {
     "version": 1,
@@ -20,22 +20,22 @@
     "out_dir": "acceptance/2026-09-27/scenarios/budget-exhaustion"
   },
   "status": "budget_exhausted",
-  "started_at": "2026-09-27T22:50:29.641196+00:00",
-  "finished_at": "2026-09-27T22:50:29.649258+00:00",
+  "started_at": "2026-09-27T22:52:47.571137+00:00",
+  "finished_at": "2026-09-27T22:52:47.578619+00:00",
   "artefacts": [
     {
       "path": "checkpoints/checkpoint-0000.json",
-      "sha256": "9da7ae733274d514685cb3ab0c1435b51f781b45907fad817423864fc6bcf562",
-      "size": 1751
+      "sha256": "1158773c787c686d0a4736edf583fa68ac4f5e35f455ad00bf664a5f17502f14",
+      "size": 1750
     },
     {
       "path": "checkpoints/checkpoint-0001.json",
-      "sha256": "20b54b49f0f1b15456ae0262ab5d954177c89fea824e394f8d72dc8ff0cd2170",
+      "sha256": "fb439411143ac0c30c39517a11102c7ac6289939dce93a20becd136cf8fae536",
       "size": 3664
     },
     {
       "path": "checkpoints/checkpoint-0002.json",
-      "sha256": "6d852d6c076a21a5da22cc190c0dda3eaa8e69b9a8b458d624e26f1743c8ff9d",
+      "sha256": "56677c09f31b1066536ec18667a9396bd69544d91bebaa158ba55b47c915a5a9",
       "size": 3803
     },
     {
@@ -50,22 +50,22 @@
     },
     {
       "path": "journal.jsonl",
-      "sha256": "85a3c3809607ff897813732c4955c09b49e71148817de1b0a533afb5773475f1",
+      "sha256": "e43b2af067c8b4737c2cde9fda327ac38f46171cdce2f4ec5057e8361c07d347",
       "size": 2223
     },
     {
       "path": "ops.jsonl",
-      "sha256": "ae02298681fd9188206c68c0f97111178516def94a2ad6d685f36b8f5e50bc6f",
+      "sha256": "1b890740106944f2d33950d3341aa5a899d43f1a897a12ff5813978c4046d271",
       "size": 602
     },
     {
       "path": "retrieval.jsonl",
-      "sha256": "d73be16aa094335244d69406b8bf5c8f46b22af31a10147ce2f42f542d5db1b0",
+      "sha256": "a63b197dcab6ced4df372dc0ca141f231733217e3ffb0693d0f9b6fadf0517ca",
       "size": 1262
     },
     {
       "path": "run.json",
-      "sha256": "f47d065e2841ec6866bb1208506a6612f60ae70e375bfdf261c96cee9ba5b8ff",
+      "sha256": "4c7e4df5eadb5b366bbad45d948af50abe26807c9b3e7faeb1ba291d92ad4475",
       "size": 1764
     },
     {

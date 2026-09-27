@@ -1,15 +1,15 @@
-{"ts": "2026-09-27T22:49:56.122892+00:00", "phase": "cycle", "event": "start", "detail": "seed=seed? max_iter=3", "seq": 1, "source": "worker", "run_id": "20260927-224956-306e35", "v": 1}
-{"ts": "2026-09-27T22:49:56.123627+00:00", "phase": "review", "event": "start", "detail": "seed?", "seq": 2, "source": "worker", "run_id": "20260927-224956-306e35", "v": 1}
-{"ts": "2026-09-27T22:49:56.124267+00:00", "phase": "review", "event": "retrieved", "detail": "1 candidates", "seq": 3, "source": "worker", "run_id": "20260927-224956-306e35", "v": 1}
-{"ts": "2026-09-27T22:49:56.124374+00:00", "phase": "review", "event": "coverage-warning", "detail": "weak relevance: best candidate doi:10.1/x covers 0/1 question terms (needs 1); citations do not establish relevance", "seq": 4, "source": "worker", "run_id": "20260927-224956-306e35", "v": 1}
-{"ts": "2026-09-27T22:49:56.124931+00:00", "phase": "review", "event": "synthesized", "detail": "1 papers, cited 1", "seq": 5, "source": "worker", "run_id": "20260927-224956-306e35", "v": 1}
-{"ts": "2026-09-27T22:49:56.125995+00:00", "phase": "cycle", "event": "iter-done", "detail": "n=1 kind=review", "seq": 6, "source": "worker", "run_id": "20260927-224956-306e35", "v": 1}
-{"ts": "2026-09-27T22:49:56.126105+00:00", "phase": "schedule", "event": "decide", "detail": "research: research first", "seq": 7, "source": "worker", "run_id": "20260927-224956-306e35", "v": 1}
-{"ts": "2026-09-27T22:49:56.126436+00:00", "phase": "cycle", "event": "proposed", "detail": "q2? parent=iter1 gap=", "seq": 8, "source": "worker", "run_id": "20260927-224956-306e35", "v": 1}
-{"ts": "2026-09-27T22:49:56.127065+00:00", "phase": "review", "event": "start", "detail": "q2?", "seq": 9, "source": "worker", "run_id": "20260927-224956-306e35", "v": 1}
-{"ts": "2026-09-27T22:49:56.127447+00:00", "phase": "review", "event": "retrieved", "detail": "1 candidates", "seq": 10, "source": "worker", "run_id": "20260927-224956-306e35", "v": 1}
-{"ts": "2026-09-27T22:49:56.127854+00:00", "phase": "review", "event": "synthesized", "detail": "1 papers, cited 1", "seq": 11, "source": "worker", "run_id": "20260927-224956-306e35", "v": 1}
-{"ts": "2026-09-27T22:49:56.128972+00:00", "phase": "cycle", "event": "iter-done", "detail": "n=2 kind=review", "seq": 12, "source": "worker", "run_id": "20260927-224956-306e35", "v": 1}
-{"ts": "2026-09-27T22:49:56.129068+00:00", "phase": "schedule", "event": "decide", "detail": "research: research first", "seq": 13, "source": "worker", "run_id": "20260927-224956-306e35", "v": 1}
-{"ts": "2026-09-27T22:49:56.129411+00:00", "phase": "cycle", "event": "done", "detail": "iters=2 stopped=converged", "seq": 14, "source": "worker", "run_id": "20260927-224956-306e35", "v": 1}
-{"ts": "2026-09-27T22:49:56.130871+00:00", "phase": "bundle", "event": "sealed", "detail": "stopped=converged", "seq": 15, "source": "trusted", "run_id": "20260927-224956-306e35", "v": 1}
+{"ts": "2026-09-27T22:52:13.504755+00:00", "phase": "cycle", "event": "start", "detail": "seed=seed? max_iter=3", "seq": 1, "source": "worker", "run_id": "20260927-225213-3ef496", "v": 1}
+{"ts": "2026-09-27T22:52:13.505659+00:00", "phase": "review", "event": "start", "detail": "seed?", "seq": 2, "source": "worker", "run_id": "20260927-225213-3ef496", "v": 1}
+{"ts": "2026-09-27T22:52:13.506363+00:00", "phase": "review", "event": "retrieved", "detail": "1 candidates", "seq": 3, "source": "worker", "run_id": "20260927-225213-3ef496", "v": 1}
+{"ts": "2026-09-27T22:52:13.506509+00:00", "phase": "review", "event": "coverage-warning", "detail": "weak relevance: best candidate doi:10.1/x covers 0/1 question terms (needs 1); citations do not establish relevance", "seq": 4, "source": "worker", "run_id": "20260927-225213-3ef496", "v": 1}
+{"ts": "2026-09-27T22:52:13.507274+00:00", "phase": "review", "event": "synthesized", "detail": "1 papers, cited 1", "seq": 5, "source": "worker", "run_id": "20260927-225213-3ef496", "v": 1}
+{"ts": "2026-09-27T22:52:13.508506+00:00", "phase": "cycle", "event": "iter-done", "detail": "n=1 kind=review", "seq": 6, "source": "worker", "run_id": "20260927-225213-3ef496", "v": 1}
+{"ts": "2026-09-27T22:52:13.508637+00:00", "phase": "schedule", "event": "decide", "detail": "research: research first", "seq": 7, "source": "worker", "run_id": "20260927-225213-3ef496", "v": 1}
+{"ts": "2026-09-27T22:52:13.508991+00:00", "phase": "cycle", "event": "proposed", "detail": "q2? parent=iter1 gap=", "seq": 8, "source": "worker", "run_id": "20260927-225213-3ef496", "v": 1}
+{"ts": "2026-09-27T22:52:13.509659+00:00", "phase": "review", "event": "start", "detail": "q2?", "seq": 9, "source": "worker", "run_id": "20260927-225213-3ef496", "v": 1}
+{"ts": "2026-09-27T22:52:13.510104+00:00", "phase": "review", "event": "retrieved", "detail": "1 candidates", "seq": 10, "source": "worker", "run_id": "20260927-225213-3ef496", "v": 1}
+{"ts": "2026-09-27T22:52:13.510553+00:00", "phase": "review", "event": "synthesized", "detail": "1 papers, cited 1", "seq": 11, "source": "worker", "run_id": "20260927-225213-3ef496", "v": 1}
+{"ts": "2026-09-27T22:52:13.511711+00:00", "phase": "cycle", "event": "iter-done", "detail": "n=2 kind=review", "seq": 12, "source": "worker", "run_id": "20260927-225213-3ef496", "v": 1}
+{"ts": "2026-09-27T22:52:13.511796+00:00", "phase": "schedule", "event": "decide", "detail": "research: research first", "seq": 13, "source": "worker", "run_id": "20260927-225213-3ef496", "v": 1}
+{"ts": "2026-09-27T22:52:13.512169+00:00", "phase": "cycle", "event": "done", "detail": "iters=2 stopped=converged", "seq": 14, "source": "worker", "run_id": "20260927-225213-3ef496", "v": 1}
+{"ts": "2026-09-27T22:52:13.513693+00:00", "phase": "bundle", "event": "sealed", "detail": "stopped=converged", "seq": 15, "source": "trusted", "run_id": "20260927-225213-3ef496", "v": 1}
