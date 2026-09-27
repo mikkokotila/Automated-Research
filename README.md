@@ -28,6 +28,8 @@ Every run validates a versioned spec before any external call and enforces hard 
 
 Every run opens with a manifest and an fsync'd event journal, persists retrieval evidence and each iteration incrementally, redacts credential-shaped text at every persistence boundary, and seals artefacts with checksums; `canary inspect <bundle>` reports `completed`, a stopped reason, `interrupted`, `legacy`, or `corrupt` without executing anything.
 
+Interrupted cycles checkpoint iterations, pending work, seen questions, budgets, and code/input hashes after every iteration and every propose round. `canary resume <bundle>` continues in place when code and inputs still hash-match, else refuses; `canary resume <bundle> --fork <new-dir>` continues as an explicitly forked run (history copied, budgets restarted, parent recorded). Finished runs need `--fork`; legacy and non-cycle bundles cannot resume. Calls cut mid-flight are replayed as explicit new attempts, never silently dropped.
+
 ## Development and evidence
 
 From a fresh checkout, set up the locked environment and run the offline suite with no provider keys present:

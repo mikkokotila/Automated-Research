@@ -51,7 +51,8 @@ def _atomic_write_json(path: Path, obj: dict) -> None:
         raise BundleError(f"manifest not durable: {exc}") from exc
 
 
-def begin_run(out_dir: str | Path, spec: "RunSpec", kind: str) -> str:
+def begin_run(out_dir: str | Path, spec: "RunSpec", kind: str,
+              forked_from: str | None = None) -> str:
     """Create the run manifest before any work starts. Returns the run id."""
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -60,8 +61,68 @@ def begin_run(out_dir: str | Path, spec: "RunSpec", kind: str) -> str:
         "schema_version": MANIFEST_VERSION, "run_id": run_id, "kind": kind,
         "spec": spec.to_dict(), "status": "in_progress",
         "started_at": _utcnow(), "finished_at": None, "artefacts": [],
+        "forked_from": forked_from,
     })
     return run_id
+
+
+CHECKPOINT_VERSION = 1
+
+
+def code_revision() -> str:
+    """Content hash of the worker package; no git required."""
+    try:
+        root = Path(__file__).resolve().parent
+        digest = hashlib.sha256()
+        for path in sorted(root.glob("*.py")):
+            digest.update(path.name.encode())
+            digest.update(path.read_bytes())
+        return "sha256:" + digest.hexdigest()
+    except OSError:
+        return "unknown"
+
+
+def file_hash(path: str | Path | None) -> str:
+    """Content hash of an input file, or an explicit missing marker."""
+    if path is None:
+        return "none"
+    try:
+        digest = hashlib.sha256()
+        with Path(path).open("rb") as f:
+            while chunk := f.read(65536):
+                digest.update(chunk)
+        return "sha256:" + digest.hexdigest()
+    except OSError:
+        return f"missing:{path}"
+
+
+def write_checkpoint(record_dir: str | Path, state: dict) -> Path:
+    """Atomically persist one checkpoint; history is kept, never overwritten."""
+    out = Path(record_dir) / "checkpoints"
+    out.mkdir(parents=True, exist_ok=True)
+    target = out / f"checkpoint-{state['seq']:04d}.json"
+    _atomic_write_json(target, {"schema_version": CHECKPOINT_VERSION, **state})
+    return target
+
+
+def read_checkpoints(record_dir: str | Path) -> dict | None:
+    """Latest consistent checkpoint, skipping corrupt files. None if absent."""
+    out = Path(record_dir) / "checkpoints"
+    if not out.is_dir():
+        return None
+    best: dict | None = None
+    for path in sorted(out.glob("checkpoint-*.json")):
+        try:
+            state = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(state, dict) or state.get("schema_version") != CHECKPOINT_VERSION:
+            continue
+        if not isinstance(state.get("seq"), int):
+            continue
+        if best is None or state["seq"] > best["seq"]:
+            best = state
+    return best
 
 
 def _artefacts(out: Path) -> list[dict]:

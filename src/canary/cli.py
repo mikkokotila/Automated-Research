@@ -10,6 +10,7 @@ from pathlib import Path
 import httpx
 
 from . import analysis, data as datamod, cycle as cyclemod, modeling, rank, report, retrieval, synthesize
+from .cycle import ResumeError
 from .revise import revise_from_journal
 from .journal import Journal, emit
 from .muse_client import MuseClient
@@ -67,9 +68,23 @@ def main(argv: list[str] | None = None) -> int:
     im.add_argument("--out", default=None, help="optional dir for assessment.md")
     ins = sub.add_parser("inspect", help="report a bundle's status without executing anything")
     ins.add_argument("bundle", help="bundle directory to inspect")
+    rs = sub.add_parser("resume", help="continue an interrupted cycle bundle")
+    rs.add_argument("bundle", help="bundle directory to resume")
+    rs.add_argument("--fork", default=None, help="continue into a new dir (must not exist)")
     args = ap.parse_args(argv)
     if args.cmd == "inspect":
         print(json.dumps(report.read_bundle(args.bundle), indent=2, default=str))
+        return 0
+    if args.cmd == "resume":
+        try:
+            path = resume_bundle(args)
+        except ResumeError as e:
+            print(f"canary: cannot resume: {e}", file=sys.stderr)
+            return 2
+        except Exception as e:  # honest failure, never fake output
+            print(f"canary: error: {e}", file=sys.stderr)
+            return 1
+        print(path)
         return 0
     try:
         spec = build_spec(args)
@@ -124,6 +139,12 @@ def cycle(spec: RunSpec, repo: str = ".") -> str:
     if spec.maintenance and outbox.get("revision"):
         _maybe_publish(repo, outbox["revision"], j)
         j.save(path / "journal.jsonl")  # persist publish notes too
+    return str(path / "synthesis.md")
+
+
+def resume_bundle(args) -> str:
+    res, journal, spec, out = cyclemod.resume_cycle(args.bundle, MuseClient(), fork_dir=args.fork)
+    path = report.write_cycle_bundle(out, spec.question, res, journal, spec)
     return str(path / "synthesis.md")
 
 

@@ -110,7 +110,8 @@ def test_cycle_dedupes_reproposed_questions():
     muse.queues["follow"] = ['[{"question": "SEED? ", "kind": "review", "rationale": "dup"}]']
     muse.queues["final"] = ["Final."]
     res = cyclemod.run_cycle("seed?", None, None, 3, 5, muse, mock_http())
-    assert len(res.iterations) == 1 and res.stopped == "converged"
+    # Build 08 taxonomy: a duplicate is not convergence; only a clean [] converges.
+    assert len(res.iterations) == 1 and res.stopped == "insufficient_evidence"
 
 
 def test_cycle_respects_max_iterations_and_tracks_unanswered():
