@@ -1,5 +1,5 @@
 # Budgets (enforced by timeout-minutes, measured 2026-09-27):
-#   smoke  ~25s -> 3 min    matrix ~25s each -> 5 min    docker ~40s cached -> 8 min
+#   smoke ~21s -> 3 min; matrix ~22s -> 5 min; docker cold ~2.5min / warm ~75s -> 8 min
 # smoke runs on every push; matrix + docker run only on pull_request.
 name: ci
 on: [push, pull_request]
@@ -52,7 +52,7 @@ jobs:
           tags: canary:ci
           load: true
           cache-from: type=gha,scope=canary-main
-          cache-to: ${{ (github.ref == 'refs/heads/main' || github.head_ref == 'build-01-reproducible-baseline') && 'type=gha,mode=max,scope=canary-main' || '' }}
+          cache-to: ${{ github.ref == 'refs/heads/main' && 'type=gha,mode=max,scope=canary-main' || '' }}
       - uses: docker/build-push-action@v6
         with:
           context: .
@@ -60,7 +60,7 @@ jobs:
           tags: canary-boundary:check
           load: true
           cache-from: type=gha,scope=canary-gate
-          cache-to: ${{ (github.ref == 'refs/heads/main' || github.head_ref == 'build-01-reproducible-baseline') && 'type=gha,mode=max,scope=canary-gate' || '' }}
+          cache-to: ${{ github.ref == 'refs/heads/main' && 'type=gha,mode=max,scope=canary-gate' || '' }}
       - run: ./scripts/container_verify.sh
         env:
           IMG: canary:ci

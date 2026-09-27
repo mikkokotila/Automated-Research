@@ -1,9 +1,27 @@
 # Build 01 baseline validation record
 
 Step: #2 — PR: #20
-Code commit: `42b27980b35435fd12ab992f365b0e35e504d18e`
-CI run (push): https://github.com/mikkokotila/Canary/actions/runs/36298324436
-Result: test matrix 3.10/3.11/3.12/3.13 pass, docker job pass, no secrets used.
+Code commits: `42b2798` (locked env, fixtures, split markers) through `5f15d70`
+(scoped docker caches, no-build-isolation install)
+CI runs:
+- https://github.com/mikkokotila/Canary/actions/runs/36298324436 (initial matrix)
+- https://github.com/mikkokotila/Canary/actions/runs/36299951368 (final code;
+  smoke 20s, matrix 20–26s, docker cold 2m19s incl. cache export)
+
+Result: smoke + matrix 3.10/3.11/3.12/3.13 pass, docker job pass, no secrets used.
+
+## CI profile (measured, enforced by timeout-minutes in ci.yml)
+
+- smoke (every push, budget 3 min): ~21s — 3.12 locked offline suite.
+- matrix (PR only, budget 5 min): ~22s per version — 3.10/3.11/3.13
+  (3.12 covered by smoke) plus Linux containment test.
+- docker (PR only + main, budget 8 min): cold ~2.5 min (build + export),
+  warm ~75s (scoped GHA cache read, probes-only verify).
+- Full PR wall time ≈ docker job; push signal ≈ 21s.
+- Optimizations: deps-first Dockerfile layering, per-image GHA cache scopes
+  (shared scope caused total misses), export-on-main only, no rebuild inside
+  verify when CI prebuilt, fixture HTTP poll 0.5s→0.02s, concurrency
+  cancel-in-progress, `--durations=10` self-profiling in CI logs.
 
 ## Local disposable runs (no provider keys in environment)
 
