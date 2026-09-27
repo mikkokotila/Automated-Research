@@ -12,10 +12,12 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY . /app
+# Dependency layer first: cached unless the lockfile changes.
+COPY pyproject.toml uv.lock ./
 RUN uv export --frozen --all-groups --no-emit-project -o /tmp/frozen.txt \
-    && pip install --no-cache-dir --require-hashes -r /tmp/frozen.txt \
-    && pip install --no-cache-dir -e . --no-deps \
+    && pip install --no-cache-dir --require-hashes -r /tmp/frozen.txt
+COPY . /app
+RUN pip install --no-cache-dir -e . --no-deps \
     && python -c "import canary; print('canary', canary.__file__)"
 
 COPY scripts/container_entrypoint.sh /usr/local/bin/container_entrypoint.sh

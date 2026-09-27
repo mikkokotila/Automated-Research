@@ -259,7 +259,7 @@ def test_provider_access_block_is_persistent(book, status):
 def endpoint(book):
     gate, calls = service(book)
     server = make_server(gate, "test-access", ("127.0.0.1", 0))
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.02}, daemon=True)
     thread.start()
     try:
         yield "http://127.0.0.1:"+str(server.server_port), calls
