@@ -65,6 +65,14 @@ Build 16 intentionally retires converged-after-ungrounded-iterations; the
 duplicate-propose test now asserts `repeated_question`. No behavior outside
 the issue's scope was changed.
 
+CI finding (fixed on branch): the first push turned CI red on
+`test_full_pack_reproducible` — the evalpack resume task scripts marker-only
+reviews and freezes `stopped: converged`. Local pre-commit runs had archived
+the pre-change HEAD, hiding it. Fix: `evalpack/worker.py` grounds the resume
+task's scripted reviews (same anchored-claim shape as the suite); frozen
+`dev.json`/`acceptance.json` expectations untouched. Pack re-verified 13/13
+on the fixed HEAD before push.
+
 ## Disposition
 
 Ready for PR. No new issues.
