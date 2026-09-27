@@ -191,8 +191,11 @@ def record_analysis_inputs(out_dir: str | Path, question: str, csv: str, target:
     """Persist modelling evidence before narration runs."""
     _append_jsonl(Path(out_dir) / "analysis.jsonl", {
         "at": _utcnow(), "question": question, "csv": csv, "target": target,
+        "kind": res.kind, "seed": prep.seed,
         "n_rows": prep.profile.n_rows, "task": res.task, "best": res.best,
         "best_test": res.best_test, "baseline_test": res.baseline_test,
+        "scores": [{"name": s.name, "cv_mean": s.cv_mean, "cv_std": s.cv_std,
+                    "test": s.test} for s in res.scores],
         "warnings": list(res.warnings)})
 
 
@@ -330,7 +333,8 @@ def render_analysis(question: str, csv: str, target: str, prep: Prepared, res: R
     lines = [
         f"# Analysis: {question}",
         "",
-        f"_Data: {csv} | target: {target} | task: {res.task} | model: {res.best} | narrated by {f.model}_",
+        f"_Data: {csv} | target: {target} | task: {res.task} | kind: {res.kind} | "
+        f"model: {res.best} | narrated by {f.model}_",
         "",
         f.text,
         "",
@@ -341,7 +345,7 @@ def render_analysis(question: str, csv: str, target: str, prep: Prepared, res: R
         "- CV scores:",
     ]
     lines.extend(f"  - {s.name}: {s.cv_mean:.4f} ± {s.cv_std:.4f} (test {s.test:.4f})" for s in res.scores)
-    lines += ["- Top features:"] + [f"  - {n}: {v}" for n, v in res.importances]
+    lines += ["- Top predictive features (association, not causation):"] + [f"  - {n}: {v}" for n, v in res.importances]
     if res.warnings:
         lines += ["", "## Warnings", ""] + [f"- {w}" for w in res.warnings]
     lines.append("")
@@ -373,6 +377,8 @@ def write_analysis_bundle(
         "target": target,
         "model": f.model,
         "task": res.task,
+        "analysis_kind": res.kind,
+        "split_seed": prep.seed,
         "metric": res.metric,
         "best": res.best,
         "best_test": res.best_test,

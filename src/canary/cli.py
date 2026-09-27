@@ -182,8 +182,12 @@ def analyze(spec: RunSpec) -> str:
     run_id = report.begin_run(spec.out_dir, spec, "analyze")
     j = Journal(Path(spec.out_dir) / "journal.jsonl", run_id=run_id)
     emit(j, "analyze", "start", f"{spec.csv} target={spec.target}")
+    if analysis.classify_analysis(spec.question) == "causal":
+        emit(j, "analyze", "causal-refused", spec.question[:200])
+        raise RuntimeError(analysis.CAUSAL_REFUSAL)
     df = datamod.load_csv(spec.csv)
-    prep = datamod.prepare(df, spec.target)
+    prep = datamod.prepare(df, spec.target, seed=cyclemod.split_seed(spec.csv, spec.target,
+                                                                    spec.question))
     emit(j, "analyze", "prepared", f"{prep.profile.n_rows} rows, {prep.profile.task}")
     res = modeling.run(prep)
     emit(j, "analyze", "modeled", f"{res.best} test={res.best_test} baseline={res.baseline_test}")
