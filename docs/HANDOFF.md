@@ -23,7 +23,7 @@ The newer pre-migration work also includes a container launcher and a GitHub pub
 | Revision count | `--revise-rounds` |
 | Assessment module | `assess` |
 | Assessment document | `assessment.md` |
-| Container environment marker | `CANARY_SANDBOXED` |
+| Container environment marker | retired in Build 02 (env flags are not authorization; see `docs/TRUST_BOUNDARY.md`) |
 | Container image | `canary:local` |
 
 Existing client scripts, imports, saved plans, and output consumers must adopt these names. The historical mapping is stored with the checkpoint rather than embedded as aliases in current code. Historical CLI commands and assessment JSON use the previous schema; they are not automatically accepted by the new parser. Preserve archived runs; migrate a copy when required.

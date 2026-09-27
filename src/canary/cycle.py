@@ -150,6 +150,10 @@ def run_cycle(
         raise ValueError(f"max_iterations must be 1..{MAX_ITERATIONS}")
     if bool(csv) != bool(target):
         raise ValueError("--csv and --target must be given together")
+    if maintenance and repo_root is not None:
+        from .revise import require_revision_trust
+
+        require_revision_trust()  # fail the maintained run before any work
     own = http is None
     http = http or httpx.Client(headers={"User-Agent": "Canary/0.1"})
     iterations: list[Iteration] = []

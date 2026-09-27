@@ -11,8 +11,13 @@ from canary.assess import Proposal, AssessmentDoc
 
 
 @pytest.fixture(autouse=True)
-def _sandbox(monkeypatch):
-    monkeypatch.setenv("CANARY_SANDBOXED", "1")
+def _revision_trust(monkeypatch):
+    """Explicit in-process seam: exercise revision logic with the gate open.
+
+    Environment flags never authorize revision (see tests/test_trust_boundary.py);
+    this monkeypatch is the only bypass and it cannot cross a process boundary.
+    """
+    monkeypatch.setattr(impmod, "require_revision_trust", lambda: None)
 
 
 @pytest.fixture()

@@ -1,11 +1,12 @@
 FROM python:3.12-slim
 COPY --from=ghcr.io/astral-sh/uv:0.9.13 /uv /bin/uv
 
+# No CANARY_SANDBOXED marker: an environment flag is not authorization
+# (Build 02, docs/TRUST_BOUNDARY.md). Nothing in the image may consult it.
 ENV LANG=C.UTF-8 \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACHE_DIR=1 \
-    CANARY_SANDBOXED=1
+    PIP_NO_CACHE_DIR=1
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git curl \

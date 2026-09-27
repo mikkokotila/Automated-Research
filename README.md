@@ -20,7 +20,7 @@ After deploying the request service:
 
 The `analyze` command accepts a CSV staged in the disposable workspace and a target column. Review and analysis commands write Markdown and JSON provenance; cycles also write per-step reports and `run.json`. Procedural notes are recorded in `journal.jsonl`.
 
-Optional `--maintenance` and `revise` paths assess notes and test proposed revisions. Their remaining quality and promotion limitations are tracked in the roadmap. The launcher withholds GitHub credentials; publishing requires a separately authorized controller.
+Optional `--maintenance` and `revise` paths currently refuse: revision has no trusted execution path until Builds 03-04 (see [the trust boundary](docs/TRUST_BOUNDARY.md)). Their remaining quality and promotion limitations are tracked in the roadmap. The launcher withholds GitHub credentials; publishing requires a separately authorized controller.
 
 ## Development and evidence
 

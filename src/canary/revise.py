@@ -5,11 +5,20 @@ Safety properties:
 - .github/, Dockerfile*, lockfiles, and this gate file are off-limits.
 - The tree must be clean and the suite green BEFORE any patch is attempted.
 - Every patch is reverted unless the full suite passes after it.
+- Until a trusted execution path exists (Builds 03-04), every public revision
+  entry point refuses before any model call, subprocess, or filesystem
+  mutation. See docs/TRUST_BOUNDARY.md.
+
+This gate is an interlock against accidental uncontained execution, not a
+security boundary against malicious in-process code: in-process callers can
+always monkeypatch it, which is why the container boundary (Builds 03-05) is
+the real enforcement. Tests exercise revision logic through that same
+explicit monkeypatch seam; nothing implicit (environment, /.dockerenv,
+container-mode strings) ever authorizes revision.
 """
 
 from __future__ import annotations
 
-import os
 import re
 import subprocess
 import uuid
@@ -23,13 +32,22 @@ from .assess import Proposal, AssessmentDoc, assess
 from .synthesize import Completer
 
 
-def require_sandbox() -> None:
-    """Revision runs only in the sandbox container. Enforced, not advised."""
-    if os.environ.get("CANARY_SANDBOXED") == "1" or Path("/.dockerenv").exists():
-        return
-    raise RuntimeError(
-        "refusing: revision runs only inside the sandbox container "
-        "(see scripts/container_run.sh); CANARY_SANDBOXED=1 not set"
+class ContainmentBlocked(RuntimeError):
+    """Revision refused: no trusted execution path. Fail closed, never guess."""
+
+
+def require_revision_trust() -> None:
+    """Fail closed: no caller-controlled evidence authorizes revision.
+
+    Intentionally reads no environment, filesystem, or string flags. A
+    trusted execution path (Builds 03-04) will replace this stub with a
+    launcher-attested check; until then every public revision entry point
+    refuses. In-process tests bypass it only via explicit monkeypatch.
+    """
+    raise ContainmentBlocked(
+        "refusing: revision has no trusted execution path yet "
+        "(see docs/TRUST_BOUNDARY.md, Builds 03-04); "
+        "environment flags and container evidence are not authorization"
     )
 
 DIFF_SYSTEM = (
@@ -159,7 +177,7 @@ def revise_round(
     repo = Path(repo)
     check_cmd = check_cmd or ["pytest", "-q"]
     report = ReviseReport()
-    require_sandbox()
+    require_revision_trust()
     if not tree_clean(repo):
         emit(journal, "revise", "aborted", "tree not clean")
         report.skipped = len(doc.proposals)
@@ -198,6 +216,7 @@ def revise_from_journal(
     journal: Journal | None = None,
 ) -> tuple[AssessmentDoc, ReviseReport]:
     """Assess notes, then do the revisions. Returns last assessment + totals."""
+    require_revision_trust()  # before the assess model call, not after it
     total = ReviseReport()
     doc = AssessmentDoc(markdown="", proposals=())
     for _ in range(max(rounds, 1)):
@@ -240,6 +259,7 @@ def publish_round(
     """File the round as an Issue; ship kept patches via auto-merged PR."""
     from .github_ops import commit_and_push
 
+    require_revision_trust()  # before runs/ writes and any GitHub side effects
     repo = Path(repo)
     runs = repo / "runs"
     runs.mkdir(exist_ok=True)
