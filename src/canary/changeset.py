@@ -137,28 +137,29 @@ def _git(repo: Path, *args: str, input_text: str | None = None) -> str:
     return r.stdout
 
 
-def _worktree_cmd(repo: Path, *args: str) -> str:
-    # Worktree commands must not inherit stdin redirection quirks; keep explicit.
-    r = subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True, timeout=120)
-    if r.returncode != 0:
-        raise ChangesetError(f"git {' '.join(args)} failed: {r.stderr.strip()[:300]}")
-    return r.stdout
-
-
 def verify_in_disposable(repo: str | Path, diff: str, ops: list[FileOp],
                          prior_diffs: tuple[str, ...] = ()) -> Manifest:
-    """Apply onto a pristine base+prior worktree; hash the validated result.
+    """Apply onto a pristine base+prior directory copy; hash the result.
 
     Proves with git itself that the diff is well-formed and applies to the
-    named base. Nothing here touches the real worktree.
+    named base. The copy is a plain directory — never a git worktree linked
+    to host git metadata. Nothing here touches the real worktree.
     """
     repo = Path(repo)
     base_rev = _git(repo, "rev-parse", "HEAD").strip()
     work = Path(tempfile.mkdtemp(prefix="canary-changeset-"))
-    shutil.rmtree(work)  # worktree add needs a nonexistent path
+    # Plain copy of the worktree (tracked content only, no .git, no runs).
+    tracked = _git(repo, "ls-files", "-z").split("\0")
     try:
-        _worktree_cmd(repo, "worktree", "add", "--detach", str(work), base_rev)
+        for rel in tracked:
+            if not rel:
+                continue
+            src = repo / rel
+            dst = work / rel
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dst)
         for prior in prior_diffs:
+            _git(work, "apply", "--check", "-", input_text=prior)
             _git(work, "apply", "-", input_text=prior)
         _git(work, "apply", "--check", "-", input_text=diff)
         old_shas: dict[str, str] = {}
@@ -178,10 +179,7 @@ def verify_in_disposable(repo: str | Path, diff: str, ops: list[FileOp],
                         diff_sha="sha256:" + hashlib.sha256(diff.encode()).hexdigest(),
                         files=tuple(files))
     finally:
-        try:
-            _worktree_cmd(repo, "worktree", "remove", "--force", str(work))
-        except ChangesetError:
-            shutil.rmtree(work, ignore_errors=True)
+        shutil.rmtree(work, ignore_errors=True)
 
 
 def worktree_status_paths(repo: Path, *scopes: str) -> set[str]:
