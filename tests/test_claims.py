@@ -252,7 +252,12 @@ def test_cycle_records_proposal_lineage():
         return httpx.Response(200, json={"data": []})
 
     muse = ScriptedMuse()
-    muse.queues["review"] = ["R1 [1].", "R2 [1]."]
+    muse.queues["review"] = [
+        claims_fence({"id": "c1", "text": "X matters", "support": "supported",
+                      "evidence": [{"paper": 1, "span": "Study on X"}]}),
+        claims_fence({"id": "c1", "text": "X matters", "support": "supported",
+                      "evidence": [{"paper": 1, "span": "Study on X"}]}),
+    ]
     muse.queues["follow"] = ['[{"question": "q2?", "kind": "review", "rationale": "gap c1", '
                              '"gap": "needs dose data"}]', "[]"]
     muse.queues["final"] = ["Final."]

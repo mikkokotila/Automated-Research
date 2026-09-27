@@ -67,7 +67,11 @@ def begin_run(out_dir: str | Path, spec: "RunSpec", kind: str,
     return run_id
 
 
-CHECKPOINT_VERSION = 1
+CHECKPOINT_VERSION = 2
+# v1 checkpoints (research state without scheduler/scope blocks) are still
+# readable: resume migrates them explicitly (scheduler counters reset,
+# journaled). Unknown versions are skipped, never guessed.
+CHECKPOINT_READABLE = (1, 2)
 
 
 def code_revision() -> str:
@@ -117,7 +121,7 @@ def read_checkpoints(record_dir: str | Path) -> dict | None:
             state = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
-        if not isinstance(state, dict) or state.get("schema_version") != CHECKPOINT_VERSION:
+        if not isinstance(state, dict) or state.get("schema_version") not in CHECKPOINT_READABLE:
             continue
         if not isinstance(state.get("seq"), int):
             continue

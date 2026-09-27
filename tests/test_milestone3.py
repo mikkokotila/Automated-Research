@@ -4,6 +4,7 @@ import pandas as pd
 import pytest
 
 from canary import cycle as cyclemod, report
+from tests.test_milestone4 import grounded_review
 
 
 class ScriptedMuse:
@@ -93,7 +94,7 @@ def test_cycle_converges_on_empty_followups():
 
 def test_cycle_runs_followup_then_converges():
     muse = ScriptedMuse()
-    muse.queues["review"] = ["First [1].", "Second [1]."]
+    muse.queues["review"] = [grounded_review("First"), grounded_review("Second")]
     muse.queues["follow"] = [
         '[{"question": "deeper angle?", "kind": "review", "rationale": "why"}]',
         "[]",
@@ -110,13 +111,13 @@ def test_cycle_dedupes_reproposed_questions():
     muse.queues["follow"] = ['[{"question": "SEED? ", "kind": "review", "rationale": "dup"}]']
     muse.queues["final"] = ["Final."]
     res = cyclemod.run_cycle("seed?", None, None, 3, 5, muse, mock_http())
-    # Build 08 taxonomy: a duplicate is not convergence; only a clean [] converges.
-    assert len(res.iterations) == 1 and res.stopped == "insufficient_evidence"
+    # Build 16 taxonomy: a reproposed duplicate names itself; only a clean [] converges.
+    assert len(res.iterations) == 1 and res.stopped == "repeated_question"
 
 
 def test_cycle_respects_max_iterations_and_tracks_unanswered():
     muse = ScriptedMuse()
-    muse.queues["review"] = ["R1 [1].", "R2 [1]."]
+    muse.queues["review"] = [grounded_review("R1"), grounded_review("R2")]
     muse.queues["follow"] = [
         '[{"question": "q2?", "kind": "review", "rationale": "r"}, '
         '{"question": "q3?", "kind": "review", "rationale": "r"}]',

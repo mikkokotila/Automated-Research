@@ -9,7 +9,7 @@ from canary.journal import Journal
 from canary.muse_client import RequestBlocked
 from canary.spec import (BudgetExhausted, Cancelled, InvalidSpec, RunBudget, RunSpec,
                          StopReason)
-from tests.test_milestone4 import ScriptedMuse, mock_http
+from tests.test_milestone4 import ScriptedMuse, grounded_review, mock_http
 
 
 def _spec(**kw):
@@ -93,7 +93,7 @@ def test_tracker_rejects_bad_usage_and_cancel_first():
 
 def _seeded_muse():
     muse = ScriptedMuse()
-    muse.queues["review"] = ["R1 [1].", "R2 [1]."]
+    muse.queues["review"] = [grounded_review("R1"), grounded_review("R2")]
     muse.queues["follow"] = ['[{"question": "q2?", "kind": "review", "rationale": "r"}]']
     muse.queues["final"] = ["Final."]
     return muse
@@ -108,7 +108,7 @@ def test_exhaustion_saves_honest_partial_and_sends_nothing_more():
     assert len(res.iterations) == 1 and res.unanswered == ("q2?",)
     assert res.synthesis == "Final."  # finalize reserve held back one call
     assert res.usage == {"model_calls": 3, "tokens": 0, "tokens_reported": False}
-    assert muse.queues["review"] == ["R2 [1]."]  # next assessment never sent
+    assert muse.queues["review"] == [grounded_review("R2")]  # next review never sent
 
 
 def test_exhaustion_without_finalize_allowance_keeps_partial_usable(tmp_path):

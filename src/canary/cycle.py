@@ -17,6 +17,7 @@ import httpx
 from . import analysis, data as datamod, modeling, rank, report, retrieval, synthesize
 from .journal import Journal, JournalError, emit
 from .muse_client import MuseClient, RequestBlocked
+from .schedule import (ScheduleError, Scheduler, SchedulerConfig, Scope, decide)
 from .spec import (MAX_ITERATIONS, BudgetExhausted, Cancelled, ResearchSpec, RunBudget,
                    RunSpec, StopReason)
 from .synthesize import Completer
@@ -300,6 +301,37 @@ class CycleResult:
     usage: dict = field(default_factory=dict)  # exact calls/tokens; see tokens_reported
 
 
+@dataclass(frozen=True)
+class MidRunOutcome:
+    """What one interleaved revise pass did. assessed=False means it errored first."""
+
+    kept: int = 0
+    attempted: bool = False
+    assessed: bool = True
+
+
+def _iteration_supported(it: Iteration) -> bool:
+    """Grounded output counts as progress; marker-only citations do not.
+
+    A completed analysis is grounded in computed metrics (failures raise
+    instead of completing). A review needs at least one supported or partial
+    claim — bare [n] markers without a validated claims block are ungrounded.
+    """
+    if it.kind == "analyze":
+        return True
+    return any(c.get("support") in ("supported", "partial")
+               for c in it.provenance.get("claims", []))
+
+
+def _accepted_rev(repo_root: str | None) -> str | None:
+    try:
+        from . import promote as promotemod
+
+        return promotemod.Store(Path(repo_root) / "runs" / "promotions").latest_rev()
+    except Exception:
+        return None
+
+
 class BudgetedCompleter:
     """Wrap a bare Completer so every call spends the shared run budget."""
 
@@ -359,6 +391,31 @@ def run_cycle(
     if budget is None:
         budget = (RunBudget.from_dict(resumed["budget"]) if resumed else
                   getattr(muse, "budget", None) or RunBudget.from_spec(spec))
+    scope = Scope(maintenance=maintenance, repo_root=repo_root,
+                  check_cmd=tuple(check_cmd) if check_cmd else None,
+                  revise_rounds=spec.revise_rounds)
+    if resumed and resumed.get("scope") is not None:
+        try:
+            ckpt_scope = Scope.from_dict(resumed["scope"])
+        except ScheduleError as e:
+            raise ResumeError(f"checkpoint scope unusable: {e}") from e
+        if ckpt_scope != scope:  # goal/approval scope is frozen, never steered
+            raise ResumeError(
+                f"scope mismatch: checkpoint={ckpt_scope.to_dict()} args={scope.to_dict()}")
+    revising = maintenance and repo_root is not None
+    if resumed and resumed.get("scheduler") is not None:
+        try:
+            sched = Scheduler.from_dict(resumed["scheduler"])
+        except ScheduleError as e:
+            raise ResumeError(f"checkpoint scheduler unusable: {e}") from e
+        sched.scope = scope  # counters carry; envelope rebinds to this leg
+        sched.config = replace(sched.config, allow_revision=revising)
+    else:
+        sched = Scheduler(config=SchedulerConfig(allow_revision=revising), scope=scope)
+        if resumed:
+            emit(journal, "resume", "checkpoint-migrated",
+                 "v1 checkpoint predates scheduler state; counters start at zero")
+    restart_pending: str | None = None
     oplog = OpLog(Path(record_dir) / "ops.jsonl" if record_dir else None)
     if isinstance(muse, MuseClient):
         muse.budget = budget  # rebind: exactly one shared tracker per run
@@ -388,7 +445,6 @@ def run_cycle(
     bad_proposes = 0
     evidence_gaps = [g for it in iterations for g in _harvest_gaps(it)]
     synthesis = ""
-    revising = maintenance and repo_root is not None
     if maintenance and repo_root is None:
         emit(journal, "cycle", "revise-disabled", "maintenance needs repo_root")
     emit(journal, "cycle", "start", f"seed={question[:150]} max_iter={spec.max_iterations}")
@@ -403,6 +459,8 @@ def run_cycle(
                  "iterations": [asdict(i) for i in iterations],
                  "pending": [asdict(f) for f in pending], "seen": sorted(seen),
                  "failed_q": failed_q, "budget": budget.to_dict(),
+                 "scheduler": sched.to_dict(), "scope": scope.to_dict(),
+                 "restart_pending": restart_pending,
                  "journal_len": len(journal) if journal else 0}
         report.write_checkpoint(record_dir, state)
         oplog.mark_checkpoint(next_seq)
@@ -455,8 +513,12 @@ def run_cycle(
                         emit(journal, "cycle", "proposed",
                              f"{f.question[:120]} parent={parent} gap={f.gap[:120]}")
                 if not fresh:  # nothing new: converged is honest only on a clean []
-                    stopped = (StopReason.CONVERGED if diagnosis == "empty"
-                               else StopReason.INSUFFICIENT_EVIDENCE)
+                    if diagnosis == "empty":
+                        stopped = StopReason.CONVERGED
+                    else:  # reproposed only known questions: novelty is exhausted
+                        stopped = StopReason.REPEATED_QUESTION
+                        emit(journal, "cycle", "repeated-question",
+                             f"{len(followups)} proposals, all already seen")
                     break
                 pending.extend(fresh)
                 _checkpoint()  # proposed work is durable before any of it runs
@@ -491,9 +553,38 @@ def run_cycle(
             bad_proposes = 0
             evidence_gaps.extend(_harvest_gaps(it))
             emit(journal, "cycle", "iter-done", f"n={it.n} kind={it.kind}")
-            if revising:  # iterative maintenance as it goes, not only at the end
-                _mid_run_revise(journal, it, repo_root, muse, check_cmd, budget,
-                                str(Path(record_dir) / "assessments") if record_dir else None)
+            sched.note_iteration(_iteration_supported(it), len(evidence_gaps))
+            decision = decide(sched)
+            emit(journal, "schedule", "decide", f"{decision.action}: {decision.reason}")
+            if decision.action == "stop":
+                stopped = StopReason(decision.reason)
+                emit(journal, "cycle", stopped.value.replace("_", "-"),
+                     f"scheduler stop: {decision.reason} "
+                     f"(no_progress={sched.no_progress})")
+                break
+            if decision.action == "assess":  # interleaved maintenance, then maybe restart
+                calls_before = budget.calls
+                mid = _mid_run_revise(
+                    journal, it, repo_root, muse, check_cmd, budget,
+                    str(Path(record_dir) / "assessments") if record_dir else None)
+                sched.note_revision(mid.kept, mid.attempted,
+                                    budget.calls - calls_before, mid.assessed)
+                if mid.kept > 0 and sched.config.restart_on_revision:
+                    # The tree changed under already-imported modules: halt for a
+                    # fresh worker. Continuing here would run stale code silently.
+                    restart_pending = _accepted_rev(repo_root)
+                    if restart_pending is None:
+                        stopped = StopReason.FAILED
+                        emit(journal, "cycle", "restart-unknown",
+                             "accepted a patch but no accepted revision is recorded")
+                        break
+                    emit(journal, "cycle", "restart-required",
+                         f"accepted {restart_pending}; halting for a fresh worker")
+                    _checkpoint()
+                    unanswered = tuple(j.question for j in pending)
+                    return CycleResult(tuple(iterations), "", muse.model,
+                                       StopReason.RESTART_REQUIRED, unanswered,
+                                       budget.usage_summary())
             if len(iterations) >= spec.max_iterations:
                 stopped = StopReason.BUDGET_EXHAUSTED if pending else StopReason.CONVERGED
         if not iterations:
@@ -514,23 +605,30 @@ def run_cycle(
             emit(journal, "cycle", "done",
                  f"iters={len(iterations)} stopped={stopped.value}")
         if revising:
-            try:
-                from .revise import revise_from_journal
+            veto = sched.revision_veto()
+            if veto is not None:
+                emit(journal, "schedule", "revise-vetoed", veto)
+            else:
+                try:
+                    from .revise import revise_from_journal
 
-                outcome = f"{len(iterations)} iterations, stopped={stopped.value}"
-                assess_dir = str(Path(record_dir) / "assessments") if record_dir else None
-                doc, rep = revise_from_journal(
-                    journal.text() if journal else "", outcome, repo_root, muse,
-                    rounds=spec.revise_rounds, check_cmd=check_cmd, journal=journal,
-                    assess_dir=assess_dir, budget=budget,
-                )
-                emit(journal, "cycle", "revised", f"kept={rep.kept} reverted={rep.reverted} skipped={rep.skipped}")
-                if outbox is not None:
-                    outbox["revision"] = (doc, rep)
-            except (RequestBlocked, BudgetExhausted, Cancelled):
-                raise
-            except Exception as e:
-                emit(journal, "cycle", "revise-failed", str(e)[:200])
+                    calls_before = budget.calls
+                    outcome = f"{len(iterations)} iterations, stopped={stopped.value}"
+                    assess_dir = str(Path(record_dir) / "assessments") if record_dir else None
+                    doc, rep = revise_from_journal(
+                        journal.text() if journal else "", outcome, repo_root, muse,
+                        rounds=spec.revise_rounds, check_cmd=check_cmd, journal=journal,
+                        assess_dir=assess_dir, budget=budget,
+                    )
+                    sched.note_revision(rep.kept, rep.kept + rep.reverted > 0,
+                                        budget.calls - calls_before)
+                    emit(journal, "cycle", "revised", f"kept={rep.kept} reverted={rep.reverted} skipped={rep.skipped}")
+                    if outbox is not None:
+                        outbox["revision"] = (doc, rep)
+                except (RequestBlocked, BudgetExhausted, Cancelled):
+                    raise
+                except Exception as e:
+                    emit(journal, "cycle", "revise-failed", str(e)[:200])
         return CycleResult(tuple(iterations), synthesis, muse.model, stopped,
                            unanswered, budget.usage_summary())
     except BudgetExhausted as e:
@@ -567,14 +665,16 @@ def run_cycle(
 
 
 def _mid_run_revise(journal: Journal | None, it: Iteration, repo_root: str | None, muse: Completer,
-                    check_cmd: list[str] | None, budget=None, assess_dir: str | None = None) -> None:
+                    check_cmd: list[str] | None, budget=None,
+                    assess_dir: str | None = None) -> MidRunOutcome:
     """One bounded revise pass on the latest iteration's notes. Never raises.
 
-    Note: kept patches land on disk and are validated, but this process keeps
-    running the already-imported modules. Revisions activate on the next run.
+    Kept patches land on disk and are validated, but this process keeps
+    running the already-imported modules: the caller must halt for a fresh
+    worker (RESTART_REQUIRED) instead of continuing on stale imports.
     """
     if journal is None or repo_root is None:
-        return
+        return MidRunOutcome(assessed=False)
     try:
         from .revise import revise_from_journal
 
@@ -584,10 +684,12 @@ def _mid_run_revise(journal: Journal | None, it: Iteration, repo_root: str | Non
             budget=budget,
         )
         emit(journal, "cycle", "mid-revised", f"iter={it.n} kept={rep.kept}")
+        return MidRunOutcome(kept=rep.kept, attempted=rep.kept + rep.reverted > 0)
     except (RequestBlocked, BudgetExhausted, Cancelled):
         raise
     except Exception as e:
         emit(journal, "cycle", "mid-revise-failed", str(e)[:200])
+        return MidRunOutcome(assessed=False)
 
 
 def _copy_history(src: str | Path, dst: str | Path) -> None:
@@ -598,10 +700,33 @@ def _copy_history(src: str | Path, dst: str | Path) -> None:
         origin = src / name
         if origin.exists():
             shutil.copy2(origin, dst / name)
-    for name in ("iterations", "checkpoints"):
+    for name in ("iterations", "checkpoints", "assessments"):
         origin = src / name
         if origin.is_dir():
             shutil.copytree(origin, dst / name)
+
+
+_CHECKPOINT_KEYS = ("spec", "iterations", "pending", "seen", "failed_q", "seq",
+                    "budget", "code_hash", "csv_hash")
+
+
+def _require_checkpoint_keys(checkpoint: dict) -> None:
+    missing = [k for k in _CHECKPOINT_KEYS if k not in checkpoint]
+    if missing:
+        raise ResumeError(f"checkpoint schema incompatible, missing {missing}: "
+                          "start a new run; archived history is preserved")
+
+
+def _open_resume_journal(target: Path, run_id: str, min_len: int) -> Journal:
+    journal, journal_report = Journal.inspect(target / "journal.jsonl")
+    if journal_report["corrupt_lines"]:
+        raise ResumeError(f"journal has corrupt lines {journal_report['corrupt_lines']}: "
+                          "refusing unsafe resume")
+    journal.path = target / "journal.jsonl"
+    journal.run_id = run_id
+    if len(journal) < min_len:
+        raise ResumeError("journal shorter than the checkpoint: refusing unsafe resume")
+    return journal
 
 
 def resume_cycle(bundle_dir: str | Path, muse: Completer,
@@ -612,6 +737,8 @@ def resume_cycle(bundle_dir: str | Path, muse: Completer,
 
     In place: worker code and inputs must hash-match the checkpoint. Fork:
     history is copied, budgets restart, and the new manifest names its parent.
+    v1 checkpoints migrate explicitly (scheduler counters reset, journaled);
+    anything else incompatible halts with the reason named.
     """
     bundle = report.read_bundle(bundle_dir)
     manifest = bundle["manifest"]
@@ -624,6 +751,7 @@ def resume_cycle(bundle_dir: str | Path, muse: Completer,
     checkpoint = report.read_checkpoints(bundle_dir)
     if checkpoint is None:
         raise ResumeError("no checkpoint committed: nothing to resume; start a new run")
+    _require_checkpoint_keys(checkpoint)
     spec = RunSpec.from_dict(checkpoint["spec"])
     forking = fork_dir is not None
     if manifest.get("status") != "in_progress" and not forking:
@@ -644,14 +772,7 @@ def resume_cycle(bundle_dir: str | Path, muse: Completer,
         target = Path(bundle_dir)
         run_id = manifest["run_id"]
         resume_budget = checkpoint["budget"]
-    journal, journal_report = Journal.inspect(target / "journal.jsonl")
-    if journal_report["corrupt_lines"]:
-        raise ResumeError(f"journal has corrupt lines {journal_report['corrupt_lines']}: "
-                          "refusing unsafe resume")
-    journal.path = target / "journal.jsonl"
-    journal.run_id = run_id
-    if len(journal) < checkpoint.get("journal_len", 0):
-        raise ResumeError("journal shorter than the checkpoint: refusing unsafe resume")
+    journal = _open_resume_journal(target, run_id, checkpoint.get("journal_len", 0))
     finished, ambiguous = OpLog.replay(target / "ops.jsonl")
     kept = f"from checkpoint {checkpoint['seq']} ({len(checkpoint['iterations'])} iterations kept)"
     journal.trusted_note("resume", "continued",
@@ -667,11 +788,84 @@ def resume_cycle(bundle_dir: str | Path, muse: Completer,
                     "pending": checkpoint["pending"], "seen": checkpoint["seen"],
                     "failed_q": checkpoint["failed_q"], "seq": checkpoint["seq"],
                     "budget": resume_budget,
+                    "scheduler": checkpoint.get("scheduler"),
+                    "scope": checkpoint.get("scope"),
                     "code_hash": code_now if forking else checkpoint["code_hash"],
                     "csv_hash": csv_now if forking else checkpoint["csv_hash"]}
     result = run_cycle(spec.question, spec.csv, spec.target, spec.max_iterations,
                        spec.max_papers, muse, http, journal=journal,
                        maintenance=spec.maintenance, revise_rounds=spec.revise_rounds,
                        repo_root=checkpoint.get("repo_root"), check_cmd=checkpoint.get("check_cmd"),
+                       spec=spec, record_dir=str(target), resume=resume_state)
+    return result, journal, spec, str(target)
+
+
+def resume_after_revision(bundle_dir: str | Path, muse: Completer,
+                          http: httpx.Client | None = None,
+                          expect_revision: str = "",
+                          ) -> tuple[CycleResult, Journal, RunSpec, str]:
+    """Continue a restart_required leg in a fresh worker on the new revision.
+
+    Verifies the checkpoint waited for exactly expect_revision AND the
+    promotion store's accepted revision matches it, then re-anchors the code
+    hash explicitly (the tree legitimately changed) and restores compatible
+    checkpoint state: iterations, pending work, budgets (spend carries), and
+    scheduler counters. Incompatible state halts with the reason named.
+
+    The post-restart leg continues research-only: the accepted revision is
+    already promoted, and further revision needs a new maintained run. This
+    narrowing is journaled; nothing about the scope changes silently.
+    """
+    from . import promote as promotemod
+
+    target = Path(bundle_dir)
+    bundle = report.read_bundle(target)
+    manifest = bundle["manifest"]
+    if manifest is None:
+        raise ResumeError("no manifest: --expect-revision continues restart_required legs only")
+    if manifest.get("status") != StopReason.RESTART_REQUIRED.value:
+        raise ResumeError(f"run status is {manifest.get('status')}: --expect-revision "
+                          "continues restart_required legs only")
+    checkpoint = report.read_checkpoints(target)
+    if checkpoint is None:
+        raise ResumeError("no checkpoint committed: nothing to resume; start a new run")
+    _require_checkpoint_keys(checkpoint)
+    if checkpoint.get("restart_pending") != expect_revision:
+        raise ResumeError(f"checkpoint waits for {checkpoint.get('restart_pending')}, "
+                          f"asked {expect_revision or '(none)'}: refusing to continue")
+    spec = RunSpec.from_dict(checkpoint["spec"])
+    repo_root = checkpoint.get("repo_root")
+    if not repo_root:
+        raise ResumeError("restart leg needs the checkpointed repo_root")
+    accepted = promotemod.Store(Path(repo_root) / "runs" / "promotions").latest_rev()
+    if accepted != expect_revision:
+        raise ResumeError(f"accepted revision is {accepted}, expected {expect_revision}: "
+                          "refusing to continue on an unverified tree")
+    code_now, csv_now = report.code_revision(), report.file_hash(spec.csv)
+    if checkpoint["csv_hash"] != csv_now:
+        raise ResumeError("inputs changed since the checkpoint: refusing unsafe resume")
+    journal = _open_resume_journal(target, manifest["run_id"],
+                                   checkpoint.get("journal_len", 0))
+    journal.trusted_note("resume", "re-anchored",
+                         f"code {checkpoint['code_hash'][:32]} -> {code_now[:32]} "
+                         f"at {expect_revision}")
+    journal.trusted_note("resume", "scope-narrowed",
+                         f"post-restart leg continues research-only; revision already "
+                         f"promoted as {expect_revision}")
+    narrowed = dict(checkpoint.get("scope") or {})
+    narrowed["maintenance"] = False
+    narrowed.setdefault("repo_root", repo_root)
+    narrowed.setdefault("check_cmd", checkpoint.get("check_cmd"))
+    narrowed.setdefault("revise_rounds", spec.revise_rounds)
+    resume_state = {"spec": checkpoint["spec"], "iterations": checkpoint["iterations"],
+                    "pending": checkpoint["pending"], "seen": checkpoint["seen"],
+                    "failed_q": checkpoint["failed_q"], "seq": checkpoint["seq"],
+                    "budget": checkpoint["budget"],
+                    "scheduler": checkpoint.get("scheduler"), "scope": narrowed,
+                    "code_hash": code_now, "csv_hash": csv_now}
+    result = run_cycle(spec.question, spec.csv, spec.target, spec.max_iterations,
+                       spec.max_papers, muse, http, journal=journal,
+                       maintenance=False, revise_rounds=spec.revise_rounds,
+                       repo_root=repo_root, check_cmd=checkpoint.get("check_cmd"),
                        spec=spec, record_dir=str(target), resume=resume_state)
     return result, journal, spec, str(target)

@@ -39,6 +39,18 @@ class ScriptedMuse:
         return q.pop(0)
 
 
+def grounded_review(prefix: str) -> str:
+    """Build 16: scripted review with one anchored supported claim.
+
+    Marker-only syntheses are ungrounded and trip the no-progress stop after
+    two consecutive iterations; taxonomy fixtures that need convergence use
+    this instead. The span anchors against the shared mock paper title.
+    """
+    return (f"{prefix} [1].\n```claims\n" + json.dumps([{
+        "id": "c1", "text": "X was studied", "support": "supported",
+        "evidence": [{"paper": 1, "span": "Study on X"}]}]) + "\n```")
+
+
 DIFF_FOO = """--- a/src/canary/foo.py
 +++ b/src/canary/foo.py
 @@ -1 +1 @@

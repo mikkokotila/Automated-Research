@@ -14,7 +14,7 @@ from canary import cycle as cyclemod
 from canary import report as reportmod
 from canary.journal import Journal, JournalError
 from canary.spec import RunSpec
-from tests.test_milestone4 import ScriptedMuse, mock_http
+from tests.test_milestone4 import ScriptedMuse, grounded_review, mock_http
 
 REPO = Path(__file__).resolve().parents[1]
 FIXTURE_KEY = "ghp_fixture_planted_0123456789abcdef"
@@ -22,7 +22,7 @@ FIXTURE_KEY = "ghp_fixture_planted_0123456789abcdef"
 
 def _seeded_muse():
     muse = ScriptedMuse()
-    muse.queues["review"] = ["R1 [1].", "R2 [1]."]
+    muse.queues["review"] = [grounded_review("R1"), grounded_review("R2")]
     muse.queues["follow"] = ['[{"question": "q2?", "kind": "review", "rationale": "r"}]']
     muse.queues["final"] = ["Final."]
     return muse
@@ -188,7 +188,7 @@ sys.path.insert(0, {root!r})
 from canary import cycle as cyclemod, report as reportmod
 from canary.journal import Journal
 from canary.spec import RunSpec
-from tests.test_milestone4 import ScriptedMuse, mock_http
+from tests.test_milestone4 import ScriptedMuse, grounded_review, mock_http
 
 class Blocking:
     model = "blocking"
@@ -205,7 +205,7 @@ class Blocking:
 
 out = sys.argv[1]
 muse = ScriptedMuse()
-muse.queues["review"] = ["R1 [1].", "R2 [1]."]
+muse.queues["review"] = [grounded_review("R1"), grounded_review("R2")]
 muse.queues["follow"] = ['[{{"question": "q2?", "kind": "review", "rationale": "r"}}]']
 muse.queues["final"] = ["Final."]
 spec = RunSpec(question="victim?", max_iterations=5)
