@@ -1,0 +1,148 @@
+{
+  "access": "acceptance reads are logged with timestamp, reason, and pack version",
+  "fixtures": [
+    {
+      "expected": {
+        "best_cover": 0,
+        "min_cover": 3,
+        "verdict": "weak"
+      },
+      "id": "rel-weak-2",
+      "input": {
+        "papers": [
+          {
+            "abstract": "A broad survey of schooling systems and funding.",
+            "citations": 1200,
+            "ref": "doi:10.4/survey",
+            "title": "Global education survey"
+          },
+          {
+            "abstract": "Committee guidance on classroom practice.",
+            "citations": 300,
+            "ref": "doi:10.5/guide",
+            "title": "Teaching practice guidelines"
+          }
+        ],
+        "question": "does tutoring improve long-term retention?"
+      },
+      "task": "relevance"
+    },
+    {
+      "expected": {
+        "rejected": [
+          "claim c1: paper [2] out of range (1..1)",
+          "claim c2: span not found in paper [1]"
+        ],
+        "supports": {
+          "c1": "unsupported",
+          "c2": "unsupported"
+        }
+      },
+      "id": "claims-oos",
+      "input": {
+        "claims": [
+          {
+            "evidence": [
+              {
+                "paper": 2,
+                "span": "whatever"
+              }
+            ],
+            "id": "c1",
+            "scope": "abstract",
+            "support": "supported",
+            "text": "Something holds.",
+            "uncertainty": ""
+          },
+          {
+            "evidence": [
+              {
+                "paper": 1,
+                "span": "never stated anywhere"
+              }
+            ],
+            "id": "c2",
+            "scope": "abstract",
+            "support": "supported",
+            "text": "Another holds.",
+            "uncertainty": ""
+          }
+        ],
+        "papers": [
+          {
+            "abstract": "A short abstract about widgets.",
+            "evidence": "abstract",
+            "ref": "doi:10.6/w",
+            "title": "Widgets"
+          }
+        ],
+        "synth_note": "claims validated directly; prose markers not needed"
+      },
+      "task": "claims"
+    },
+    {
+      "expected": {
+        "outcome": "NoEvidence"
+      },
+      "id": "abstain-nocite",
+      "input": {
+        "openalex": {
+          "results": [
+            {
+              "abstract_inverted_index": {
+                "Gears": [
+                  0
+                ]
+              },
+              "authorships": [],
+              "cited_by_count": 1,
+              "doi": "https://doi.org/10.7/g",
+              "id": "W2",
+              "primary_location": {},
+              "publication_year": 2021,
+              "title": "Gear ratios"
+            }
+          ]
+        },
+        "question": "does tutoring improve retention?",
+        "synth_text": "Gears are unrelated to the question at hand."
+      },
+      "task": "abstain"
+    },
+    {
+      "expected": {
+        "all_strict_subsets": true,
+        "n_fits": 15
+      },
+      "id": "leak-folds-2",
+      "input": {
+        "seed": 7
+      },
+      "task": "leakage"
+    },
+    {
+      "expected": {
+        "equivalent": true,
+        "stopped": "converged"
+      },
+      "id": "resume-equiv-2",
+      "input": {
+        "crash_on": 2
+      },
+      "task": "resume"
+    },
+    {
+      "expected": {
+        "calls": 5,
+        "exhaustion_raised": true
+      },
+      "id": "budget-cap-2",
+      "input": {
+        "max_calls": 5
+      },
+      "task": "budget"
+    }
+  ],
+  "pack_version": "1.0.0",
+  "set": "acceptance"
+}

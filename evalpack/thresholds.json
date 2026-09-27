@@ -1,0 +1,1 @@
+{"accept_rule": "accept requires zero regressions on pass-to-pass fixtures AND every predeclared expected-fix resolved; silence never counts as improvement", "notes": "Thresholds are frozen before any candidate runs. Changing them requires a pack version bump and a fresh baseline.", "pack_version": "1.0.0", "stdout_cap_bytes": 1000000, "task_timeout_s": 180}

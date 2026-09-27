@@ -1,0 +1,13 @@
+diff --git a/src/canary/rank.py b/src/canary/rank.py
+index 67fbacc..afc68d8 100644
+--- a/src/canary/rank.py
++++ b/src/canary/rank.py
+@@ -15,7 +15,7 @@ _STOP = frozenset(
+ 
+ def keywords(question: str) -> list[str]:
+     words = re.findall(r"[a-z0-9]+", question.lower())
+-    return [w for w in words if w not in _STOP and len(w) > 2]
++    return []
+ 
+ 
+ def score(question: str, paper: Paper, current_year: int = 2026) -> float:

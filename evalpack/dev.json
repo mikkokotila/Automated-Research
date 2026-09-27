@@ -1,0 +1,166 @@
+{
+  "fixtures": [
+    {
+      "expected": {
+        "best_cover": 2,
+        "min_cover": 3,
+        "verdict": "weak"
+      },
+      "id": "rel-weak",
+      "input": {
+        "papers": [
+          {
+            "abstract": "Committee consensus on standard treatment strategies.",
+            "citations": 900,
+            "ref": "doi:10.1/jsccr",
+            "title": "JSCCR guidelines 2016 for colorectal cancer"
+          },
+          {
+            "abstract": "Worldwide estimates of cases and deaths.",
+            "citations": 5000,
+            "ref": "doi:10.2/global",
+            "title": "Global cancer statistics"
+          }
+        ],
+        "question": "does treatment delay raise cancer mortality?"
+      },
+      "task": "relevance"
+    },
+    {
+      "expected": {
+        "best_cover": 5,
+        "min_cover": 3,
+        "verdict": "adequate"
+      },
+      "id": "rel-strong",
+      "input": {
+        "papers": [
+          {
+            "abstract": "Longer delay to treatment raises mortality across stages.",
+            "citations": 4,
+            "ref": "doi:10.3/ontopic",
+            "title": "Treatment delay raises cancer mortality in a cohort"
+          }
+        ],
+        "question": "does treatment delay raise cancer mortality?"
+      },
+      "task": "relevance"
+    },
+    {
+      "expected": {
+        "rejected": [
+          "claim c2: numbers ['42%'] not present in evidence spans"
+        ],
+        "supports": {
+          "c1": "supported",
+          "c2": "unsupported"
+        }
+      },
+      "id": "claims-mixed",
+      "input": {
+        "claims": [
+          {
+            "evidence": [
+              {
+                "paper": 1,
+                "span": "raises mortality by 12%"
+              }
+            ],
+            "id": "c1",
+            "scope": "abstract",
+            "support": "supported",
+            "text": "Delay raises mortality.",
+            "uncertainty": ""
+          },
+          {
+            "evidence": [
+              {
+                "paper": 1,
+                "span": "raises mortality by 12%"
+              }
+            ],
+            "id": "c2",
+            "scope": "abstract",
+            "support": "supported",
+            "text": "Mortality rises 42% with delay.",
+            "uncertainty": ""
+          }
+        ],
+        "papers": [
+          {
+            "abstract": "Longer delay to treatment raises mortality by 12% across stages.",
+            "evidence": "abstract",
+            "ref": "doi:10.1/a",
+            "title": "Delay raises mortality"
+          }
+        ],
+        "synth_note": "claims validated directly; prose markers not needed"
+      },
+      "task": "claims"
+    },
+    {
+      "expected": {
+        "outcome": "NoEvidence"
+      },
+      "id": "abstain-unsupported",
+      "input": {
+        "openalex": {
+          "results": [
+            {
+              "abstract_inverted_index": {
+                "Widgets": [
+                  0
+                ]
+              },
+              "authorships": [],
+              "cited_by_count": 0,
+              "doi": null,
+              "id": "W1",
+              "primary_location": {},
+              "publication_year": 2020,
+              "title": "Unrelated widgets"
+            }
+          ]
+        },
+        "question": "does delay raise mortality?",
+        "synth_text": "The papers say nothing about this question."
+      },
+      "task": "abstain"
+    },
+    {
+      "expected": {
+        "all_strict_subsets": true,
+        "n_fits": 15
+      },
+      "id": "leak-folds",
+      "input": {
+        "seed": 0
+      },
+      "task": "leakage"
+    },
+    {
+      "expected": {
+        "equivalent": true,
+        "stopped": "converged"
+      },
+      "id": "resume-equiv",
+      "input": {
+        "crash_on": 3
+      },
+      "task": "resume"
+    },
+    {
+      "expected": {
+        "calls": 2,
+        "exhaustion_raised": true
+      },
+      "id": "budget-cap",
+      "input": {
+        "max_calls": 2
+      },
+      "task": "budget"
+    }
+  ],
+  "pack_version": "1.0.0",
+  "set": "dev"
+}

@@ -1,0 +1,13 @@
+diff --git a/src/canary/rank.py b/src/canary/rank.py
+index 67fbacc..50a0637 100644
+--- a/src/canary/rank.py
++++ b/src/canary/rank.py
+@@ -26,7 +26,7 @@ def score(question: str, paper: Paper, current_year: int = 2026) -> float:
+     abstract = (paper.abstract or "").lower()
+     overlap = sum(2.0 for k in keys if k in title) + sum(1.0 for k in keys if k in abstract)
+     norm = overlap / max(len(keys), 1)
+-    cite = math.log10(paper.citations + 1) / 3.0  # ~1.0 at 1000 cites
++    cite = math.log10(paper.citations + 1) / 3.0  # ~1.0 at 1000 cites (gate noop)
+     recency = 0.0
+     if paper.year:
+         age = max(current_year - paper.year, 0)
