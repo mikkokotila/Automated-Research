@@ -16,7 +16,8 @@ Result: smoke + matrix 3.10/3.11/3.12/3.13 pass, docker job pass, no secrets use
 - matrix (PR only, budget 5 min): ~22s per version — 3.10/3.11/3.13
   (3.12 covered by smoke) plus Linux containment test.
 - docker (PR only + main, budget 8 min): cold ~2.5 min (build + export),
-  warm ~75s (scoped GHA cache read, probes-only verify).
+  warm ~90s (scoped GHA cache read, probes-only verify; floor is the 1 GB
+  image load plus buildx setup — see run 36300161755).
 - Full PR wall time ≈ docker job; push signal ≈ 21s.
 - Optimizations: deps-first Dockerfile layering, per-image GHA cache scopes
   (shared scope caused total misses), export-on-main only, no rebuild inside
