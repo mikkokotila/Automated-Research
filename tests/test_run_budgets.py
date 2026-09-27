@@ -1,0 +1,207 @@
+"""Build 06: versioned run specs, hard budgets, cancellation, honest partials."""
+import json
+
+import pytest
+
+from canary import cycle as cyclemod
+from canary import report as reportmod
+from canary.journal import Journal
+from canary.muse_client import RequestBlocked
+from canary.spec import (BudgetExhausted, Cancelled, InvalidSpec, RunBudget, RunSpec,
+                         StopReason)
+from tests.test_milestone4 import ScriptedMuse, mock_http
+
+
+def _spec(**kw):
+    args = {"question": "seed?", "max_iterations": 2}
+    args.update(kw)
+    return RunSpec(**args)
+
+
+# --- spec validation: before any call ---
+
+
+@pytest.mark.parametrize("kw", [
+    {"question": "  "}, {"question": "x" * 2001}, {"version": 2},
+    {"model": "other"}, {"csv": "a.csv"}, {"target": "t"},
+    {"max_papers": 0}, {"max_papers": 51}, {"year_from": 1800},
+    {"max_iterations": 0}, {"max_iterations": 6}, {"revise_rounds": -1},
+    {"max_model_calls": 0}, {"max_model_calls": 10_001},
+    {"max_tokens": 0}, {"max_tokens": 200_000_001},
+    {"wall_time_s": 0}, {"wall_time_s": 86_401}, {"finalize_calls": 6},
+    {"out_dir": "  "},
+])
+def test_spec_rejects_invalid_values(kw):
+    with pytest.raises(InvalidSpec):
+        _spec(**kw)
+
+
+def test_invalid_spec_is_a_value_error():
+    assert issubclass(InvalidSpec, ValueError)
+    with pytest.raises(ValueError):
+        _spec(max_iterations=99)
+
+
+def test_spec_roundtrip_and_unknown_fields_rejected():
+    spec = _spec(csv="d.csv", target="t", maintenance=True)
+    clone = RunSpec.from_dict(json.loads(json.dumps(spec.to_dict())))
+    assert clone == spec
+    with pytest.raises(InvalidSpec):
+        RunSpec.from_dict({"question": "x", "max_callz": 3})
+    with pytest.raises(InvalidSpec):
+        RunSpec.from_dict(["not", "an", "object"])
+
+
+def test_no_unlimited_defaults():
+    spec = RunSpec(question="x")
+    assert 0 < spec.max_iterations <= 5 and 0 < spec.max_model_calls <= 10_000
+    assert 0 < spec.max_tokens <= 200_000_000 and 0 < spec.wall_time_s <= 86_400
+
+
+# --- budget tracker ---
+
+
+def test_tracker_reserves_reconciles_and_carries_spend():
+    now = [1000.0]
+    budget = RunBudget.from_spec(_spec(max_model_calls=2, wall_time_s=60), clock=lambda: now[0])
+    budget.reserve_call()
+    budget.note_usage(10, 4)
+    assert budget.usage_summary() == {"model_calls": 1, "tokens": 14, "tokens_reported": True}
+    now[0] += 61
+    with pytest.raises(BudgetExhausted, match="wall-time"):
+        budget.reserve_call()
+    carried = RunBudget.from_dict(budget.to_dict(), clock=lambda: now[0])
+    assert carried.calls == 1 and carried.tokens == 14  # spend retained, cap not reset
+    with pytest.raises(BudgetExhausted):
+        carried.reserve_call()
+        carried.reserve_call()  # second new call exceeds max_model_calls=2
+
+
+def test_tracker_rejects_bad_usage_and_cancel_first():
+    budget = RunBudget.from_spec(_spec())
+    with pytest.raises(ValueError):
+        budget.note_usage(-1, 0)
+    with pytest.raises(ValueError):
+        budget.note_usage(1.5, 0)
+    budget.cancel()
+    with pytest.raises(Cancelled):
+        budget.check()
+
+
+# --- run integration ---
+
+
+def _seeded_muse():
+    muse = ScriptedMuse()
+    muse.queues["review"] = ["R1 [1].", "R2 [1]."]
+    muse.queues["follow"] = ['[{"question": "q2?", "kind": "review", "rationale": "r"}]']
+    muse.queues["final"] = ["Final."]
+    return muse
+
+
+def test_exhaustion_saves_honest_partial_and_sends_nothing_more():
+    muse = _seeded_muse()
+    spec = _spec(max_iterations=5, max_model_calls=3)
+    res = cyclemod.run_cycle("seed?", None, None, 5, 5, muse, mock_http(), spec=spec)
+    assert res.stopped == StopReason.BUDGET_EXHAUSTED
+    assert res.stopped == "budget_exhausted"  # reason compares as its value
+    assert len(res.iterations) == 1 and res.unanswered == ("q2?",)
+    assert res.synthesis == "Final."  # finalize reserve held back one call
+    assert res.usage == {"model_calls": 3, "tokens": 0, "tokens_reported": False}
+    assert muse.queues["review"] == ["R2 [1]."]  # next assessment never sent
+
+
+def test_exhaustion_without_finalize_allowance_keeps_partial_usable(tmp_path):
+    muse = _seeded_muse()
+    spec = _spec(max_iterations=5, max_model_calls=2)
+    res = cyclemod.run_cycle("seed?", None, None, 5, 5, muse, mock_http(), spec=spec)
+    assert res.stopped == "budget_exhausted" and res.synthesis == ""
+    out = reportmod.write_cycle_bundle(tmp_path, "seed?", res, Journal(), spec)
+    assert (out / "spec.json").is_file()
+    run = json.loads((out / "run.json").read_text())
+    assert run["stopped"] == "budget_exhausted" and run["spec"]["max_model_calls"] == 2
+    assert run["usage"]["model_calls"] == 2
+    assert "No final synthesis" in (out / "synthesis.md").read_text()
+
+
+def test_cancel_before_start_raises_and_mid_run_partials():
+    muse = _seeded_muse()
+    budget = RunBudget.from_spec(_spec())
+    budget.cancel()
+    with pytest.raises(Cancelled):
+        cyclemod.run_cycle("seed?", None, None, 2, 5, muse, mock_http(), budget=budget)
+
+    class Cancelling:
+        model = "cancelling"
+
+        def __init__(self, inner, budget, after):
+            self.inner, self.budget, self.after, self.n = inner, budget, after, 0
+
+        def complete(self, system, user, max_tokens=8000):
+            self.n += 1
+            if self.n > self.after:
+                self.budget.cancel()
+            return self.inner.complete(system, user, max_tokens)
+
+    muse2, budget2 = _seeded_muse(), RunBudget.from_spec(_spec())
+    res = cyclemod.run_cycle("seed?", None, None, 5, 5, Cancelling(muse2, budget2, 1),
+                             mock_http(), budget=budget2)
+    assert res.stopped == "cancelled" and len(res.iterations) == 1
+
+
+def test_provider_block_mid_run_partials_but_zero_progress_raises():
+    class Flaky:
+        model = "flaky"
+
+        def __init__(self, inner):
+            self.inner, self.n = inner, 0
+
+        def complete(self, system, user, max_tokens=8000):
+            self.n += 1
+            if self.n == 1:
+                return self.inner.complete(system, user, max_tokens)
+            raise RequestBlocked("token_budget_exhausted")
+
+    res = cyclemod.run_cycle("seed?", None, None, 5, 5, Flaky(_seeded_muse()), mock_http())
+    assert res.stopped == "provider_blocked" and len(res.iterations) == 1
+
+    class Blocked:
+        model = "blocked"
+
+        def complete(self, *a, **k):
+            raise RequestBlocked("token_budget_exhausted")
+
+    with pytest.raises(RequestBlocked):
+        cyclemod.run_cycle("seed?", None, None, 2, 5, Blocked(), mock_http())
+
+
+def test_empty_seed_evidence_is_insufficient_not_converged():
+    import httpx
+
+    def empty(request):
+        return httpx.Response(200, json={"results": [], "data": []})
+
+    res = cyclemod.run_cycle("seed?", None, None, 2, 5, _seeded_muse(),
+                             httpx.Client(transport=httpx.MockTransport(empty)))
+    assert res.stopped == "insufficient_evidence"
+    assert res.iterations == () and res.unanswered == ("seed?",)
+
+
+def test_nested_work_shares_one_tracker():
+    muse, budget = _seeded_muse(), RunBudget.from_spec(_spec())
+    res = cyclemod.run_cycle("seed?", None, None, 2, 5, muse, mock_http(), budget=budget)
+    assert res.stopped == "converged"
+    assert budget.calls == 4  # seed + q2 reviews, one propose, final synthesis
+    assert res.usage["model_calls"] == 4
+
+
+def test_cli_rejects_invalid_input_before_any_work(tmp_path, capsys):
+    from canary import cli as climod
+    rc = climod.main(["cycle", "seed?", "--max-iterations", "0", "--out", str(tmp_path / "o")])
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "invalid input" in err
+    assert not (tmp_path / "o").exists()
+    rc = climod.main(["cycle", "seed?", "--max-calls", "0", "--out", str(tmp_path / "o2")])
+    assert rc == 2
+    assert not (tmp_path / "o2").exists()

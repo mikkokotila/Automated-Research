@@ -134,19 +134,26 @@ def test_truncation_finish_preserved_to_worker_receipts(book, monkeypatch):
 
 
 def test_cancellation_budget_blocks_before_send(monkeypatch):
+    from canary.spec import BudgetExhausted, Cancelled, RunBudget
     monkeypatch.setenv("CANARY_GATE_TOKEN", "fixture")
-    monkeypatch.setenv("MUSE_MAX_CALLS", "1")
     calls = []
 
     def broker(request):
         calls.append(request)
         return httpx.Response(200, json={**reply(), "text": "ok", "receipt": "r0"})
 
-    client = MuseClient(client=httpx.Client(transport=httpx.MockTransport(broker)))
+    budget = RunBudget(1, 20_000_000, 1800)
+    client = MuseClient(client=httpx.Client(transport=httpx.MockTransport(broker)),
+                        budget=budget)
     assert client.complete("s", "u") == "ok"
-    with pytest.raises(RequestBlocked, match="MUSE_MAX_CALLS budget exhausted"):
+    with pytest.raises(BudgetExhausted, match="model-call budget exhausted"):
         client.complete("s", "u")
     assert len(calls) == 1
+    budget.calls = 0
+    budget.cancel()
+    with pytest.raises(Cancelled):
+        client.complete("s", "u")
+    assert len(calls) == 1  # cancelled dispatch never sends
 
 
 def test_no_key_material_in_errors_status_or_receipts(book):

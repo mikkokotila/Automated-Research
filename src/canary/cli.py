@@ -12,22 +12,22 @@ from . import analysis, data as datamod, cycle as cyclemod, modeling, rank, repo
 from .revise import revise_from_journal
 from .journal import Journal, emit
 from .muse_client import MuseClient
-from .spec import ResearchSpec
+from .spec import InvalidSpec, RunBudget, RunSpec
 
 
-def review(question: str, max_papers: int, year_from: int | None, out_dir: str) -> str:
-    j = Journal(Path(out_dir) / "journal.jsonl")
-    emit(j, "review", "start", question[:200])
-    spec = ResearchSpec(question=question, max_papers=max_papers, year_from=year_from)
+def review(spec: RunSpec) -> str:
+    j = Journal(Path(spec.out_dir) / "journal.jsonl")
+    emit(j, "review", "start", spec.question[:200])
+    rspec = spec.research_spec()
     with httpx.Client(headers={"User-Agent": "Canary/0.1"}) as http:
-        papers = retrieval.retrieve(spec, http)
+        papers = retrieval.retrieve(rspec, http)
     emit(j, "review", "retrieved", f"{len(papers)} candidates")
     if not papers:
         raise RuntimeError("no papers found for this question")
-    top = rank.rerank(spec.question, papers, spec.max_papers)
-    synth = synthesize.synthesize(spec.question, top, MuseClient())
+    top = rank.rerank(rspec.question, papers, rspec.max_papers)
+    synth = synthesize.synthesize(rspec.question, top, MuseClient(budget=RunBudget.from_spec(spec)))
     emit(j, "review", "synthesized", f"{len(top)} papers, cited {len(synth.cited)}")
-    path = report.write_bundle(out_dir, spec, top, synth, j)
+    path = report.write_bundle(spec.out_dir, rspec, top, synth, j)
     return str(path / "review.md")
 
 
@@ -53,6 +53,9 @@ def main(argv: list[str] | None = None) -> int:
     lo.add_argument("--out", default="./out")
     lo.add_argument("--maintenance", action="store_true", help="assess and patch mid-run and post-run")
     lo.add_argument("--revise-rounds", type=int, default=1)
+    lo.add_argument("--max-calls", type=int, default=25, help="hard model-call budget")
+    lo.add_argument("--max-tokens", type=int, default=20000000, help="hard token budget")
+    lo.add_argument("--wall-time-s", type=int, default=1800, help="hard wall-time budget in seconds")
     lo.add_argument("--repo", default=".", help="repo checkout to revise (container workspace)")
     im = sub.add_parser("revise", help="assess a past run's journal and patch")
     im.add_argument("--run-dir", required=True, help="bundle dir containing journal.jsonl")
@@ -61,15 +64,19 @@ def main(argv: list[str] | None = None) -> int:
     im.add_argument("--out", default=None, help="optional dir for assessment.md")
     args = ap.parse_args(argv)
     try:
+        spec = build_spec(args)
+    except InvalidSpec as e:
+        print(f"canary: invalid input: {e}", file=sys.stderr)
+        return 2
+    try:
         if args.cmd == "review":
-            path = review(args.question, args.max_papers, args.year_from, args.out)
+            path = review(spec)
         elif args.cmd == "analyze":
-            path = analyze(args.csv, args.target, args.question, args.out)
+            path = analyze(spec)
         elif args.cmd == "revise":
             path = revise(args.run_dir, args.repo, args.rounds, args.out)
         else:
-            path = cycle(args.question, args.csv, args.target, args.max_iterations, args.max_papers, args.out,
-                        args.maintenance, args.revise_rounds, args.repo)
+            path = cycle(spec, args.repo)
     except Exception as e:  # honest failure, never fake output
         print(f"canary: error: {e}", file=sys.stderr)
         return 1
@@ -77,18 +84,35 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-def cycle(
-    question: str, csv: str | None, target: str | None, max_iterations: int, max_papers: int, out_dir: str,
-    maintenance: bool = False, revise_rounds: int = 1, repo: str = ".",
-) -> str:
-    j = Journal(Path(out_dir) / "journal.jsonl")
+def build_spec(args) -> RunSpec | None:
+    """Validate CLI arguments into a RunSpec before any external call."""
+    if args.cmd == "revise":
+        return None
+    if args.cmd == "review":
+        return RunSpec(question=args.question, max_papers=args.max_papers,
+                       year_from=args.year_from, out_dir=args.out)
+    if args.cmd == "analyze":
+        question = args.question.strip() or f"what predicts {args.target}?"
+        return RunSpec(question=question, csv=args.csv, target=args.target, out_dir=args.out)
+    return RunSpec(question=args.question, csv=args.csv, target=args.target,
+                   max_iterations=args.max_iterations, max_papers=args.max_papers,
+                   maintenance=args.maintenance, revise_rounds=args.revise_rounds,
+                   max_model_calls=args.max_calls, max_tokens=args.max_tokens,
+                   wall_time_s=args.wall_time_s, out_dir=args.out)
+
+
+def cycle(spec: RunSpec, repo: str = ".") -> str:
+    j = Journal(Path(spec.out_dir) / "journal.jsonl")
     outbox: dict = {}
+    budget = RunBudget.from_spec(spec)
     res = cyclemod.run_cycle(
-        question, csv, target, max_iterations, max_papers, MuseClient(), journal=j,
-        maintenance=maintenance, revise_rounds=revise_rounds, repo_root=repo, outbox=outbox,
+        spec.question, spec.csv, spec.target, spec.max_iterations, spec.max_papers,
+        MuseClient(budget=budget), journal=j, maintenance=spec.maintenance,
+        revise_rounds=spec.revise_rounds, repo_root=repo, outbox=outbox,
+        spec=spec, budget=budget,
     )
-    path = report.write_cycle_bundle(out_dir, question, res, j)
-    if maintenance and outbox.get("revision"):
+    path = report.write_cycle_bundle(spec.out_dir, spec.question, res, j, spec)
+    if spec.maintenance and outbox.get("revision"):
         _maybe_publish(repo, outbox["revision"], j)
         j.save(path / "journal.jsonl")  # persist publish notes too
     return str(path / "synthesis.md")
@@ -110,18 +134,19 @@ def _maybe_publish(repo: str, revision, j: Journal) -> None:
     print(f"publish: issue={pub.issue_url or 'none'} pr={pub.pr_url or 'none'} merged={pub.merged}")
 
 
-def analyze(csv: str, target: str, question: str, out_dir: str) -> str:
-    j = Journal(Path(out_dir) / "journal.jsonl")
-    emit(j, "analyze", "start", f"{csv} target={target}")
-    df = datamod.load_csv(csv)
-    prep = datamod.prepare(df, target)
+def analyze(spec: RunSpec) -> str:
+    j = Journal(Path(spec.out_dir) / "journal.jsonl")
+    emit(j, "analyze", "start", f"{spec.csv} target={spec.target}")
+    df = datamod.load_csv(spec.csv)
+    prep = datamod.prepare(df, spec.target)
     emit(j, "analyze", "prepared", f"{prep.profile.n_rows} rows, {prep.profile.task}")
     res = modeling.run(prep)
     emit(j, "analyze", "modeled", f"{res.best} test={res.best_test} baseline={res.baseline_test}")
-    q = question.strip() or f"what predicts {target}?"
-    findings = analysis.narrate(q, prep, res, MuseClient())
+    findings = analysis.narrate(spec.question, prep, res,
+                                MuseClient(budget=RunBudget.from_spec(spec)))
     emit(j, "analyze", "narrated", f"warnings={len(res.warnings)}")
-    path = report.write_analysis_bundle(out_dir, q, csv, target, prep, res, findings, j)
+    path = report.write_analysis_bundle(spec.out_dir, spec.question, spec.csv, spec.target,
+                                        prep, res, findings, j)
     return str(path / "analysis.md")
 
 
