@@ -29,7 +29,8 @@ def resolve_api_key(env: dict | None = None) -> str:
 
 class MuseClient:
     def __init__(self, api_key: str | None = None, model: str = DEFAULT_MODEL,
-                 client: Any | None = None, budget: RunBudget | None = None) -> None:
+                 client: Any | None = None, budget: RunBudget | None = None,
+                 recorder: Any | None = None) -> None:
         if model != DEFAULT_MODEL:
             raise RequestBlocked("Only " + DEFAULT_MODEL + " is permitted")
         if api_key is not None:
@@ -37,6 +38,7 @@ class MuseClient:
         self.calls = 0
         self.receipts: list[dict] = []
         self.budget = budget or RunBudget(25, 20_000_000, 1800)
+        self.recorder = recorder
         self._url = os.environ.get("CANARY_GATE_URL", "http://canary-gate:8787").rstrip("/")
         self._token = os.environ.get("CANARY_GATE_TOKEN", "")
         if not self._token:
@@ -52,6 +54,7 @@ class MuseClient:
         for attempt in range(MAX_ATTEMPTS):
             self.budget.reserve_call()  # Cancelled/BudgetExhausted propagate distinctly
             self.calls += 1
+            op = self.recorder.start("complete") if self.recorder else None
             try:
                 response = self._client.post(self._url + "/v1/complete", json=payload,
                     headers={"Authorization": "Bearer " + self._token})
@@ -60,6 +63,8 @@ class MuseClient:
                     raise RequestBlocked("Request service unreachable; no direct fallback")
                 time.sleep(BACKOFF_S[attempt])
                 continue
+            if self.recorder:  # a response arrived; its outcome is now knowable
+                self.recorder.finish(op)
             try:
                 body = response.json()
             except ValueError as exc:
