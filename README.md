@@ -22,6 +22,8 @@ The `analyze` command accepts a CSV staged in the disposable workspace and a tar
 
 Optional `--maintenance` and `revise` paths currently refuse: revision has no trusted execution path until Builds 03-04 (see [the trust boundary](docs/TRUST_BOUNDARY.md)). Their remaining quality and promotion limitations are tracked in the roadmap. The launcher withholds GitHub credentials; publishing requires a separately authorized controller.
 
+The launcher enforces wall-time (`CANARY_TIMEOUT_S`, default 1800s), stages operator-approved wheels read-only at `/wheels` (`CANARY_WHEELS`, installed with `pip install --no-index --find-links /wheels`) and inputs read-only at `/inputs` (`CANARY_STAGE`, `https://...` or host-file sources), and writes a run receipt (`<out>.receipt.json`) with the image digest, limits, and outcome next to the exported bundle. Guests have no direct egress; host, LAN, metadata, and public DNS stay unreachable by design.
+
 ## Development and evidence
 
 From a fresh checkout, set up the locked environment and run the offline suite with no provider keys present:

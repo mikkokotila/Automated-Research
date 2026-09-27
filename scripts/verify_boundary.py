@@ -3,7 +3,10 @@ import argparse
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
+import sys
+import tempfile
 import time
 import uuid
 
@@ -97,6 +100,7 @@ with httpx.Client(trust_env=False,timeout=5) as c:
         info=json.loads(call(["inspect",name]))[0]
         result['no_host_bind_mounts']=not any(m['Type']=='bind' for m in info['Mounts'])
         result['no_published_ports']=not info['HostConfig']['PortBindings']
+        result.update(launcher_checks(args.image,network,name))
         print(json.dumps(result,indent=2))
         if not all(result.values()):
             raise SystemExit(1)
@@ -106,5 +110,158 @@ with httpx.Client(trust_env=False,timeout=5) as c:
         subprocess.run(["docker","network","rm",network],capture_output=True)
 
 
-if __name__=="__main__":
+GUEST_FIXTURE = r"""
+import json, subprocess, sys
+from pathlib import Path
+page = Path('/inputs/page.html').read_text()
+r = subprocess.run([sys.executable, '-m', 'pip', 'install', '--quiet', '--no-index',
+    '--no-deps', '--target', '/tmp/site', '--find-links', '/wheels', 'fixture_pkg'],
+    capture_output=True, text=True, timeout=120)
+assert r.returncode == 0, r.stderr[-500:]
+sys.path.insert(0, '/tmp/site')
+import fixture_pkg
+locked = {}
+for p in ('/etc/launcher-probe', '/app/launcher-probe'):
+    try:
+        Path(p).write_text('x')
+        locked[p] = False
+    except OSError:
+        locked[p] = True
+Path('/work/out/result.json').write_text(json.dumps(
+    {'answer': fixture_pkg.answer(), 'page': page, 'locked': locked}))
+"""
+
+GUEST_NET_PROBE = r"""
+import json, socket
+from pathlib import Path
+out = {}
+try:
+    socket.create_connection(('169.254.169.254', 80), 3).close()
+    out['metadata_blocked'] = False
+except OSError:
+    out['metadata_blocked'] = True
+try:
+    socket.getaddrinfo('example.com', 443)
+    out['public_dns_blocked'] = False
+except socket.gaierror:
+    out['public_dns_blocked'] = True
+Path('/work/out/net.json').write_text(json.dumps(out))
+"""
+
+
+def launcher_checks(image, network, gate):
+    """Build 03: drive the real launcher; fail closed on every unsafe path."""
+    root = Path(__file__).resolve().parent.parent
+    checks = {}
+    tmp = Path(tempfile.mkdtemp(prefix="launcher-"))
+    try:
+        base = dict(os.environ, IMG=image, CANARY_NETWORK=network,
+                    CANARY_GATE_NAME=gate, CANARY_SKIP_BUILD="1",
+                    ALLOW_DIRTY="1")  # verify checks containment, not tree state
+
+        def launch(out, args, extra=None, timeout=420):
+            env = dict(base, OUT=str(out), CANARY_TIMEOUT_S="120")
+            env.update(extra or {})
+            proc = subprocess.run(["bash", "scripts/container_run.sh", *args],
+                                  cwd=root, env=env, capture_output=True,
+                                  text=True, timeout=timeout)
+            if proc.returncode != 0 and not (extra or {}).get("EXPECT_FAIL"):
+                raise RuntimeError(f"launcher {args} exited {proc.returncode}: "
+                                   f"{proc.stdout[-800:]} {proc.stderr[-800:]}")
+            return proc
+
+        def receipt(out):
+            return json.loads(Path(str(out) + ".receipt.json").read_text())
+
+        wheels = tmp / "wheels"
+        wheels.mkdir()
+        subprocess.run([sys.executable, "scripts/make_fixture_wheel.py",
+                        "--out", str(wheels)], cwd=root, check=True,
+                       capture_output=True, timeout=60)
+        page = tmp / "page.html"
+        page.write_text("<title>staged fixture page</title>", encoding="utf-8")
+
+        # 1. staged input + wheel install + output write + receipt
+        out1 = tmp / "out1"
+        r1 = launch(out1, ["exec", "python", "-c", GUEST_FIXTURE],
+                    {"CANARY_WHEELS": str(wheels), "CANARY_STAGE": f"{page}:page.html"})
+        rec1 = receipt(out1)
+        res1 = json.loads((out1 / "result.json").read_text())
+        checks["launcher_exit_zero"] = r1.returncode == 0
+        checks["receipt_records_image"] = rec1["IMAGE_ID"] == call(
+            ["inspect", "-f", "{{.Id}}", image]) and rec1["GIT_REV"] != ""
+        checks["receipt_records_outcome"] = (
+            rec1["RC"] == "0" and rec1["TIMED_OUT"] == "false"
+            and rec1["HAVE_WHEELS"] == "true" and "page.html" in rec1["STAGED"])
+        checks["guest_installed_wheel"] = res1["answer"] == 42
+        checks["guest_read_staged_input"] = "staged fixture page" in res1["page"]
+        checks["guest_image_locked"] = all(res1["locked"].values())
+
+        # 2. independent workspaces: second run sees a fresh out-volume
+        out2 = tmp / "out2"
+        r2 = launch(out2, ["exec", "python", "-c",
+                           "from pathlib import Path; print(sorted(p.name for p in Path('/work/out').iterdir()))"])
+        checks["workspaces_independent"] = (
+            r2.returncode == 0 and "[]" in r2.stdout
+            and not any(out2.iterdir()))
+
+        # 3. forbidden destinations fail closed from the guest
+        out3 = tmp / "out3"
+        r3 = launch(out3, ["exec", "python", "-c", GUEST_NET_PROBE])
+        net = json.loads((out3 / "net.json").read_text())
+        checks["guest_metadata_blocked"] = r3.returncode == 0 and net["metadata_blocked"] is True
+        checks["guest_public_dns_blocked"] = net["public_dns_blocked"] is True
+
+        # 4. wall-time kills the guest tree and releases resources
+        out4 = tmp / "out4"
+        r4 = launch(out4, ["exec", "sleep", "60"],
+                    {"CANARY_TIMEOUT_S": "8", "EXPECT_FAIL": "1"}, timeout=300)
+        rec4 = receipt(out4)
+        gone = subprocess.run(["docker", "inspect", rec4["NAME"]],
+                              capture_output=True, timeout=60).returncode != 0
+        vols = subprocess.run(["docker", "volume", "ls", "-q", "--filter",
+                               "name=" + rec4["NAME"]], capture_output=True,
+                              text=True, timeout=60).stdout.strip()
+        checks["timeout_kills_and_releases"] = (
+            r4.returncode != 0 and rec4["TIMED_OUT"] == "true" and gone and vols == "")
+
+        # 5. unsafe launch configurations fail closed before anything starts
+        for bad in ("host", "bridge"):
+            outb = tmp / f"out-bad-{bad}"
+            rb = launch(outb, ["exec", "true"],
+                        {"CANARY_NETWORK": bad, "EXPECT_FAIL": "1"}, timeout=120)
+            checks[f"unsafe_network_{bad}_refused"] = (
+                rb.returncode != 0 and not Path(str(outb) + ".receipt.json").exists())
+
+        # 6. stage paths containing colons split on the LAST colon (URL-safe)
+        colon = tmp / "with:colon.txt"
+        colon.write_text("colon-split-ok", encoding="utf-8")
+        outc = tmp / "out-colon"
+        rc = launch(outc, ["exec", "python", "-c",
+                           "from pathlib import Path; "
+                           "Path('/work/out/echo.txt').write_text(Path('/inputs/echo.txt').read_text())"],
+                    {"CANARY_STAGE": f"{colon}:echo.txt"})
+        checks["colon_stage_split"] = (
+            rc.returncode == 0
+            and (outc / "echo.txt").read_text() == "colon-split-ok")
+
+        # 7. unreachable stage URL fails loudly before anything starts
+        outu = tmp / "out-unreachable-stage"
+        ru = launch(outu, ["exec", "true"],
+                    {"CANARY_STAGE": "https://127.0.0.1:9/x:evil.html",
+                     "EXPECT_FAIL": "1"}, timeout=120)
+        checks["unreachable_stage_refused"] = (
+            ru.returncode != 0 and not Path(str(outu) + ".receipt.json").exists())
+
+        # 8. tripwire: launcher never imports candidate code or evals guest shell
+        text = (root / "scripts" / "container_run.sh").read_text()
+        checks["launcher_imports_nothing"] = (
+            "import canary" not in text and "from canary" not in text
+            and "\neval " not in text)
+        return checks
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+if __name__ == "__main__":
     main()

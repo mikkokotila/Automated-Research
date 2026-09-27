@@ -1,37 +1,145 @@
 #!/bin/bash
-# Run a worker with no direct egress, provider credential, or ledger mount.
+# Trusted worker launcher: disposable container, externally enforced limits.
+#
+# The worker gets no direct egress, provider credential, ledger mount, GitHub
+# token, or host bind mounts. Everything the guest may use is staged by this
+# host-side script into launcher-owned volumes; the guest cannot raise its
+# own limits. See docs/TRUST_BOUNDARY.md.
+#
+# Knobs (all host-side, operator-controlled):
+#   IMG               worker image (default canary:local)
+#   OUT               host export dir (default ./container-out/<name>)
+#   CANARY_NETWORK    must be an internal-only network (default canary-private)
+#   CANARY_GATE_NAME  running broker container (default canary-gate)
+#   CANARY_TIMEOUT_S  wall-time limit in seconds (default 1800)
+#   CANARY_WHEELS     host dir of vetted wheels, mounted read-only at /wheels
+#   CANARY_STAGE      comma list of src:dest staged read-only at /inputs;
+#                     src is https://... (host curl, capped) or a host file (cp)
+#   ALLOW_DIRTY=1     operator override for the clean-tree requirement (logged)
+#   exec ...          run a raw guest command (operator fixture hook, contained)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 IMG="${IMG:-canary:local}"
+NETWORK="${CANARY_NETWORK:-canary-private}"
+GATE="${CANARY_GATE_NAME:-canary-gate}"
+TIMEOUT_S="${CANARY_TIMEOUT_S:-1800}"
 RUN=(canary "$@")
-if [ "${1:-}" = profile ]; then
+if [ "${1:-}" = exec ]; then
+  shift
+  RUN=("$@")
+  if [ "${#RUN[@]}" -eq 0 ]; then echo "exec needs a command" >&2; exit 2; fi
+elif [ "${1:-}" = profile ]; then
   shift
   RUN=(python scripts/profile_cycle.py --live "$@")
 fi
 NAME="canary-run-$(date +%s)-$$"
 VOL="$NAME-out"
+WVOL="$NAME-wheels"
+IVOL="$NAME-inputs"
 OUT="${OUT:-./container-out/$NAME}"
-test "$(docker network inspect -f '{{.Internal}}' canary-private)" = true
-test "$(docker inspect -f '{{.State.Running}}' canary-gate)" = true
-if [ -z "${ALLOW_DIRTY:-}" ] && [ -n "$(git status --porcelain -- src tests runs)" ]; then
-  echo "Refusing dirty source tree; commit before maintenance" >&2; exit 2
+STARTED=$(date +%s)
+# Unsafe launch configurations fail closed before anything starts.
+if [ "$NETWORK" = "host" ]; then
+  echo "refusing: host network is never allowed for workers" >&2; exit 2
 fi
-docker build -q -t "$IMG" .
+test "$(docker network inspect -f '{{.Internal}}' "$NETWORK")" = true
+test "$(docker inspect -f '{{.State.Running}}' "$GATE")" = true
+case "${TIMEOUT_S}" in ''|*[!0-9]*) echo "refusing: CANARY_TIMEOUT_S must be an integer" >&2; exit 2;; esac
+DIRTY="false"
+if [ -n "$(git status --porcelain -- src tests runs)" ]; then
+  if [ -z "${ALLOW_DIRTY:-}" ]; then
+    echo "Refusing dirty source tree; commit or set ALLOW_DIRTY=1" >&2; exit 2
+  fi
+  DIRTY="operator-override"
+  echo "WARNING: dirty source tree allowed by operator override" >&2
+fi
+# CANARY_SKIP_BUILD=1 reuses a prebuilt image (CI pre-build step); the inspect
+# below still fails closed when the image is missing.
+if [ "${CANARY_SKIP_BUILD:-0}" != "1" ]; then
+  docker build -q -t "$IMG" .
+fi
+IMAGE_ID=$(docker inspect -f '{{.Id}}' "$IMG")
+IMAGE_DIGEST=$(docker inspect -f '{{index .RepoDigests 0}}' "$IMG" 2>/dev/null || true)
 docker volume create "$VOL" >/dev/null
+HAVE_WHEELS="false"
+HAVE_INPUTS="false"
+STAGED=""
 cleanup() {
   docker rm -f "$NAME" >/dev/null 2>&1 || true
-  docker volume rm "$VOL" >/dev/null 2>&1 || true
+  docker volume rm "$VOL" "$WVOL" "$IVOL" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
+helper_copy() { # $1 = host dir, $2 = volume: trusted copy, worker never sees the bind
+  docker run --rm --network none --user 0 --entrypoint sh \
+    --mount type=bind,src="$1",dst=/src,readonly \
+    --mount type=volume,src="$2",dst=/dst "$IMG" \
+    -c 'cp -r /src/. /dst/ && chmod -R a+rX /dst'
+}
+if [ -n "${CANARY_WHEELS:-}" ]; then
+  test -d "$CANARY_WHEELS"
+  docker volume create "$WVOL" >/dev/null
+  helper_copy "$CANARY_WHEELS" "$WVOL"
+  HAVE_WHEELS="true"
+fi
+if [ -n "${CANARY_STAGE:-}" ]; then
+  STAGE_DIR=$(mktemp -d)
+  trap 'rm -rf "$STAGE_DIR"; cleanup' EXIT
+  IFS=',' read -ra PAIRS <<< "$CANARY_STAGE"
+  for pair in "${PAIRS[@]}"; do
+    src="${pair%:*}"; dest="${pair##*:}"  # split on last colon: URLs contain ://
+    case "$dest" in ''|*/*|*..*|*:*) echo "refusing: bad stage name $dest" >&2; exit 2;; esac
+    if [ "$src" != "${src#https://}" ]; then
+      curl --proto '=https' --max-time 30 --max-filesize 10485760 -fsSL "$src" -o "$STAGE_DIR/$dest"
+    else
+      test -f "$src"
+      test "$(wc -c < "$src")" -le 10485760
+      cp "$src" "$STAGE_DIR/$dest"
+    fi
+    STAGED="$STAGED $dest"
+  done
+  docker volume create "$IVOL" >/dev/null
+  helper_copy "$STAGE_DIR" "$IVOL"
+  HAVE_INPUTS="true"
+fi
 # Only this narrow service credential reaches the worker, never the upstream key.
 export CANARY_GATE_TOKEN
-CANARY_GATE_TOKEN=$(docker exec canary-gate cat /state/access.key)
-docker run --rm --network none --user 0 --entrypoint sh   --mount type=volume,src="$VOL",dst=/export "$IMG" -c 'chown 10002:10002 /export'
+CANARY_GATE_TOKEN=$(docker exec "$GATE" cat /state/access.key)
+docker run --rm --network none --user 0 --entrypoint sh \
+  --mount type=volume,src="$VOL",dst=/export "$IMG" -c 'chown 10002:10002 /export'
+MOUNTS=(--mount "type=volume,src=$VOL,dst=/work/out")
+if [ "$HAVE_WHEELS" = "true" ]; then MOUNTS+=(--mount "type=volume,src=$WVOL,dst=/wheels,readonly"); fi
+if [ "$HAVE_INPUTS" = "true" ]; then MOUNTS+=(--mount "type=volume,src=$IVOL,dst=/inputs,readonly"); fi
 set +e
-docker run --name "$NAME" --network canary-private --user 10002:10002   --cap-drop ALL --security-opt no-new-privileges --pids-limit 256 --memory 4g --cpus 2   --read-only --tmpfs /tmp:rw,size=512m --tmpfs /work:rw,size=2g,uid=10002,gid=10002   --mount type=volume,src="$VOL",dst=/work/out   -e CANARY_GATE_TOKEN -e CANARY_GATE_URL=http://canary-gate:8787   -e OPENALEX_MAILTO "$IMG" "${RUN[@]}"
+docker run --name "$NAME" --network "$NETWORK" --user 10002:10002 \
+  --cap-drop ALL --security-opt no-new-privileges --pids-limit 256 --memory 4g --cpus 2 \
+  --stop-timeout 30 --read-only --tmpfs /tmp:rw,size=512m --tmpfs /work:rw,size=2g,uid=10002,gid=10002 \
+  "${MOUNTS[@]}" -e CANARY_GATE_TOKEN -e CANARY_GATE_URL=http://canary-gate:8787 \
+  -e OPENALEX_MAILTO "$IMG" "${RUN[@]}" &
+RUNPID=$!
+TIMED_OUT="false"
+elapsed=0
+while kill -0 "$RUNPID" 2>/dev/null; do
+  if [ "$elapsed" -ge "$TIMEOUT_S" ]; then
+    docker stop -t 30 "$NAME" >/dev/null 2>&1 || true
+    TIMED_OUT="true"
+    break
+  fi
+  sleep 1
+  elapsed=$((elapsed + 1))
+done
+wait "$RUNPID"
 RC=$?
 set -e
 unset CANARY_GATE_TOKEN
-docker run --rm --network none --read-only --entrypoint tar   --mount type=volume,src="$VOL",dst=/from,readonly "$IMG" cf - -C /from .   | python3 scripts/export_bundle.py "$OUT"
-echo "exit=$RC out=$OUT"
+docker run --rm --network none --read-only --entrypoint tar \
+  --mount type=volume,src="$VOL",dst=/from,readonly "$IMG" cf - -C /from . \
+  | python3 scripts/export_bundle.py "$OUT"
+FINISHED=$(date +%s)
+RECEIPT="$OUT.receipt.json"
+RECEIPT="$RECEIPT" NAME="$NAME" IMG="$IMG" IMAGE_ID="$IMAGE_ID" IMAGE_DIGEST="$IMAGE_DIGEST" NETWORK="$NETWORK" \
+GATE="$GATE" TIMEOUT_S="$TIMEOUT_S" TIMED_OUT="$TIMED_OUT" RC="$RC" DIRTY="$DIRTY" \
+HAVE_WHEELS="$HAVE_WHEELS" HAVE_INPUTS="$HAVE_INPUTS" STAGED="$STAGED" \
+STARTED="$STARTED" FINISHED="$FINISHED" GIT_REV="$(git rev-parse HEAD)" \
+python3 -c 'import json, os; json.dump({k: os.environ[k] for k in ("NAME","IMG","IMAGE_ID","IMAGE_DIGEST","NETWORK","GATE","TIMEOUT_S","TIMED_OUT","RC","DIRTY","HAVE_WHEELS","HAVE_INPUTS","STAGED","STARTED","FINISHED","GIT_REV")}, open(os.environ["RECEIPT"], "w"), indent=2)'
+echo "exit=$RC out=$OUT receipt=$RECEIPT"
 exit "$RC"
