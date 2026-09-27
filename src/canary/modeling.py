@@ -36,6 +36,7 @@ class Results:
     baseline_test: float
     importances: tuple[tuple[str, float], ...]
     warnings: tuple[str, ...]
+    kind: str = "predictive-association"  # never causal inference, never a hypothesis test
 
 
 def zoo(task: str) -> list[tuple[str, object]]:
@@ -59,7 +60,17 @@ def test_metric(task: str, y_true: np.ndarray, pred: np.ndarray) -> tuple[str, f
     return "rmse", rmse
 
 
-def run(prep: Prepared) -> Results:
+def run(prep: Prepared, preprocessor_factory=None) -> Results:
+    """Select by leakage-free CV, evaluate once on the locked holdout.
+
+    Every CV fold fits its own preprocessing pipeline on raw fold-train rows;
+    the holdout is transformed by the train-fit preprocessor and scored exactly
+    once, after selection. It never influences the choice.
+    """
+    from sklearn.pipeline import Pipeline as _Pipeline
+
+    from .data import build_preprocessor as _default_factory
+
     task = prep.profile.task
     scoring = "accuracy" if task == "classification" else "neg_root_mean_squared_error"
     n = len(prep.y_train)
@@ -73,23 +84,45 @@ def run(prep: Prepared) -> Results:
         else:
             cv = min(cv, min_count)
     better = max if task == "classification" else min
+    factory = preprocessor_factory or _default_factory
+    raw_available = prep.train_frame is not None and prep.train_target is not None
     scores: list[ModelScore] = []
     fitted: dict[str, object] = {}
+    failed_all: set[str] = set()
+    bad_test: set[str] = set()
     for name, model in zoo(task):
-        cv_scores = cross_val_score(model, prep.X_train, prep.y_train, cv=cv, scoring=scoring)
+        if raw_available:
+            pipe = _Pipeline([("pre", factory(prep.profile.numeric_features,
+                                              prep.profile.categorical_features)),
+                              ("est", model)])
+            cv_scores = cross_val_score(pipe, prep.train_frame, prep.train_target,
+                                        cv=cv, scoring=scoring)
+        else:  # legacy Prepared without raw frames: CV on the provided arrays
+            cv_scores = cross_val_score(model, prep.X_train, prep.y_train, cv=cv, scoring=scoring)
         if task == "regression":
             cv_scores = -cv_scores
         mean, std = float(np.nanmean(cv_scores)), float(np.nanstd(cv_scores))
         if np.isnan(mean):  # every fold failed: worst possible, flagged below
             mean = 0.0 if task == "classification" else float("inf")
             std = 0.0
+            failed_all.add(name)
             warnings.append(f"{name}: all CV folds failed")
         model.fit(prep.X_train, prep.y_train)
         _, test = test_metric(task, prep.y_test, model.predict(prep.X_test))
+        if not np.isfinite(test):
+            warnings.append(f"{name}: non-finite test score — predictions are unusable")
+            bad_test.add(name)
+            test = 0.0 if task == "classification" else float("inf")
         fitted[name] = model
         scores.append(ModelScore(name, mean, std, test))
     non_dummy = [s for s in scores if s.name != "dummy"]
     best = better(non_dummy, key=lambda s: s.cv_mean)  # cv decides, test only reported
+    if best.name in failed_all:
+        raise ValueError(f"{best.name} failed every CV fold; no usable model — "
+                         "check target quality and feature coverage")
+    if best.name in bad_test:
+        raise ValueError(f"{best.name} produced non-finite holdout predictions; "
+                         "the result is unusable — check for inf/NaN in features or target")
     baseline = next(s for s in scores if s.name == "dummy")
     metric = "accuracy" if task == "classification" else "rmse"
     extra = ""
@@ -112,7 +145,8 @@ def run(prep: Prepared) -> Results:
     if prep.profile.n_rows < 100:
         warnings.append(f"small sample (n={prep.profile.n_rows}) — wide uncertainty")
     imp = permutation_importance(
-        fitted[best.name], prep.X_test, prep.y_test, n_repeats=5, random_state=RANDOM_STATE  # type: ignore[arg-type]
+        fitted[best.name], prep.X_test, prep.y_test, n_repeats=5, random_state=RANDOM_STATE,
+        scoring=scoring,  # same metric as selection and evaluation
     )
     order = np.argsort(imp.importances_mean)[::-1][:N_IMPORTANCE]
     importances = tuple((prep.feature_names[i], round(float(imp.importances_mean[i]), 4)) for i in order)

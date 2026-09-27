@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -246,11 +247,25 @@ def run_review(question: str, max_papers: int, http: httpx.Client, muse: Complet
     return Iteration(n=0, question=question, kind="review", summary=summary, detail=detail, provenance=prov)
 
 
+def split_seed(csv: str, target: str, question: str) -> int:
+    """Stable per-question split seed: reproducibility without one global holdout.
+
+    Identical (csv, target, question) replays the same split; anything else
+    rotates the holdout, so an adaptive cycle cannot repeatedly optimize
+    against one disclosed outcome. The seed is recorded in provenance.
+    """
+    digest = hashlib.sha256(f"{csv}\n{target}\n{question}".encode()).hexdigest()
+    return int(digest[:8], 16)
+
+
 def run_analyze(question: str, csv: str, target: str, muse: Completer, journal: Journal | None = None,
                 record_dir=None) -> Iteration:
     emit(journal, "analyze", "start", f"{csv} target={target}")
+    if analysis.classify_analysis(question) == "causal":
+        emit(journal, "analyze", "causal-refused", question[:200])
+        raise NoEvidence(analysis.CAUSAL_REFUSAL)
     df = datamod.load_csv(csv)
-    prep = datamod.prepare(df, target)
+    prep = datamod.prepare(df, target, seed=split_seed(csv, target, question))
     emit(journal, "analyze", "prepared", f"{prep.profile.n_rows} rows, {prep.profile.task}")
     res = modeling.run(prep)
     emit(journal, "analyze", "modeled", f"{res.best} test={res.best_test} baseline={res.baseline_test}")
@@ -262,6 +277,8 @@ def run_analyze(question: str, csv: str, target: str, muse: Completer, journal: 
     summary = f"Q: {question}\n{res.task} on {prep.profile.n_rows} rows: {res.best} test {res.best_test} vs baseline {res.baseline_test}. {findings.text[:600]}"
     prov = {
         "kind": "analyze",
+        "analysis_kind": res.kind,
+        "split_seed": prep.seed,
         "csv": csv,
         "target": target,
         "best": res.best,
