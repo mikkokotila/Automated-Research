@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import uuid
+from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -250,6 +251,25 @@ def render_markdown(spec: ResearchSpec, papers: list[Paper], synth: Synthesis,
     lines += [synth.text, "", "## Sources", ""]
     for i, p in enumerate(papers, 1):
         lines.append(f"{p.cite_line(i)} (score {p.score:.2f})")
+    if synth.claims:
+        lines += ["", "## Validated claims", ""]
+        for claim in synth.claims:
+            ev = ", ".join(f"[paper {e.paper}{' ✓' if e.anchored else ' ✗ dangling'}]"
+                           for e in claim.evidence) or "no evidence declared"
+            lines.append(f"- {claim.id} ({claim.support}, scope {claim.scope or '?'}): "
+                         f"{claim.text}")
+            lines.append(f"  - evidence: {ev}")
+            if claim.uncertainty:
+                lines.append(f"  - uncertainty: {claim.uncertainty}")
+    validation = synth.validation or {}
+    if validation.get("rejected") or validation.get("dangling_citations"):
+        lines += ["", "## Validation notes", ""]
+        for marker in validation.get("dangling_citations", []):
+            lines.append(f"- dangling citation [{marker}]: no such paper provided")
+        for problem in validation.get("rejected", []):
+            lines.append(f"- rejected: {problem}")
+    if validation.get("unresolved"):
+        lines += ["", "_Unresolved: " + "; ".join(validation["unresolved"]) + "_", ""]
     lines.append("")
     return "\n".join(lines)
 
@@ -272,6 +292,8 @@ def write_bundle(
         "model": synth.model,
         "cited": list(synth.cited),
         "coverage_warning": coverage_warning,
+        "claims": [asdict(c) for c in synth.claims],
+        "validation": synth.validation,
         "papers": [
             {
                 "n": i,

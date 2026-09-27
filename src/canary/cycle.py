@@ -7,7 +7,7 @@ import os
 import re
 import shutil
 import uuid
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -23,10 +23,22 @@ FOLLOWUP_SYSTEM = (
     "You are a research strategist. Given the findings so far, propose follow-up "
     "research questions that are answerable and non-redundant. Reply with ONLY a "
     "JSON array of objects with keys: question (string), kind (\"review\" or "
-    "\"analyze\"), rationale (one sentence). Prefer \"analyze\" only when the "
+    "\"analyze\"), rationale (one sentence, naming its link to the original "
+    "objective), gap (which listed evidence gap this addresses, or \"\"). "
+    "Propose from the evidence gaps first; an adjacent question needs an "
+    "explicit objective link in its rationale. Prefer \"analyze\" only when the "
     "available dataset plausibly contains the needed variables; otherwise use "
     "\"review\". If nothing worthwhile remains, reply with []. At most 3 items."
 )
+
+
+def propose_prompt(history: str, dataset_hint: str, seed: str, gaps: list[str]) -> str:
+    lines = [f"Original objective: {seed}", f"Dataset available: {dataset_hint}",
+             "", "Findings so far:", history]
+    if gaps:
+        lines += ["", "Open evidence gaps:"] + [f"- {g[:300]}" for g in gaps[:8]]
+    lines += ["", "Propose follow-ups."]
+    return "\n".join(lines)
 
 SYNTHESIS_SYSTEM = (
     "You are a senior researcher. Synthesize the iteration findings below into a "
@@ -116,6 +128,8 @@ class Followup:
     question: str
     kind: str  # "review" | "analyze"
     rationale: str
+    gap: str = ""  # evidence gap this question addresses, in the proposer's words
+    parent: str = ""  # "seed" or "iterN": set by the runner, never the model
 
 
 @dataclass
@@ -149,7 +163,9 @@ def _parse_followups(text: str) -> tuple[list[Followup], str]:
         kind = str(item.get("kind", "")).strip().lower()
         if not q or kind not in ("review", "analyze"):
             continue
-        out.append(Followup(question=q[:500], kind=kind, rationale=str(item.get("rationale", ""))[:300]))
+        out.append(Followup(question=q[:500], kind=kind,
+                            rationale=str(item.get("rationale", ""))[:300],
+                            gap=str(item.get("gap", ""))[:300]))
     return out[:3], ("ok" if out else "malformed")
 
 
@@ -163,8 +179,24 @@ def diagnose_followups(text: str) -> str:
     return _parse_followups(text)[1]
 
 
-def propose(history: str, dataset_hint: str, client: Completer) -> list[Followup]:
-    user = f"Dataset available: {dataset_hint}\n\nFindings so far:\n{history}\n\nPropose follow-ups."
+def replace_followup_parent(f: Followup, parent: str) -> Followup:
+    """Bind lineage runner-side; the model never sets its own parent."""
+    return replace(f, parent=parent)
+
+
+def _harvest_gaps(it: Iteration) -> list[str]:
+    """Unresolved claims become the next propose round's evidence gaps."""
+    gaps = []
+    for claim in it.provenance.get("claims", []):
+        if claim.get("support") in ("unsupported", "contradicted", "partial"):
+            gaps.append(f"iter{it.n}/{claim.get('id')}: {claim.get('text', '')[:200]} "
+                        f"({claim.get('support')})")
+    return gaps
+
+
+def propose(history: str, dataset_hint: str, client: Completer, seed: str = "",
+            gaps: list[str] | None = None) -> list[Followup]:
+    user = propose_prompt(history, dataset_hint, seed or history[:200], gaps or [])
     return parse_followups(client.complete(FOLLOWUP_SYSTEM, user))
 
 
@@ -194,11 +226,23 @@ def run_review(question: str, max_papers: int, http: httpx.Client, muse: Complet
     top = ranked[:spec.max_papers]
     synth = synthesize.synthesize(spec.question, top, muse)
     emit(journal, "review", "synthesized", f"{len(top)} papers, cited {len(synth.cited)}")
+    for marker in synth.validation.get("dangling_citations", []):
+        emit(journal, "review", "dangling-citation", f"[{marker}] points at no paper")
+    for problem in synth.validation.get("rejected", []):
+        emit(journal, "review", "claim-rejected", problem[:250])
+    supported = [c for c in synth.claims if c.support in ("supported", "partial")]
+    if not synth.cited and not supported:
+        raise NoEvidence("retrieved material does not support an answer to this question")
     detail = report.render_markdown(spec, top, synth, warning)
     cited = ", ".join(f"[{i}]" for i in synth.cited[:6]) or "none"
     summary = f"Q: {question}\nReview of {len(top)} papers (cited {cited}). {synth.text[:800]}"
+    caveats = "; ".join(f"{c.id} {c.support}: {c.uncertainty or c.text}"[:200]
+                        for c in synth.claims if c.support != "supported" or c.uncertainty)
+    if caveats:
+        summary += f"\nCaveats: {caveats[:600]}"
     prov = {"kind": "review", "papers": [p.title for p in top], "model": synth.model,
-            "coverage_warning": warning}
+            "coverage_warning": warning, "claims": [asdict(c) for c in synth.claims],
+            "validation": synth.validation}
     return Iteration(n=0, question=question, kind="review", summary=summary, detail=detail, provenance=prov)
 
 
@@ -324,6 +368,7 @@ def run_cycle(
         code_hash, csv_hash = report.code_revision(), report.file_hash(spec.csv)
     stopped = StopReason.CONVERGED
     bad_proposes = 0
+    evidence_gaps = [g for it in iterations for g in _harvest_gaps(it)]
     synthesis = ""
     revising = maintenance and repo_root is not None
     if maintenance and repo_root is None:
@@ -356,9 +401,9 @@ def run_cycle(
                 followups: list[Followup] = []
                 for attempt in range(2):  # malformed proposals get one retry
                     try:
-                        reply = muse.complete(FOLLOWUP_SYSTEM,
-                                              f"Dataset available: {hint}\n\nFindings so far:\n"
-                                              f"{history}\n\nPropose follow-ups.")
+                        reply = muse.complete(
+                            FOLLOWUP_SYSTEM,
+                            propose_prompt(history, hint, question, evidence_gaps))
                     except (RequestBlocked, BudgetExhausted, Cancelled):
                         raise
                     except Exception as e:
@@ -383,11 +428,14 @@ def run_cycle(
                     continue  # re-propose once more; pending is empty so this decides now
                 bad_proposes = 0
                 fresh: list[Followup] = []
+                parent = f"iter{len(iterations)}" if iterations else "seed"
                 for f in followups:
                     key = normalize(f.question)
                     if key not in seen:
                         seen.add(key)
-                        fresh.append(f)
+                        fresh.append(replace_followup_parent(f, parent))
+                        emit(journal, "cycle", "proposed",
+                             f"{f.question[:120]} parent={parent} gap={f.gap[:120]}")
                 if not fresh:  # nothing new: converged is honest only on a clean []
                     stopped = (StopReason.CONVERGED if diagnosis == "empty"
                                else StopReason.INSUFFICIENT_EVIDENCE)
@@ -423,6 +471,7 @@ def run_cycle(
                 report.write_iteration(record_dir, it)
             _checkpoint()  # iterations, pending, seen, budgets — all durable
             bad_proposes = 0
+            evidence_gaps.extend(_harvest_gaps(it))
             emit(journal, "cycle", "iter-done", f"n={it.n} kind={it.kind}")
             if revising:  # iterative maintenance as it goes, not only at the end
                 _mid_run_revise(journal, it, repo_root, muse, check_cmd)
