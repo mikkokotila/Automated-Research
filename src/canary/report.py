@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import os
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -12,12 +15,158 @@ from .data import Prepared
 from .journal import Journal
 from .modeling import Results
 from .papers import Paper
+from .redact import redact_text
 from .spec import ResearchSpec, StopReason
 from .synthesize import Synthesis
 
 if TYPE_CHECKING:
-    from .cycle import CycleResult
+    from .cycle import CycleResult, Iteration
     from .spec import RunSpec
+
+MANIFEST_VERSION = 1
+MANIFEST_NAME = "manifest.json"
+
+
+class BundleError(RuntimeError):
+    """Run bundle unreadable or unwritable. Never fabricate the missing piece."""
+
+
+def _utcnow() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _atomic_write_json(path: Path, obj: dict) -> None:
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    try:
+        with tmp.open("w", encoding="utf-8") as f:
+            f.write(redact_text(json.dumps(obj, indent=2)))
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+    except OSError as exc:
+        try:
+            tmp.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise BundleError(f"manifest not durable: {exc}") from exc
+
+
+def begin_run(out_dir: str | Path, spec: "RunSpec", kind: str) -> str:
+    """Create the run manifest before any work starts. Returns the run id."""
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    run_id = f"{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
+    _atomic_write_json(out / MANIFEST_NAME, {
+        "schema_version": MANIFEST_VERSION, "run_id": run_id, "kind": kind,
+        "spec": spec.to_dict(), "status": "in_progress",
+        "started_at": _utcnow(), "finished_at": None, "artefacts": [],
+    })
+    return run_id
+
+
+def _artefacts(out: Path) -> list[dict]:
+    files = []
+    for path in sorted(out.rglob("*")):
+        if not path.is_file() or path.is_symlink():
+            continue
+        if path.name == MANIFEST_NAME or path.suffix == ".tmp":
+            continue
+        digest = hashlib.sha256()
+        with path.open("rb") as f:
+            while chunk := f.read(65536):
+                digest.update(chunk)
+        files.append({"path": str(path.relative_to(out)), "sha256": digest.hexdigest(),
+                      "size": path.stat().st_size})
+    return files
+
+
+def finalize_manifest(out_dir: str | Path, status: str) -> dict:
+    """Seal the manifest with outcome + artefact checksums. Creates it if absent."""
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    manifest: dict | None = None
+    try:
+        manifest = json.loads((out / MANIFEST_NAME).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        manifest = None
+    if not isinstance(manifest, dict) or manifest.get("schema_version") != MANIFEST_VERSION:
+        manifest = {"schema_version": MANIFEST_VERSION,
+                    "run_id": f"late-{uuid.uuid4().hex[:6]}", "kind": "unknown",
+                    "spec": None, "started_at": _utcnow()}
+    manifest.update({"status": status, "finished_at": _utcnow(),
+                     "artefacts": _artefacts(out)})
+    _atomic_write_json(out / MANIFEST_NAME, manifest)
+    return manifest
+
+
+def _append_jsonl(path: Path, obj: dict) -> None:
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as f:
+            f.write(redact_text(json.dumps(obj)) + "\n")
+            f.flush()
+            os.fsync(f.fileno())
+    except OSError as exc:
+        raise BundleError(f"incremental record not durable: {exc}") from exc
+
+
+def record_retrieval(out_dir: str | Path, question: str, papers: list[Paper]) -> None:
+    """Persist retrieved references immediately; synthesis may never run."""
+    _append_jsonl(Path(out_dir) / "retrieval.jsonl", {
+        "at": _utcnow(), "question": question,
+        "papers": [{"ref": p.ref, "title": p.title, "doi": p.doi, "year": p.year,
+                    "source": p.source} for p in papers]})
+
+
+def record_analysis_inputs(out_dir: str | Path, question: str, csv: str, target: str,
+                           prep: Prepared, res: Results) -> None:
+    """Persist modelling evidence before narration runs."""
+    _append_jsonl(Path(out_dir) / "analysis.jsonl", {
+        "at": _utcnow(), "question": question, "csv": csv, "target": target,
+        "n_rows": prep.profile.n_rows, "task": res.task, "best": res.best,
+        "best_test": res.best_test, "baseline_test": res.baseline_test,
+        "warnings": list(res.warnings)})
+
+
+def write_iteration(out_dir: str | Path, iteration: "Iteration") -> None:
+    """Persist one iteration bundle. Idempotent; safe to call twice."""
+    iters = Path(out_dir) / "iterations"
+    iters.mkdir(parents=True, exist_ok=True)
+    (iters / f"iter{iteration.n}-{iteration.kind}.md").write_text(
+        redact_text(iteration.detail), encoding="utf-8")
+    _atomic_write_json(iters / f"iter{iteration.n}.json",
+                       {"n": iteration.n, "kind": iteration.kind,
+                        "question": iteration.question, **iteration.provenance})
+
+
+def read_bundle(out_dir: str | Path) -> dict:
+    """Inspect a bundle without executing anything. Legacy stays legacy."""
+    out = Path(out_dir)
+    report: dict = {"dir": str(out), "status": "legacy", "manifest": None,
+                    "manifest_corrupt": False, "journal": {"status": "missing"},
+                    "run": None, "spec": None}
+    mpath = out / MANIFEST_NAME
+    if mpath.exists():
+        try:
+            manifest = json.loads(mpath.read_text(encoding="utf-8"))
+            if manifest.get("schema_version") != MANIFEST_VERSION or "run_id" not in manifest:
+                raise ValueError("unknown manifest schema")
+            report["manifest"] = manifest
+        except (OSError, ValueError):
+            report["manifest_corrupt"] = True
+    _, journal_report = Journal.inspect(out / "journal.jsonl")
+    report["journal"] = journal_report
+    for key, name in (("run", "run.json"), ("spec", "spec.json")):
+        try:
+            report[key] = json.loads((out / name).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            report[key] = None
+    if report["manifest_corrupt"]:
+        report["status"] = "corrupt"
+    elif report["manifest"] is not None:
+        status = report["manifest"].get("status", "in_progress")
+        report["status"] = "interrupted" if status == "in_progress" else status
+    return report
 
 
 def render_markdown(spec: ResearchSpec, papers: list[Paper], synth: Synthesis) -> str:
@@ -45,7 +194,7 @@ def write_bundle(
     out.mkdir(parents=True, exist_ok=True)
     if journal is not None:
         journal.save(out / "journal.jsonl")
-    (out / "review.md").write_text(render_markdown(spec, papers, synth), encoding="utf-8")
+    (out / "review.md").write_text(redact_text(render_markdown(spec, papers, synth)), encoding="utf-8")
     provenance = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "question": spec.question,
@@ -70,7 +219,12 @@ def write_bundle(
             for i, p in enumerate(papers, 1)
         ],
     }
-    (out / "provenance.json").write_text(json.dumps(provenance, indent=2), encoding="utf-8")
+    (out / "provenance.json").write_text(redact_text(json.dumps(provenance, indent=2)),
+                                         encoding="utf-8")
+    if journal is not None:
+        journal.trusted_note("bundle", "sealed", "artefacts finalized")
+        journal.save(out / "journal.jsonl")
+    finalize_manifest(out, "completed")
     return out
 
 
@@ -111,7 +265,8 @@ def write_analysis_bundle(
     out.mkdir(parents=True, exist_ok=True)
     if journal is not None:
         journal.save(out / "journal.jsonl")
-    (out / "analysis.md").write_text(render_analysis(question, csv, target, prep, res, f), encoding="utf-8")
+    (out / "analysis.md").write_text(redact_text(render_analysis(question, csv, target, prep, res, f)),
+                                         encoding="utf-8")
     p = prep.profile
     provenance = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -134,19 +289,22 @@ def write_analysis_bundle(
         "preprocessing": prep.preprocessing,
         "data_notes": list(p.notes),
     }
-    (out / "provenance.json").write_text(json.dumps(provenance, indent=2), encoding="utf-8")
+    (out / "provenance.json").write_text(redact_text(json.dumps(provenance, indent=2)),
+                                         encoding="utf-8")
+    if journal is not None:
+        journal.trusted_note("bundle", "sealed", "artefacts finalized")
+        journal.save(out / "journal.jsonl")
+    finalize_manifest(out, "completed")
     return out
 
 
 def write_cycle_bundle(out_dir: str | Path, seed: str, res: "CycleResult",
                        journal: Journal | None = None, spec: "RunSpec | None" = None) -> Path:
     out = Path(out_dir)
-    iters = out / "iterations"
-    iters.mkdir(parents=True, exist_ok=True)
     if journal is not None:
         journal.save(out / "journal.jsonl")
     for i in res.iterations:
-        (iters / f"iter{i.n}-{i.kind}.md").write_text(i.detail, encoding="utf-8")
+        write_iteration(out, i)
     stopped = res.stopped.value if isinstance(res.stopped, StopReason) else res.stopped
     usage = res.usage or {}
     usage_line = (f"model calls: {usage.get('model_calls', '?')}, "
@@ -168,7 +326,7 @@ def write_cycle_bundle(out_dir: str | Path, seed: str, res: "CycleResult",
     if res.unanswered:
         lines += ["", "## Unanswered (carry forward)", ""] + [f"- {q}" for q in res.unanswered]
     lines.append("")
-    (out / "synthesis.md").write_text("\n".join(lines), encoding="utf-8")
+    (out / "synthesis.md").write_text(redact_text("\n".join(lines)), encoding="utf-8")
     provenance = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "kind": "cycle",
@@ -182,7 +340,12 @@ def write_cycle_bundle(out_dir: str | Path, seed: str, res: "CycleResult",
             {"n": i.n, "kind": i.kind, "question": i.question, **i.provenance} for i in res.iterations
         ],
     }
-    (out / "run.json").write_text(json.dumps(provenance, indent=2), encoding="utf-8")
+    (out / "run.json").write_text(redact_text(json.dumps(provenance, indent=2)), encoding="utf-8")
     if spec is not None:
-        (out / "spec.json").write_text(json.dumps(spec.to_dict(), indent=2), encoding="utf-8")
+        (out / "spec.json").write_text(redact_text(json.dumps(spec.to_dict(), indent=2)),
+                                       encoding="utf-8")
+    if journal is not None:
+        journal.trusted_note("bundle", "sealed", f"stopped={stopped}")
+        journal.save(out / "journal.jsonl")
+    finalize_manifest(out, stopped)
     return out
