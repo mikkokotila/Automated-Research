@@ -171,12 +171,18 @@ def _append_jsonl(path: Path, obj: dict) -> None:
         raise BundleError(f"incremental record not durable: {exc}") from exc
 
 
-def record_retrieval(out_dir: str | Path, question: str, papers: list[Paper]) -> None:
+def record_retrieval(out_dir: str | Path, question: str, papers: list[Paper],
+                     retrieval_report: dict | None = None) -> None:
     """Persist retrieved references immediately; synthesis may never run."""
     _append_jsonl(Path(out_dir) / "retrieval.jsonl", {
         "at": _utcnow(), "question": question,
         "papers": [{"ref": p.ref, "title": p.title, "doi": p.doi, "year": p.year,
-                    "source": p.source} for p in papers]})
+                    "source": p.source, "citations": p.citations,
+                    "evidence": p.evidence, "oa_url": p.oa_url, "license": p.license,
+                    "identifiers": p.identifiers, "abstract": p.abstract,
+                    "abstract_complete": p.extra.get("abstract_complete", True),
+                    "rank_reasons": p.extra.get("rank_reasons")} for p in papers],
+        "report": retrieval_report})
 
 
 def record_analysis_inputs(out_dir: str | Path, question: str, csv: str, target: str,
@@ -230,18 +236,18 @@ def read_bundle(out_dir: str | Path) -> dict:
     return report
 
 
-def render_markdown(spec: ResearchSpec, papers: list[Paper], synth: Synthesis) -> str:
+def render_markdown(spec: ResearchSpec, papers: list[Paper], synth: Synthesis,
+                    coverage_warning: str | None = None) -> str:
     lines = [
         f"# Literature review: {spec.question}",
         "",
         f"_Papers reviewed: {len(papers)} | Model: {synth.model} | "
         f"Cited: {len(synth.cited)}/{len(papers)}_",
         "",
-        synth.text,
-        "",
-        "## Sources",
-        "",
     ]
+    if coverage_warning:
+        lines += [f"> Coverage warning: {coverage_warning}", ""]
+    lines += [synth.text, "", "## Sources", ""]
     for i, p in enumerate(papers, 1):
         lines.append(f"{p.cite_line(i)} (score {p.score:.2f})")
     lines.append("")
@@ -249,13 +255,15 @@ def render_markdown(spec: ResearchSpec, papers: list[Paper], synth: Synthesis) -
 
 
 def write_bundle(
-    out_dir: str | Path, spec: ResearchSpec, papers: list[Paper], synth: Synthesis, journal: Journal | None = None
+    out_dir: str | Path, spec: ResearchSpec, papers: list[Paper], synth: Synthesis, journal: Journal | None = None,
+    coverage_warning: str | None = None,
 ) -> Path:
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     if journal is not None:
         journal.save(out / "journal.jsonl")
-    (out / "review.md").write_text(redact_text(render_markdown(spec, papers, synth)), encoding="utf-8")
+    (out / "review.md").write_text(redact_text(render_markdown(spec, papers, synth, coverage_warning)),
+                                   encoding="utf-8")
     provenance = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "question": spec.question,
@@ -263,6 +271,7 @@ def write_bundle(
         "year_from": spec.year_from,
         "model": synth.model,
         "cited": list(synth.cited),
+        "coverage_warning": coverage_warning,
         "papers": [
             {
                 "n": i,
@@ -276,6 +285,11 @@ def write_bundle(
                 "citations": p.citations,
                 "source": p.source,
                 "score": p.score,
+                "evidence": p.evidence,
+                "oa_url": p.oa_url,
+                "license": p.license,
+                "identifiers": p.identifiers,
+                "rank_reasons": p.extra.get("rank_reasons"),
             }
             for i, p in enumerate(papers, 1)
         ],

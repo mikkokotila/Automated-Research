@@ -35,7 +35,55 @@ def score(question: str, paper: Paper, current_year: int = 2026) -> float:
     return round(norm + cite + recency + abstract_bonus, 4)
 
 
+def reasons(question: str, paper: Paper) -> dict:
+    """Why this paper ranked here: relevance parts, never citations-as-relevance."""
+    keys = keywords(question)
+    title = paper.title.lower()
+    abstract = (paper.abstract or "").lower()
+    title_hits = sorted({k for k in keys if k in title})
+    abstract_hits = sorted({k for k in keys if k in abstract})
+    return {"keywords": keys, "title_hits": title_hits, "abstract_hits": abstract_hits,
+            "citations": paper.citations,
+            "citation_driven": not title_hits and not abstract_hits and paper.citations > 0}
+
+
 def rerank(question: str, papers: list[Paper], top_n: int) -> list[Paper]:
-    scored = [replace(p, score=score(question, p)) for p in papers]
+    scored = [replace(p, score=score(question, p),
+                      extra={**p.extra, "rank_reasons": reasons(question, p)})
+              for p in papers]
     scored.sort(key=lambda p: p.score, reverse=True)
     return scored[:top_n]
+
+
+def matched_terms(question: str, paper: Paper) -> set[str]:
+    """Distinct question keywords engaging this paper's title or abstract."""
+    keys = keywords(question)
+    text = f"{paper.title}\n{paper.abstract or ''}".lower()
+    return {k for k in keys if k in text}
+
+
+def question_coverage(question: str, papers: list[Paper]) -> dict:
+    """Does any candidate engage the question's breadth? Deterministic tripwire.
+
+    Adequate iff one paper matches at least min(3, n_keywords) distinct terms.
+    A weak verdict means no candidate covers the question — citation counts
+    never override it. This flags retrieval failure; it cannot judge aboutness.
+    """
+    keys = keywords(question)
+    if not keys:
+        return {"keywords": [], "min_cover": 0, "best_cover": 0, "best_ref": None,
+                "verdict": "adequate", "detail": "question has no keywords to cover"}
+    if not papers:
+        return {"keywords": keys, "min_cover": min(3, len(keys)), "best_cover": 0,
+                "best_ref": None, "verdict": "weak", "detail": "no candidates retrieved"}
+    best = max(papers, key=lambda p: len(matched_terms(question, p)))
+    cover = len(matched_terms(question, best))
+    need = min(3, len(keys))
+    if cover >= need:
+        return {"keywords": keys, "min_cover": need, "best_cover": cover,
+                "best_ref": best.ref, "verdict": "adequate",
+                "detail": f"{best.ref} covers {cover}/{len(keys)} question terms"}
+    return {"keywords": keys, "min_cover": need, "best_cover": cover,
+            "best_ref": best.ref, "verdict": "weak",
+            "detail": f"best candidate {best.ref} covers {cover}/{len(keys)} question "
+                      f"terms (needs {need}); citations do not establish relevance"}
