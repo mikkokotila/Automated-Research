@@ -18,6 +18,10 @@ class Paper:
     citations: int = 0
     source: str = ""  # "openalex" | "semanticscholar"
     score: float = 0.0
+    evidence: str = ""  # "fulltext" | "abstract" | "none" ("" = unknown/legacy)
+    oa_url: str = ""  # lawful open-access copy when the provider names one
+    license: str = ""  # license string as reported by the provider, if any
+    identifiers: dict = field(default_factory=dict, compare=False)
     extra: dict = field(default_factory=dict, compare=False)
 
     def cite_line(self, n: int) -> str:

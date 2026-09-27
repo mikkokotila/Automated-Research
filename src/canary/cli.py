@@ -23,15 +23,22 @@ def review(spec: RunSpec) -> str:
     emit(j, "review", "start", spec.question[:200])
     rspec = spec.research_spec()
     with httpx.Client(headers={"User-Agent": "Canary/0.1"}) as http:
-        papers = retrieval.retrieve(rspec, http)
+        papers, retrieval_report = retrieval.retrieve_with_report(rspec, http)
     emit(j, "review", "retrieved", f"{len(papers)} candidates")
-    report.record_retrieval(spec.out_dir, spec.question, papers)
+    for name, outcome in retrieval_report["providers"].items():
+        if outcome["outcome"] != "ok":
+            emit(j, "review", "provider-failed", f"{name}: {outcome['error']}")
+    warning = retrieval_report["warning"]
+    if warning:
+        emit(j, "review", "coverage-warning", warning[:300])
     if not papers:
         raise RuntimeError("no papers found for this question")
-    top = rank.rerank(rspec.question, papers, rspec.max_papers)
+    ranked = rank.rerank(rspec.question, papers, len(papers))
+    report.record_retrieval(spec.out_dir, spec.question, ranked, retrieval_report)
+    top = ranked[:rspec.max_papers]
     synth = synthesize.synthesize(rspec.question, top, MuseClient(budget=RunBudget.from_spec(spec)))
     emit(j, "review", "synthesized", f"{len(top)} papers, cited {len(synth.cited)}")
-    path = report.write_bundle(spec.out_dir, rspec, top, synth, j)
+    path = report.write_bundle(spec.out_dir, rspec, top, synth, j, warning)
     return str(path / "review.md")
 
 

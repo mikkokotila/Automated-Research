@@ -176,19 +176,29 @@ def run_review(question: str, max_papers: int, http: httpx.Client, muse: Complet
                record_dir: str | Path | None = None) -> Iteration:
     emit(journal, "review", "start", question[:200])
     spec = ResearchSpec(question=question, max_papers=max_papers)
-    papers = retrieval.retrieve(spec, http)
+    papers, retrieval_report = retrieval.retrieve_with_report(spec, http)
     emit(journal, "review", "retrieved", f"{len(papers)} candidates")
-    if record_dir is not None:
-        report.record_retrieval(record_dir, question, papers)
+    for name, outcome in retrieval_report["providers"].items():
+        if outcome["outcome"] != "ok":
+            emit(journal, "review", "provider-failed", f"{name}: {outcome['error']}")
+    for change in retrieval_report["refinements"]:
+        emit(journal, "review", "query-refined", f"{change['from'][:100]} -> {change['to'][:100]}")
+    warning = retrieval_report["warning"]
+    if warning:
+        emit(journal, "review", "coverage-warning", warning[:300])
     if not papers:
         raise NoEvidence("no papers found for this question")
-    top = rank.rerank(spec.question, papers, spec.max_papers)
+    ranked = rank.rerank(spec.question, papers, len(papers))
+    if record_dir is not None:
+        report.record_retrieval(record_dir, question, ranked, retrieval_report)
+    top = ranked[:spec.max_papers]
     synth = synthesize.synthesize(spec.question, top, muse)
     emit(journal, "review", "synthesized", f"{len(top)} papers, cited {len(synth.cited)}")
-    detail = report.render_markdown(spec, top, synth)
+    detail = report.render_markdown(spec, top, synth, warning)
     cited = ", ".join(f"[{i}]" for i in synth.cited[:6]) or "none"
     summary = f"Q: {question}\nReview of {len(top)} papers (cited {cited}). {synth.text[:800]}"
-    prov = {"kind": "review", "papers": [p.title for p in top], "model": synth.model}
+    prov = {"kind": "review", "papers": [p.title for p in top], "model": synth.model,
+            "coverage_warning": warning}
     return Iteration(n=0, question=question, kind="review", summary=summary, detail=detail, provenance=prov)
 
 

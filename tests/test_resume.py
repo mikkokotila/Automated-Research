@@ -59,21 +59,22 @@ class CrashMuse:
         return self._inner.complete(system, user, max_tokens)
 
 
-def mock_http() -> httpx.Client:
-    def handler(req: httpx.Request) -> httpx.Response:
-        if "openalex" in str(req.url):
-            return httpx.Response(200, json={
-                "results": [{
-                    "id": "W1", "title": "Study on X", "doi": "https://doi.org/10.1/x",
-                    "publication_year": 2023, "cited_by_count": 5,
-                    "authorships": [{"author": {"display_name": "A. Uthor"}}],
-                    "primary_location": {"source": {"display_name": "J X"}},
-                    "abstract_inverted_index": {"X": [0], "matters": [1]},
-                }]
-            })
-        return httpx.Response(200, json={"data": []})
+def mock_http_handler(req: httpx.Request) -> httpx.Response:
+    if "openalex" in str(req.url):
+        return httpx.Response(200, json={
+            "results": [{
+                "id": "W1", "title": "Study on X", "doi": "https://doi.org/10.1/x",
+                "publication_year": 2023, "cited_by_count": 5,
+                "authorships": [{"author": {"display_name": "A. Uthor"}}],
+                "primary_location": {"source": {"display_name": "J X"}},
+                "abstract_inverted_index": {"X": [0], "matters": [1]},
+            }]
+        })
+    return httpx.Response(200, json={"data": []})
 
-    return httpx.Client(transport=httpx.MockTransport(handler))
+
+def mock_http() -> httpx.Client:
+    return httpx.Client(transport=httpx.MockTransport(mock_http_handler))
 
 
 def manifest(out):
@@ -309,6 +310,9 @@ def test_cli_resume_end_to_end(tmp_path, monkeypatch, capsys):
     out = tmp_path / "run"
     crash_after_first_iteration(out)
     monkeypatch.setattr(cli, "MuseClient", lambda *a, **k: resume_muse())
+    real_client = httpx.Client  # the CLI builds its own client: keep it offline
+    monkeypatch.setattr(httpx, "Client",
+                        lambda *a, **k: real_client(transport=httpx.MockTransport(mock_http_handler)))
     assert cli.main(["resume", str(out)]) == 0
     printed = capsys.readouterr().out.strip()
     assert printed.endswith("synthesis.md")
