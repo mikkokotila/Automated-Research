@@ -207,9 +207,17 @@ class NoEvidence(RuntimeError):
 
 
 def run_review(question: str, max_papers: int, http: httpx.Client, muse: Completer, journal: Journal | None = None,
-               record_dir: str | Path | None = None) -> Iteration:
+               record_dir: str | Path | None = None, selector=None,
+               budget_frac: float = 1.0) -> Iteration:
+    """One review step. A bandit selector swaps the retrieval query only;
+    rerank, synthesis, and scoring stay anchored to the original question.
+    The session degrades to fixed internally on store failure, loudly."""
     emit(journal, "review", "start", question[:200])
-    spec = ResearchSpec(question=question, max_papers=max_papers)
+    goal = question
+    decision = selector.decide(goal, budget_frac=budget_frac, model=muse.model) \
+        if selector is not None else None
+    spec = ResearchSpec(question=decision.query if decision else question,
+                        max_papers=max_papers)
     papers, retrieval_report = retrieval.retrieve_with_report(spec, http)
     emit(journal, "review", "retrieved", f"{len(papers)} candidates")
     for name, outcome in retrieval_report["providers"].items():
@@ -221,12 +229,20 @@ def run_review(question: str, max_papers: int, http: httpx.Client, muse: Complet
     if warning:
         emit(journal, "review", "coverage-warning", warning[:300])
     if not papers:
+        if decision is not None and selector is not None:
+            selector.score_and_observe(decision, {
+                "question": goal, "papers": [], "claims": (),
+                "validation": {}, "dedupe": retrieval_report["dedupe"],
+                "n_provider_calls": 2 * len(retrieval_report["queries"]),
+                "n_model_calls": 0,
+                "providers_ok": any(p["outcome"] == "ok"
+                                    for p in retrieval_report["providers"].values())})
         raise NoEvidence("no papers found for this question")
-    ranked = rank.rerank(spec.question, papers, len(papers))
+    ranked = rank.rerank(goal, papers, len(papers))
     if record_dir is not None:
-        report.record_retrieval(record_dir, question, ranked, retrieval_report)
+        report.record_retrieval(record_dir, goal, ranked, retrieval_report)
     top = ranked[:spec.max_papers]
-    synth = synthesize.synthesize(spec.question, top, muse)
+    synth = synthesize.synthesize(goal, top, muse)
     emit(journal, "review", "synthesized", f"{len(top)} papers, cited {len(synth.cited)}")
     for marker in synth.validation.get("dangling_citations", []):
         emit(journal, "review", "dangling-citation", f"[{marker}] points at no paper")
@@ -234,6 +250,15 @@ def run_review(question: str, max_papers: int, http: httpx.Client, muse: Complet
         emit(journal, "review", "claim-rejected", problem[:250])
     supported = [c for c in synth.claims if c.support in ("supported", "partial")]
     if not synth.cited and not supported:
+        if decision is not None and selector is not None:
+            selector.score_and_observe(decision, {
+                "question": goal, "papers": ranked, "claims": synth.claims,
+                "validation": synth.validation,
+                "dedupe": retrieval_report["dedupe"],
+                "n_provider_calls": 2 * len(retrieval_report["queries"]),
+                "n_model_calls": 1,
+                "providers_ok": any(p["outcome"] == "ok"
+                                    for p in retrieval_report["providers"].values())})
         raise NoEvidence("retrieved material does not support an answer to this question")
     detail = report.render_markdown(spec, top, synth, warning)
     cited = ", ".join(f"[{i}]" for i in synth.cited[:6]) or "none"
@@ -245,6 +270,19 @@ def run_review(question: str, max_papers: int, http: httpx.Client, muse: Complet
     prov = {"kind": "review", "papers": [p.title for p in top], "model": synth.model,
             "coverage_warning": warning, "claims": [asdict(c) for c in synth.claims],
             "validation": synth.validation}
+    if decision is not None and selector is not None:
+        obs = selector.score_and_observe(decision, {
+            "question": goal, "papers": ranked, "claims": synth.claims,
+            "validation": synth.validation,
+            "dedupe": retrieval_report["dedupe"],
+            "n_provider_calls": 2 * len(retrieval_report["queries"]),
+            "n_model_calls": 1,
+            "providers_ok": any(p["outcome"] == "ok"
+                                for p in retrieval_report["providers"].values())})
+        prov["strategy"] = {"decision_id": decision.id, "strategy_id": decision.strategy_id,
+                            "query": decision.query, "fallback": decision.fallback,
+                            "mode": decision.mode, "reward_status": obs["status"],
+                            "reward": obs["reward"]}
     return Iteration(n=0, question=question, kind="review", summary=summary, detail=detail, provenance=prov)
 
 
@@ -376,6 +414,7 @@ def run_cycle(
     budget: RunBudget | None = None,
     record_dir: str | Path | None = None,
     resume: dict | None = None,
+    bandit=None,
 ) -> CycleResult:
     resumed = resume or {}
     if spec is None:  # explicit spec wins; resume carries its own; else legacy args
@@ -393,7 +432,8 @@ def run_cycle(
                   getattr(muse, "budget", None) or RunBudget.from_spec(spec))
     scope = Scope(maintenance=maintenance, repo_root=repo_root,
                   check_cmd=tuple(check_cmd) if check_cmd else None,
-                  revise_rounds=spec.revise_rounds)
+                  revise_rounds=spec.revise_rounds,
+                  bandit=bandit.to_dict() if bandit is not None else None)
     if resumed and resumed.get("scope") is not None:
         try:
             ckpt_scope = Scope.from_dict(resumed["scope"])
@@ -403,6 +443,12 @@ def run_cycle(
             raise ResumeError(
                 f"scope mismatch: checkpoint={ckpt_scope.to_dict()} args={scope.to_dict()}")
     revising = maintenance and repo_root is not None
+    selector = None
+    if bandit is not None and bandit.mode != "off":
+        from .strategy import SelectorSession
+
+        selector = SelectorSession(bandit, journal, record_dir,
+                                   journal.run_id if journal else "run")
     if resumed and resumed.get("scheduler") is not None:
         try:
             sched = Scheduler.from_dict(resumed["scheduler"])
@@ -532,7 +578,11 @@ def run_cycle(
                 if job.kind == "analyze" and csv and target:
                     it = run_analyze(job.question, csv, target, muse, journal, record_dir)
                 else:
-                    it = run_review(job.question, spec.max_papers, http, muse, journal, record_dir)
+                    if selector is not None:
+                        selector.set_gaps(evidence_gaps)
+                    budget_frac = budget.calls_remaining() / max(budget.max_calls, 1)
+                    it = run_review(job.question, spec.max_papers, http, muse, journal,
+                                    record_dir, selector, budget_frac)
             except (RequestBlocked, BudgetExhausted, Cancelled):
                 raise
             except NoEvidence as e:
@@ -796,8 +846,23 @@ def resume_cycle(bundle_dir: str | Path, muse: Completer,
                        spec.max_papers, muse, http, journal=journal,
                        maintenance=spec.maintenance, revise_rounds=spec.revise_rounds,
                        repo_root=checkpoint.get("repo_root"), check_cmd=checkpoint.get("check_cmd"),
-                       spec=spec, record_dir=str(target), resume=resume_state)
+                       spec=spec, record_dir=str(target), resume=resume_state,
+                       bandit=_bandit_from_checkpoint(checkpoint))
     return result, journal, spec, str(target)
+
+
+def _bandit_from_checkpoint(checkpoint: dict):
+    """Rebuild the bandit config from checkpoint scope. Invalid blocks halt."""
+    from .strategy import BanditConfig
+
+    scope = checkpoint.get("scope") or {}
+    block = scope.get("bandit")
+    if block is None:
+        return None
+    try:
+        return BanditConfig.from_dict(block)
+    except (TypeError, ValueError) as exc:
+        raise ResumeError(f"checkpoint bandit block unusable: {exc}") from exc
 
 
 def resume_after_revision(bundle_dir: str | Path, muse: Completer,
@@ -867,5 +932,6 @@ def resume_after_revision(bundle_dir: str | Path, muse: Completer,
                        spec.max_papers, muse, http, journal=journal,
                        maintenance=False, revise_rounds=spec.revise_rounds,
                        repo_root=repo_root, check_cmd=checkpoint.get("check_cmd"),
-                       spec=spec, record_dir=str(target), resume=resume_state)
+                       spec=spec, record_dir=str(target), resume=resume_state,
+                       bandit=_bandit_from_checkpoint(checkpoint))
     return result, journal, spec, str(target)

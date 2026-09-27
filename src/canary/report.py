@@ -190,6 +190,11 @@ def record_retrieval(out_dir: str | Path, question: str, papers: list[Paper],
         "report": retrieval_report})
 
 
+def record_bandit(out_dir: str | Path, record: dict) -> None:
+    """Append one versioned bandit decision/observation record, durably."""
+    _append_jsonl(Path(out_dir) / "bandit.jsonl", record)
+
+
 def record_analysis_inputs(out_dir: str | Path, question: str, csv: str, target: str,
                            prep: Prepared, res: Results) -> None:
     """Persist modelling evidence before narration runs."""
