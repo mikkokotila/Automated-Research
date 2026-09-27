@@ -1,0 +1,193 @@
+{
+  "pack_version": "1.0.0",
+  "thresholds": "sha256:98071e10a64a0371e5c2be696037aadea0f7ecbcad3f877a171381acb9b87d54",
+  "base_rev": "84db7b439cab6ed73559cf9d394237f1f883cd72",
+  "results": {
+    "rel-weak": {
+      "pass": true,
+      "output": {
+        "verdict": "weak",
+        "best_cover": 2,
+        "min_cover": 3
+      },
+      "expected": {
+        "best_cover": 2,
+        "min_cover": 3,
+        "verdict": "weak"
+      },
+      "error": null
+    },
+    "rel-strong": {
+      "pass": true,
+      "output": {
+        "verdict": "adequate",
+        "best_cover": 5,
+        "min_cover": 3
+      },
+      "expected": {
+        "best_cover": 5,
+        "min_cover": 3,
+        "verdict": "adequate"
+      },
+      "error": null
+    },
+    "claims-mixed": {
+      "pass": true,
+      "output": {
+        "supports": {
+          "c1": "supported",
+          "c2": "unsupported"
+        },
+        "rejected": [
+          "claim c2: numbers ['42%'] not present in evidence spans"
+        ]
+      },
+      "expected": {
+        "rejected": [
+          "claim c2: numbers ['42%'] not present in evidence spans"
+        ],
+        "supports": {
+          "c1": "supported",
+          "c2": "unsupported"
+        }
+      },
+      "error": null
+    },
+    "abstain-unsupported": {
+      "pass": true,
+      "output": {
+        "outcome": "NoEvidence"
+      },
+      "expected": {
+        "outcome": "NoEvidence"
+      },
+      "error": null
+    },
+    "leak-folds": {
+      "pass": true,
+      "output": {
+        "n_fits": 15,
+        "all_strict_subsets": true
+      },
+      "expected": {
+        "all_strict_subsets": true,
+        "n_fits": 15
+      },
+      "error": null
+    },
+    "resume-equiv": {
+      "pass": true,
+      "output": {
+        "equivalent": true,
+        "stopped": "converged"
+      },
+      "expected": {
+        "equivalent": true,
+        "stopped": "converged"
+      },
+      "error": null
+    },
+    "budget-cap": {
+      "pass": true,
+      "output": {
+        "exhaustion_raised": true,
+        "calls": 2
+      },
+      "expected": {
+        "calls": 2,
+        "exhaustion_raised": true
+      },
+      "error": null
+    },
+    "rel-weak-2": {
+      "pass": true,
+      "output": {
+        "verdict": "weak",
+        "best_cover": 0,
+        "min_cover": 3
+      },
+      "expected": {
+        "best_cover": 0,
+        "min_cover": 3,
+        "verdict": "weak"
+      },
+      "error": null
+    },
+    "claims-oos": {
+      "pass": true,
+      "output": {
+        "supports": {
+          "c1": "unsupported",
+          "c2": "unsupported"
+        },
+        "rejected": [
+          "claim c1: paper [2] out of range (1..1)",
+          "claim c2: span not found in paper [1]"
+        ]
+      },
+      "expected": {
+        "rejected": [
+          "claim c1: paper [2] out of range (1..1)",
+          "claim c2: span not found in paper [1]"
+        ],
+        "supports": {
+          "c1": "unsupported",
+          "c2": "unsupported"
+        }
+      },
+      "error": null
+    },
+    "abstain-nocite": {
+      "pass": true,
+      "output": {
+        "outcome": "NoEvidence"
+      },
+      "expected": {
+        "outcome": "NoEvidence"
+      },
+      "error": null
+    },
+    "leak-folds-2": {
+      "pass": true,
+      "output": {
+        "n_fits": 15,
+        "all_strict_subsets": true
+      },
+      "expected": {
+        "all_strict_subsets": true,
+        "n_fits": 15
+      },
+      "error": null
+    },
+    "resume-equiv-2": {
+      "pass": true,
+      "output": {
+        "equivalent": true,
+        "stopped": "converged"
+      },
+      "expected": {
+        "equivalent": true,
+        "stopped": "converged"
+      },
+      "error": null
+    },
+    "budget-cap-2": {
+      "pass": true,
+      "output": {
+        "exhaustion_raised": true,
+        "calls": 5
+      },
+      "expected": {
+        "calls": 5,
+        "exhaustion_raised": true
+      },
+      "error": null
+    }
+  },
+  "known_limitations": [
+    "Deterministic fixtures only: no semantic-judgment or live-provider variance covered.",
+    "Acceptance inputs live on disk next to the gate; true secrecy needs an external holder. Reads are access-logged instead.",
+    "A passing gate is non-regression evidence, not proof of correctness or containment.",
+    "Worker env prunes secrets but shares the host kernel; see docs/TRUST_BOUNDARY.md."
+  ]
+}

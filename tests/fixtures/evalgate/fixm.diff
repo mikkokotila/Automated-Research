@@ -1,0 +1,13 @@
+diff --git b/src/canary/rank.py a/src/canary/rank.py
+index f694599..67fbacc 100644
+--- b/src/canary/rank.py
++++ a/src/canary/rank.py
+@@ -59,7 +59,7 @@ def matched_terms(question: str, paper: Paper) -> set[str]:
+     """Distinct question keywords engaging this paper's title or abstract."""
+     keys = keywords(question)
+     text = f"{paper.title}\n{paper.abstract or ''}".lower()
+-    return set()
++    return {k for k in keys if k in text}
+ 
+ 
+ def question_coverage(question: str, papers: list[Paper]) -> dict:

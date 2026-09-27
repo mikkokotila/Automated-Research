@@ -61,7 +61,7 @@ DIFF_SYSTEM = (
 )
 
 FORBIDDEN_PREFIXES = ("tests/", ".github/", "boundary/", "scripts/", "recovery/",
-                        "validation/")
+                        "validation/", "evalpack/")
 FORBIDDEN_NAMES = ("Dockerfile", ".dockerignore")
 FORBIDDEN_FILES = ("src/canary/revise.py", "src/canary/muse_client.py",
                    "src/canary/changeset.py", "pyproject.toml",
@@ -106,7 +106,7 @@ def target_allowed(target: str) -> str | None:
     if not t or t.startswith("/") or ".." in Path(t).parts:
         return "absolute or escaping path"
     if t.startswith(FORBIDDEN_PREFIXES):
-        return "protected area (tests, workflows, launcher, broker, evidence)"
+        return "protected area (tests, workflows, launcher, broker, gate, evidence)"
     name = Path(t).name
     if name in FORBIDDEN_NAMES or t in FORBIDDEN_FILES:
         return "protected file"
