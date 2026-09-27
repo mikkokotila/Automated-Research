@@ -112,6 +112,7 @@ for verdict in ("success","failure","no-change"):
     outcome=revise.ReviseReport(kept=0 if verdict=="no-change" else 1)
     with pytest.MonkeyPatch.context() as mp:
         mp.setenv("GITHUB_TOKEN","fixture-only")
+        mp.setattr(revise,"require_revision_trust",lambda:None)  # Build 02 seam: probe exercises publish logic, not the gate
         publication=revise.publish_round(checkout,"fixture-id",doc,outcome,journal.Journal(),fake.client(),merge_timeout_s=3,merge_interval_s=0)
     results["publish-"+verdict]={"result":plain(publication),"requests":fake.calls,"bodies":fake.bodies,"files":bundle(checkout/"runs")}
 
