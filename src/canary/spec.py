@@ -42,6 +42,9 @@ class StopReason(str, Enum):
     PROVIDER_BLOCKED = "provider_blocked"
     INVALID_INPUT = "invalid_input"
     FAILED = "failed"
+    NO_PROGRESS = "no_progress"
+    REPEATED_QUESTION = "repeated_question"
+    RESTART_REQUIRED = "restart_required"
 
 
 @dataclass(frozen=True)

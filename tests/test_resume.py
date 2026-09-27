@@ -7,6 +7,7 @@ from canary import cycle as cyclemod, report
 from canary.cycle import OpLog, ResumeError
 from canary.journal import Journal
 from canary.spec import RunBudget, RunSpec
+from tests.test_milestone4 import grounded_review
 
 
 class ScriptedMuse:
@@ -97,7 +98,7 @@ def fresh_run(out, muse, http, **kw):
 def crash_after_first_iteration(out) -> RunSpec:
     """Seed + one follow-up queued; the crash lands inside iteration 2."""
     muse = ScriptedMuse()
-    muse.queues["review"] = ["R1 [1].", "R2 [1]."]
+    muse.queues["review"] = [grounded_review("R1"), grounded_review("R2")]
     muse.queues["follow"] = ['[{"question": "q2?", "kind": "review", "rationale": "r"}]']
     muse.queues["final"] = ["Final."]
     res, _, spec = fresh_run(out, CrashMuse(muse, crash_on=3), mock_http())
@@ -109,7 +110,7 @@ def crash_after_first_iteration(out) -> RunSpec:
 
 def resume_muse():
     muse = ScriptedMuse()
-    muse.queues["review"] = ["R2 [1]."]
+    muse.queues["review"] = [grounded_review("R2")]
     muse.queues["follow"] = ["[]"]
     muse.queues["final"] = ["Final."]
     return muse
@@ -134,7 +135,7 @@ def test_crash_then_resume_completes_from_checkpoint(tmp_path):
 
 def test_interrupted_plus_resumed_matches_uninterrupted(tmp_path):
     direct = ScriptedMuse()
-    direct.queues["review"] = ["R1 [1].", "R2 [1]."]
+    direct.queues["review"] = [grounded_review("R1"), grounded_review("R2")]
     direct.queues["follow"] = ['[{"question": "q2?", "kind": "review", "rationale": "r"}]', "[]"]
     direct.queues["final"] = ["Final."]
     whole, _, _ = fresh_run(tmp_path / "whole", direct, mock_http())
@@ -288,7 +289,7 @@ def test_malformed_propose_retries_once_then_fails_honestly(tmp_path):
 
 def test_malformed_then_valid_propose_recovers(tmp_path):
     muse = ScriptedMuse()
-    muse.queues["review"] = ["R1 [1].", "R2 [1]."]
+    muse.queues["review"] = [grounded_review("R1"), grounded_review("R2")]
     muse.queues["follow"] = ["junk", '[{"question": "q2?", "kind": "review", "rationale": "r"}]',
                              "[]"]
     muse.queues["final"] = ["Final."]

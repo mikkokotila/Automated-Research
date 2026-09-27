@@ -13,11 +13,25 @@ from . import analysis, data as datamod, cycle as cyclemod, modeling, rank, repo
 from .cycle import ResumeError
 from .revise import revise_from_journal
 from .journal import Journal, emit
-from .muse_client import MuseClient
-from .spec import InvalidSpec, RunBudget, RunSpec
+from .lifecycle import Lifecycle
+from .muse_client import MuseClient, RequestBlocked
+from .spec import Cancelled, InvalidSpec, RunBudget, RunSpec
 
 
-def review(spec: RunSpec) -> str:
+def _post_assess(journal: Journal, out_dir: str, enabled: bool, outcome: str,
+                 client: MuseClient) -> None:
+    """Auxiliary post-completion assessment: never fails completed research."""
+    if not enabled:
+        return
+    try:
+        Lifecycle(journal, out_dir, assess_enabled=True).finish_assessment(
+            outcome, client, code_revision=report.code_revision())
+    except (RequestBlocked, Cancelled) as e:
+        emit(journal, "lifecycle", "assess-aborted",
+             f"{type(e).__name__}: {str(e)[:200]}")
+
+
+def review(spec: RunSpec, assess: bool = False) -> str:
     run_id = report.begin_run(spec.out_dir, spec, "review")
     j = Journal(Path(spec.out_dir) / "journal.jsonl", run_id=run_id)
     emit(j, "review", "start", spec.question[:200])
@@ -36,7 +50,8 @@ def review(spec: RunSpec) -> str:
     ranked = rank.rerank(rspec.question, papers, len(papers))
     report.record_retrieval(spec.out_dir, spec.question, ranked, retrieval_report)
     top = ranked[:rspec.max_papers]
-    synth = synthesize.synthesize(rspec.question, top, MuseClient(budget=RunBudget.from_spec(spec)))
+    client = MuseClient(budget=RunBudget.from_spec(spec))
+    synth = synthesize.synthesize(rspec.question, top, client)
     emit(j, "review", "synthesized", f"{len(top)} papers, cited {len(synth.cited)}")
     for marker in synth.validation.get("dangling_citations", []):
         emit(j, "review", "dangling-citation", f"[{marker}] points at no paper")
@@ -45,6 +60,9 @@ def review(spec: RunSpec) -> str:
     supported = [c for c in synth.claims if c.support in ("supported", "partial")]
     if not synth.cited and not supported:
         raise RuntimeError("retrieved material does not support an answer to this question")
+    _post_assess(j, spec.out_dir, assess,
+                 f"review: cited {len(synth.cited)}, {len(supported)} grounded claims",
+                 client)
     path = report.write_bundle(spec.out_dir, rspec, top, synth, j, warning)
     return str(path / "review.md")
 
@@ -57,11 +75,15 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--max-papers", type=int, default=10)
     r.add_argument("--year-from", type=int, default=None)
     r.add_argument("--out", default="./out")
+    r.add_argument("--assess", action="store_true",
+                   help="persist a post-completion assessment (never revises code)")
     a = sub.add_parser("analyze", help="test a hypothesis against a CSV file")
     a.add_argument("csv", help="path to CSV data file")
     a.add_argument("--target", required=True, help="target column to predict")
     a.add_argument("--question", default="", help="research question in plain words")
     a.add_argument("--out", default="./out")
+    a.add_argument("--assess", action="store_true",
+                   help="persist a post-completion assessment (never revises code)")
     lo = sub.add_parser("cycle", help="unattended run: answers become next questions")
     lo.add_argument("question", help="seed research question in plain words")
     lo.add_argument("--csv", default=None, help="optional dataset for analyze iterations")
@@ -75,6 +97,8 @@ def main(argv: list[str] | None = None) -> int:
     lo.add_argument("--max-tokens", type=int, default=20000000, help="hard token budget")
     lo.add_argument("--wall-time-s", type=int, default=1800, help="hard wall-time budget in seconds")
     lo.add_argument("--repo", default=".", help="repo checkout to revise (container workspace)")
+    lo.add_argument("--assess", action="store_true",
+                    help="persist a post-completion assessment (never revises code)")
     im = sub.add_parser("revise", help="assess a past run's journal and patch")
     im.add_argument("--run-dir", required=True, help="bundle dir containing journal.jsonl")
     im.add_argument("--repo", default=".", help="repo checkout to revise")
@@ -85,6 +109,8 @@ def main(argv: list[str] | None = None) -> int:
     rs = sub.add_parser("resume", help="continue an interrupted cycle bundle")
     rs.add_argument("bundle", help="bundle directory to resume")
     rs.add_argument("--fork", default=None, help="continue into a new dir (must not exist)")
+    rs.add_argument("--expect-revision", default=None,
+                    help="continue a restart_required leg research-only on this accepted revision")
     am = sub.add_parser("assess", help="assess a run's journal without changing any code")
     am.add_argument("--run-dir", required=True, help="bundle dir containing journal.jsonl")
     am.add_argument("--out", default=None, help="dir for assessment records (default: run dir)")
@@ -130,13 +156,13 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     try:
         if args.cmd == "review":
-            path = review(spec)
+            path = review(spec, assess=args.assess)
         elif args.cmd == "analyze":
-            path = analyze(spec)
+            path = analyze(spec, assess=args.assess)
         elif args.cmd == "revise":
             path = revise(args.run_dir, args.repo, args.rounds, args.out)
         else:
-            path = cycle(spec, args.repo)
+            path = cycle(spec, args.repo, assess=args.assess)
     except Exception as e:  # honest failure, never fake output
         print(f"canary: error: {e}", file=sys.stderr)
         return 1
@@ -161,28 +187,45 @@ def build_spec(args) -> RunSpec | None:
                    wall_time_s=args.wall_time_s, out_dir=args.out)
 
 
-def cycle(spec: RunSpec, repo: str = ".") -> str:
+def cycle(spec: RunSpec, repo: str = ".", assess: bool = False) -> str:
     run_id = report.begin_run(spec.out_dir, spec, "cycle")
     j = Journal(Path(spec.out_dir) / "journal.jsonl", run_id=run_id)
     outbox: dict = {}
     budget = RunBudget.from_spec(spec)
+    client = MuseClient(budget=budget)
     res = cyclemod.run_cycle(
         spec.question, spec.csv, spec.target, spec.max_iterations, spec.max_papers,
-        MuseClient(budget=budget), journal=j, maintenance=spec.maintenance,
+        client, journal=j, maintenance=spec.maintenance,
         revise_rounds=spec.revise_rounds, repo_root=repo, outbox=outbox,
         spec=spec, budget=budget, record_dir=spec.out_dir,
     )
+    if assess and not spec.maintenance:  # maintenance already persists assessments
+        stopped = getattr(res.stopped, "value", res.stopped)
+        _post_assess(j, spec.out_dir, True,
+                     f"{len(res.iterations)} iterations, stopped={stopped}", client)
     path = report.write_cycle_bundle(spec.out_dir, spec.question, res, j, spec,
                                      outbox.get("revision"))
     if spec.maintenance and outbox.get("revision"):
         emit(j, "publish", "deferred",
              "export is a separate maintainer action: run `canary publish` explicitly")
         j.save(path / "journal.jsonl")
+    manifest = report.read_bundle(spec.out_dir)["manifest"] or {}
+    if manifest.get("status") == "restart_required":
+        from .schedule import supervise
+
+        supervise(spec.out_dir)  # fresh-worker legs in new processes
     return str(path / "synthesis.md")
 
 
 def resume_bundle(args) -> str:
-    res, journal, spec, out = cyclemod.resume_cycle(args.bundle, MuseClient(), fork_dir=args.fork)
+    if getattr(args, "fork", None) and getattr(args, "expect_revision", None):
+        raise ResumeError("--fork and --expect-revision are exclusive")
+    if getattr(args, "expect_revision", None):
+        res, journal, spec, out = cyclemod.resume_after_revision(
+            args.bundle, MuseClient(), expect_revision=args.expect_revision)
+    else:
+        res, journal, spec, out = cyclemod.resume_cycle(args.bundle, MuseClient(),
+                                                       fork_dir=args.fork)
     path = report.write_cycle_bundle(out, spec.question, res, journal, spec)
     return str(path / "synthesis.md")
 
@@ -235,7 +278,7 @@ def publish_recorded(repo: str, run_dir: str, round_id: str = "latest") -> str:
     return pub.pr_url or pub.issue_url or ""
 
 
-def analyze(spec: RunSpec) -> str:
+def analyze(spec: RunSpec, assess: bool = False) -> str:
     run_id = report.begin_run(spec.out_dir, spec, "analyze")
     j = Journal(Path(spec.out_dir) / "journal.jsonl", run_id=run_id)
     emit(j, "analyze", "start", f"{spec.csv} target={spec.target}")
@@ -249,9 +292,12 @@ def analyze(spec: RunSpec) -> str:
     res = modeling.run(prep)
     emit(j, "analyze", "modeled", f"{res.best} test={res.best_test} baseline={res.baseline_test}")
     report.record_analysis_inputs(spec.out_dir, spec.question, spec.csv, spec.target, prep, res)
-    findings = analysis.narrate(spec.question, prep, res,
-                                MuseClient(budget=RunBudget.from_spec(spec)))
+    client = MuseClient(budget=RunBudget.from_spec(spec))
+    findings = analysis.narrate(spec.question, prep, res, client)
     emit(j, "analyze", "narrated", f"warnings={len(res.warnings)}")
+    _post_assess(j, spec.out_dir, assess,
+                 f"analyze: {res.best} test={res.best_test} baseline={res.baseline_test}",
+                 client)
     path = report.write_analysis_bundle(spec.out_dir, spec.question, spec.csv, spec.target,
                                         prep, res, findings, j)
     return str(path / "analysis.md")
