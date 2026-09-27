@@ -3,6 +3,7 @@ __pycache__/
 .venv/
 *.egg-info/
 out/
+container-out/
 .DS_Store
 
 # Credentials and development caches

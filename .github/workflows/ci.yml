@@ -19,6 +19,7 @@ jobs:
     timeout-minutes: 3
     steps:
       - uses: actions/checkout@v4
+      - run: bash -n scripts/*.sh && python3 -m py_compile scripts/*.py
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.12"

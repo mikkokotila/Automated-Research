@@ -310,7 +310,9 @@ def test_no_direct_fallback(monkeypatch):
 def test_worker_launcher_keeps_credentials_and_ledger_outside():
     root=Path(__file__).resolve().parents[1]
     text=(root/"scripts/container_run.sh").read_text()
-    assert "--network canary-private" in text
+    assert 'NETWORK="${CANARY_NETWORK:-canary-private}"' in text
+    assert '--network "$NETWORK"' in text
+    assert "refusing: host network" in text and "Internal" in text
     assert "-e MUSE_API_KEY" not in text and "-e GITHUB_TOKEN" not in text
     assert "dst=/state" not in text and "docker.sock" not in text
     assert "--user 10002:10002" in text
