@@ -99,6 +99,12 @@ def main(argv: list[str] | None = None) -> int:
     lo.add_argument("--repo", default=".", help="repo checkout to revise (container workspace)")
     lo.add_argument("--assess", action="store_true",
                     help="persist a post-completion assessment (never revises code)")
+    lo.add_argument("--bandit-mode", default="off", choices=["off", "fixed", "learning", "frozen"],
+                    help="retrieval-strategy experiment: off (default), fixed, learning, frozen")
+    lo.add_argument("--bandit-dir", default=None,
+                    help="operator-owned policy dir (required for learning/frozen)")
+    lo.add_argument("--bandit-seed", type=int, default=0, help="selector RNG seed")
+    lo.add_argument("--bandit-eps", type=float, default=0.1, help="exploration rate 0-0.5")
     im = sub.add_parser("revise", help="assess a past run's journal and patch")
     im.add_argument("--run-dir", required=True, help="bundle dir containing journal.jsonl")
     im.add_argument("--repo", default=".", help="repo checkout to revise")
@@ -151,6 +157,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     try:
         spec = build_spec(args)
+        bandit = build_bandit(args)
     except InvalidSpec as e:
         print(f"canary: invalid input: {e}", file=sys.stderr)
         return 2
@@ -162,7 +169,7 @@ def main(argv: list[str] | None = None) -> int:
         elif args.cmd == "revise":
             path = revise(args.run_dir, args.repo, args.rounds, args.out)
         else:
-            path = cycle(spec, args.repo, assess=args.assess)
+            path = cycle(spec, args.repo, assess=args.assess, bandit=bandit)
     except Exception as e:  # honest failure, never fake output
         print(f"canary: error: {e}", file=sys.stderr)
         return 1
@@ -187,7 +194,21 @@ def build_spec(args) -> RunSpec | None:
                    wall_time_s=args.wall_time_s, out_dir=args.out)
 
 
-def cycle(spec: RunSpec, repo: str = ".", assess: bool = False) -> str:
+def build_bandit(args):
+    """Validate bandit flags into a config, or None when the experiment is off."""
+    from .strategy import BanditConfig
+
+    mode = getattr(args, "bandit_mode", "off")
+    if mode == "off":
+        return None
+    try:
+        return BanditConfig(mode=mode, epsilon=args.bandit_eps, seed=args.bandit_seed,
+                            policy_dir=args.bandit_dir)
+    except (TypeError, ValueError) as e:
+        raise InvalidSpec(f"bandit config: {e}") from e
+
+
+def cycle(spec: RunSpec, repo: str = ".", assess: bool = False, bandit=None) -> str:
     run_id = report.begin_run(spec.out_dir, spec, "cycle")
     j = Journal(Path(spec.out_dir) / "journal.jsonl", run_id=run_id)
     outbox: dict = {}
@@ -197,7 +218,7 @@ def cycle(spec: RunSpec, repo: str = ".", assess: bool = False) -> str:
         spec.question, spec.csv, spec.target, spec.max_iterations, spec.max_papers,
         client, journal=j, maintenance=spec.maintenance,
         revise_rounds=spec.revise_rounds, repo_root=repo, outbox=outbox,
-        spec=spec, budget=budget, record_dir=spec.out_dir,
+        spec=spec, budget=budget, record_dir=spec.out_dir, bandit=bandit,
     )
     if assess and not spec.maintenance:  # maintenance already persists assessments
         stopped = getattr(res.stopped, "value", res.stopped)
