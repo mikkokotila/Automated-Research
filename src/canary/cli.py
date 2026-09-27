@@ -85,6 +85,9 @@ def main(argv: list[str] | None = None) -> int:
     rs = sub.add_parser("resume", help="continue an interrupted cycle bundle")
     rs.add_argument("bundle", help="bundle directory to resume")
     rs.add_argument("--fork", default=None, help="continue into a new dir (must not exist)")
+    am = sub.add_parser("assess", help="assess a run's journal without changing any code")
+    am.add_argument("--run-dir", required=True, help="bundle dir containing journal.jsonl")
+    am.add_argument("--out", default=None, help="dir for assessment records (default: run dir)")
     args = ap.parse_args(argv)
     if args.cmd == "inspect":
         print(json.dumps(report.read_bundle(args.bundle), indent=2, default=str))
@@ -95,6 +98,14 @@ def main(argv: list[str] | None = None) -> int:
         except ResumeError as e:
             print(f"canary: cannot resume: {e}", file=sys.stderr)
             return 2
+        except Exception as e:  # honest failure, never fake output
+            print(f"canary: error: {e}", file=sys.stderr)
+            return 1
+        print(path)
+        return 0
+    if args.cmd == "assess":
+        try:
+            path = assess_only(args.run_dir, args.out)
         except Exception as e:  # honest failure, never fake output
             print(f"canary: error: {e}", file=sys.stderr)
             return 1
@@ -149,7 +160,8 @@ def cycle(spec: RunSpec, repo: str = ".") -> str:
         revise_rounds=spec.revise_rounds, repo_root=repo, outbox=outbox,
         spec=spec, budget=budget, record_dir=spec.out_dir,
     )
-    path = report.write_cycle_bundle(spec.out_dir, spec.question, res, j, spec)
+    path = report.write_cycle_bundle(spec.out_dir, spec.question, res, j, spec,
+                                     outbox.get("revision"))
     if spec.maintenance and outbox.get("revision"):
         _maybe_publish(repo, outbox["revision"], j)
         j.save(path / "journal.jsonl")  # persist publish notes too
@@ -160,6 +172,33 @@ def resume_bundle(args) -> str:
     res, journal, spec, out = cyclemod.resume_cycle(args.bundle, MuseClient(), fork_dir=args.fork)
     path = report.write_cycle_bundle(out, spec.question, res, journal, spec)
     return str(path / "synthesis.md")
+
+
+def assess_only(run_dir: str, out: str | None) -> str:
+    """Assess a past run's journal. Reads and writes records; changes no code.
+
+    Never calls require_revision_trust: there is nothing to authorize, because
+    no patch, subprocess, or tree mutation can happen on this path.
+    """
+    from .assess import assess_journal
+    from .memory import Memory
+
+    jr = Journal.load(Path(run_dir) / "journal.jsonl")
+    outcome = f"past run at {run_dir}: {len(jr)} notes"
+    for cand in ("run.json", "provenance.json"):
+        p = Path(run_dir) / cand
+        if p.exists():
+            outcome += f"; {cand}={p.read_text(encoding='utf-8')[:800]}"
+            break
+    dest = Path(out or run_dir) / "assessments"
+    memory = Memory(dest / "memory.jsonl")
+    record = assess_journal(jr.notes, jr.text(max_chars=60000), outcome, MuseClient(),
+                            memory=memory, out_dir=dest,
+                            code_revision=report.code_revision())
+    jr.save(Path(out or run_dir) / "journal.jsonl")
+    print(f"assess: {record.id} status={record.status} "
+          f"proposals={len(record.proposals)} calls={record.calls_spent}")
+    return str(dest / f"{record.id}.md")
 
 
 def _maybe_publish(repo: str, revision, j: Journal) -> None:

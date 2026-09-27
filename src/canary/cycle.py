@@ -491,7 +491,8 @@ def run_cycle(
             evidence_gaps.extend(_harvest_gaps(it))
             emit(journal, "cycle", "iter-done", f"n={it.n} kind={it.kind}")
             if revising:  # iterative maintenance as it goes, not only at the end
-                _mid_run_revise(journal, it, repo_root, muse, check_cmd)
+                _mid_run_revise(journal, it, repo_root, muse, check_cmd, budget,
+                                str(Path(record_dir) / "assessments") if record_dir else None)
             if len(iterations) >= spec.max_iterations:
                 stopped = StopReason.BUDGET_EXHAUSTED if pending else StopReason.CONVERGED
         if not iterations:
@@ -516,9 +517,11 @@ def run_cycle(
                 from .revise import revise_from_journal
 
                 outcome = f"{len(iterations)} iterations, stopped={stopped.value}"
+                assess_dir = str(Path(record_dir) / "assessments") if record_dir else None
                 doc, rep = revise_from_journal(
                     journal.text() if journal else "", outcome, repo_root, muse,
                     rounds=spec.revise_rounds, check_cmd=check_cmd, journal=journal,
+                    assess_dir=assess_dir, budget=budget,
                 )
                 emit(journal, "cycle", "revised", f"kept={rep.kept} reverted={rep.reverted} skipped={rep.skipped}")
                 if outbox is not None:
@@ -562,7 +565,8 @@ def run_cycle(
                        unanswered, budget.usage_summary())
 
 
-def _mid_run_revise(journal: Journal | None, it: Iteration, repo_root: str | None, muse: Completer, check_cmd: list[str] | None) -> None:
+def _mid_run_revise(journal: Journal | None, it: Iteration, repo_root: str | None, muse: Completer,
+                    check_cmd: list[str] | None, budget=None, assess_dir: str | None = None) -> None:
     """One bounded revise pass on the latest iteration's notes. Never raises.
 
     Note: kept patches land on disk and are validated, but this process keeps
@@ -575,7 +579,8 @@ def _mid_run_revise(journal: Journal | None, it: Iteration, repo_root: str | Non
 
         _, rep = revise_from_journal(
             journal.text(), f"mid-run after iter {it.n} ({it.kind})", repo_root, muse,
-            rounds=1, check_cmd=check_cmd, journal=journal,
+            rounds=1, check_cmd=check_cmd, journal=journal, assess_dir=assess_dir,
+            budget=budget,
         )
         emit(journal, "cycle", "mid-revised", f"iter={it.n} kept={rep.kept}")
     except (RequestBlocked, BudgetExhausted, Cancelled):

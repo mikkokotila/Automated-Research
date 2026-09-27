@@ -402,7 +402,8 @@ def write_analysis_bundle(
 
 
 def write_cycle_bundle(out_dir: str | Path, seed: str, res: "CycleResult",
-                       journal: Journal | None = None, spec: "RunSpec | None" = None) -> Path:
+                       journal: Journal | None = None, spec: "RunSpec | None" = None,
+                       revision=None) -> Path:
     out = Path(out_dir)
     if journal is not None:
         journal.save(out / "journal.jsonl")
@@ -444,6 +445,15 @@ def write_cycle_bundle(out_dir: str | Path, seed: str, res: "CycleResult",
         ],
     }
     (out / "run.json").write_text(redact_text(json.dumps(provenance, indent=2)), encoding="utf-8")
+    if revision is not None:
+        doc, rep = revision
+        rows = [f"| {o.proposal_id} | {o.target} | "
+                f"{'kept' if o.kept else 'reverted' if o.applied else 'skipped'} | {o.reason} |"
+                for o in rep.outcomes] or ["| — | — | no proposals | — |"]
+        assessment_md = (f"{doc.markdown}\n\n## Patches "
+                         f"(kept={rep.kept} reverted={rep.reverted} skipped={rep.skipped})\n\n"
+                         "| id | target | result | reason |\n|---|---|---|---|\n" + "\n".join(rows))
+        (out / "assessment.md").write_text(redact_text(assessment_md + "\n"), encoding="utf-8")
     if spec is not None:
         (out / "spec.json").write_text(redact_text(json.dumps(spec.to_dict(), indent=2)),
                                        encoding="utf-8")
