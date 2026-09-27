@@ -28,7 +28,8 @@ from pathlib import Path
 
 from .journal import Journal, emit
 from .muse_client import RequestBlocked
-from .assess import Proposal, AssessmentDoc, assess
+from .assess import AssessmentError, Proposal, AssessmentDoc, assess, assess_journal
+from .memory import Memory
 from .synthesize import Completer
 
 
@@ -214,15 +215,51 @@ def revise_from_journal(
     rounds: int = 1,
     check_cmd: list[str] | None = None,
     journal: Journal | None = None,
+    assess_dir: str | Path | None = None,
+    budget=None,
 ) -> tuple[AssessmentDoc, ReviseReport]:
-    """Assess notes, then do the revisions. Returns last assessment + totals."""
+    """Assess notes, then do the revisions. Returns last assessment + totals.
+
+    Every round persists assessment records and files patch outcomes as
+    lessons. Later rounds see fresh notes (including prior round outcomes)
+    and the current tree — never the stale first-round input.
+    """
+    from .report import code_revision
+
     require_revision_trust()  # before the assess model call, not after it
+    repo = Path(repo)
+    adir = Path(assess_dir) if assess_dir else repo / "runs" / "assessments"
+    memory = Memory(adir / "memory.jsonl")
+    code_rev = code_revision()
     total = ReviseReport()
     doc = AssessmentDoc(markdown="", proposals=())
-    for _ in range(max(rounds, 1)):
-        doc = assess(journal_text, outcome, client)
-        emit(journal, "revise", "assessed", f"{len(doc.proposals)} proposals")
+    current_text = journal_text
+    prior: list[str] = []
+    for rnd in range(max(rounds, 1)):
+        if rnd > 0 and journal is not None:
+            current_text = journal.text(max_chars=60000)  # fresh: prior rounds included
+        notes = journal.notes if journal is not None else None
+        round_outcome = outcome if not prior else (
+            f"{outcome}\nPrior patch outcomes:\n" + "\n".join(prior))
+        try:
+            record = assess_journal(notes, current_text, round_outcome, client,
+                                    memory=memory, budget=budget, out_dir=adir,
+                                    code_revision=code_rev)
+        except AssessmentError as e:
+            emit(journal, "revise", "assess-failed", str(e)[:200])
+            break
+        doc = record.doc
+        emit(journal, "revise", "assessed",
+             f"{record.id}: {len(doc.proposals)} proposals, coverage={record.status}")
         rep = revise_round(repo, doc, client, journal, check_cmd)
+        for oc in rep.outcomes:
+            memory.record(text=f"{oc.proposal_id} {oc.target}: {oc.reason}",
+                          target=oc.target, kept=oc.kept, assessment_id=record.id,
+                          code_revision=code_rev)
+            prior.append(f"{oc.proposal_id} {oc.target}: "
+                         f"{'kept' if oc.kept else 'reverted' if oc.applied else 'skipped'}"
+                         f" ({oc.reason})")
+        memory.save()
         total.kept += rep.kept
         total.reverted += rep.reverted
         total.skipped += rep.skipped

@@ -205,7 +205,7 @@ def test_revise_from_journal_stops_when_nothing_kept(repo):
     ]
     muse.queues["diff"] = [DIFF_FOO]
     doc, rep = impmod.revise_from_journal("notes", "ok", repo, muse, rounds=3, check_cmd=["true"])
-    assert rep.kept == 1 and doc.markdown == "R2"
+    assert rep.kept == 1 and doc.markdown.endswith("R2")  # merged record prefixes its range
     assert (repo / "src/canary/foo.py").read_text() == "X = 2\n"
 
 
