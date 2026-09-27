@@ -8,6 +8,8 @@ on:
     paths-ignore: ['docs/**', 'validation/**', '**/*.md']
   pull_request:
     paths-ignore: ['docs/**', 'validation/**', '**/*.md']
+  schedule:
+    - cron: "17 6 * * 1"  # weekly containment proof on main (Build 04)
 permissions:
   contents: read
 concurrency:
@@ -70,3 +72,8 @@ jobs:
         env:
           IMG: canary:ci
           CANARY_PREBUILT: "1"
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'schedule'
+        with:
+          name: containment-report
+          path: containment-report.json
