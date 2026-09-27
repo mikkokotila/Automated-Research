@@ -26,6 +26,8 @@ The launcher enforces wall-time (`CANARY_TIMEOUT_S`, default 1800s), stages oper
 
 Every run validates a versioned spec before any external call and enforces hard budgets (iterations, model calls, tokens, wall time) with distinct terminal reasons (`converged`, `budget_exhausted`, `insufficient_evidence`, `cancelled`, `provider_blocked`, `invalid_input`, `failed`). Exhaustion saves an honest partial bundle with remaining questions and exact usage; `cycle --max-calls`, `--max-tokens`, and `--wall-time-s` tune the finite defaults.
 
+Every run opens with a manifest and an fsync'd event journal, persists retrieval evidence and each iteration incrementally, redacts credential-shaped text at every persistence boundary, and seals artefacts with checksums; `canary inspect <bundle>` reports `completed`, a stopped reason, `interrupted`, `legacy`, or `corrupt` without executing anything.
+
 ## Development and evidence
 
 From a fresh checkout, set up the locked environment and run the offline suite with no provider keys present:

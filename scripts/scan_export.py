@@ -9,16 +9,13 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import re
+import sys
 from pathlib import Path
 
-PATTERNS = {
-    "muse_key": re.compile(rb"\b(MUSE|MODEL|META)_API_KEY\b\s*[:=]"),
-    "github_token": re.compile(rb"\bGITHUB_TOKEN\b\s*[:=]|gh[opsu]_[A-Za-z0-9_]+"),
-    "aws_key": re.compile(rb"\bAKIA[0-9A-Z]{16}\b"),
-    "private_key": re.compile(rb"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
-    "canary_gate_url": re.compile(rb"canary-gate:\d+"),
-}
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+
+from canary.redact import find_secrets
+
 MAX_SCAN_BYTES = 5_000_000
 MANIFEST_NAME = "manifest.canary.json"
 
@@ -27,8 +24,7 @@ def scan_file(path: Path) -> tuple[list[str], bool]:
     """Returns (matched pattern names, skipped_for_size)."""
     if path.stat().st_size > MAX_SCAN_BYTES:
         return [], True
-    data = path.read_bytes()
-    return [name for name, rx in PATTERNS.items() if rx.search(data)], False
+    return find_secrets(path.read_bytes()), False
 
 
 def verify_manifest(root: Path) -> list[str]:

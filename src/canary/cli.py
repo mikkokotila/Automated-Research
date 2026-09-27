@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -16,12 +17,14 @@ from .spec import InvalidSpec, RunBudget, RunSpec
 
 
 def review(spec: RunSpec) -> str:
-    j = Journal(Path(spec.out_dir) / "journal.jsonl")
+    run_id = report.begin_run(spec.out_dir, spec, "review")
+    j = Journal(Path(spec.out_dir) / "journal.jsonl", run_id=run_id)
     emit(j, "review", "start", spec.question[:200])
     rspec = spec.research_spec()
     with httpx.Client(headers={"User-Agent": "Canary/0.1"}) as http:
         papers = retrieval.retrieve(rspec, http)
     emit(j, "review", "retrieved", f"{len(papers)} candidates")
+    report.record_retrieval(spec.out_dir, spec.question, papers)
     if not papers:
         raise RuntimeError("no papers found for this question")
     top = rank.rerank(rspec.question, papers, rspec.max_papers)
@@ -62,7 +65,12 @@ def main(argv: list[str] | None = None) -> int:
     im.add_argument("--repo", default=".", help="repo checkout to revise")
     im.add_argument("--rounds", type=int, default=1)
     im.add_argument("--out", default=None, help="optional dir for assessment.md")
+    ins = sub.add_parser("inspect", help="report a bundle's status without executing anything")
+    ins.add_argument("bundle", help="bundle directory to inspect")
     args = ap.parse_args(argv)
+    if args.cmd == "inspect":
+        print(json.dumps(report.read_bundle(args.bundle), indent=2, default=str))
+        return 0
     try:
         spec = build_spec(args)
     except InvalidSpec as e:
@@ -102,14 +110,15 @@ def build_spec(args) -> RunSpec | None:
 
 
 def cycle(spec: RunSpec, repo: str = ".") -> str:
-    j = Journal(Path(spec.out_dir) / "journal.jsonl")
+    run_id = report.begin_run(spec.out_dir, spec, "cycle")
+    j = Journal(Path(spec.out_dir) / "journal.jsonl", run_id=run_id)
     outbox: dict = {}
     budget = RunBudget.from_spec(spec)
     res = cyclemod.run_cycle(
         spec.question, spec.csv, spec.target, spec.max_iterations, spec.max_papers,
         MuseClient(budget=budget), journal=j, maintenance=spec.maintenance,
         revise_rounds=spec.revise_rounds, repo_root=repo, outbox=outbox,
-        spec=spec, budget=budget,
+        spec=spec, budget=budget, record_dir=spec.out_dir,
     )
     path = report.write_cycle_bundle(spec.out_dir, spec.question, res, j, spec)
     if spec.maintenance and outbox.get("revision"):
@@ -135,13 +144,15 @@ def _maybe_publish(repo: str, revision, j: Journal) -> None:
 
 
 def analyze(spec: RunSpec) -> str:
-    j = Journal(Path(spec.out_dir) / "journal.jsonl")
+    run_id = report.begin_run(spec.out_dir, spec, "analyze")
+    j = Journal(Path(spec.out_dir) / "journal.jsonl", run_id=run_id)
     emit(j, "analyze", "start", f"{spec.csv} target={spec.target}")
     df = datamod.load_csv(spec.csv)
     prep = datamod.prepare(df, spec.target)
     emit(j, "analyze", "prepared", f"{prep.profile.n_rows} rows, {prep.profile.task}")
     res = modeling.run(prep)
     emit(j, "analyze", "modeled", f"{res.best} test={res.best_test} baseline={res.baseline_test}")
+    report.record_analysis_inputs(spec.out_dir, spec.question, spec.csv, spec.target, prep, res)
     findings = analysis.narrate(spec.question, prep, res,
                                 MuseClient(budget=RunBudget.from_spec(spec)))
     emit(j, "analyze", "narrated", f"warnings={len(res.warnings)}")

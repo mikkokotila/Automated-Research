@@ -80,11 +80,14 @@ class NoEvidence(RuntimeError):
     """A search completed but found nothing usable."""
 
 
-def run_review(question: str, max_papers: int, http: httpx.Client, muse: Completer, journal: Journal | None = None) -> Iteration:
+def run_review(question: str, max_papers: int, http: httpx.Client, muse: Completer, journal: Journal | None = None,
+               record_dir: str | Path | None = None) -> Iteration:
     emit(journal, "review", "start", question[:200])
     spec = ResearchSpec(question=question, max_papers=max_papers)
     papers = retrieval.retrieve(spec, http)
     emit(journal, "review", "retrieved", f"{len(papers)} candidates")
+    if record_dir is not None:
+        report.record_retrieval(record_dir, question, papers)
     if not papers:
         raise NoEvidence("no papers found for this question")
     top = rank.rerank(spec.question, papers, spec.max_papers)
@@ -97,13 +100,16 @@ def run_review(question: str, max_papers: int, http: httpx.Client, muse: Complet
     return Iteration(n=0, question=question, kind="review", summary=summary, detail=detail, provenance=prov)
 
 
-def run_analyze(question: str, csv: str, target: str, muse: Completer, journal: Journal | None = None) -> Iteration:
+def run_analyze(question: str, csv: str, target: str, muse: Completer, journal: Journal | None = None,
+                record_dir=None) -> Iteration:
     emit(journal, "analyze", "start", f"{csv} target={target}")
     df = datamod.load_csv(csv)
     prep = datamod.prepare(df, target)
     emit(journal, "analyze", "prepared", f"{prep.profile.n_rows} rows, {prep.profile.task}")
     res = modeling.run(prep)
     emit(journal, "analyze", "modeled", f"{res.best} test={res.best_test} baseline={res.baseline_test}")
+    if record_dir is not None:
+        report.record_analysis_inputs(record_dir, question, csv, target, prep, res)
     findings = analysis.narrate(question, prep, res, muse)
     emit(journal, "analyze", "narrated", f"warnings={len(res.warnings)}")
     detail = report.render_analysis(question, csv, target, prep, res, findings)
@@ -167,6 +173,7 @@ def run_cycle(
     outbox: dict | None = None,
     spec: RunSpec | None = None,
     budget: RunBudget | None = None,
+    record_dir: str | Path | None = None,
 ) -> CycleResult:
     if spec is None:  # legacy arguments fill a default spec; an explicit spec wins
         spec = RunSpec(question=question, csv=csv, target=target, max_papers=max_papers,
@@ -230,9 +237,9 @@ def run_cycle(
             job = pending.pop(0)
             try:
                 if job.kind == "analyze" and csv and target:
-                    it = run_analyze(job.question, csv, target, muse, journal)
+                    it = run_analyze(job.question, csv, target, muse, journal, record_dir)
                 else:
-                    it = run_review(job.question, spec.max_papers, http, muse, journal)
+                    it = run_review(job.question, spec.max_papers, http, muse, journal, record_dir)
             except (RequestBlocked, BudgetExhausted, Cancelled):
                 raise
             except NoEvidence as e:
@@ -247,6 +254,8 @@ def run_cycle(
                 break
             it.n = len(iterations) + 1
             iterations.append(it)
+            if record_dir is not None:
+                report.write_iteration(record_dir, it)
             emit(journal, "cycle", "iter-done", f"n={it.n} kind={it.kind}")
             if revising:  # iterative maintenance as it goes, not only at the end
                 _mid_run_revise(journal, it, repo_root, muse, check_cmd)
