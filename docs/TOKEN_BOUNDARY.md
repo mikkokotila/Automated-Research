@@ -40,6 +40,41 @@ unset MUSE_API_KEY
 
 Initialization refuses an existing `canary-token-ledger-v1` volume. Normal startup refuses missing state. Never delete the volume, initialize a second independent ledger for the same workload, or restore stale state to regain allowance. Updating/restarting the service must reuse the same volume. After stopping and removing an old service container, recreate it with the retained volume and reviewed image; do not remove the volume.
 
+## Preflight, rotation, and run-scoped worker credentials
+
+Before trusting the service after any (re)start, the operator checks
+preflight. It reports `authorized` only on a genuine recorded provider
+success, `blocked` with the halt reason after a denial, or `unknown`
+when no provider request has completed yet (live acceptance stays
+blocked until the first success):
+
+```bash
+docker exec canary-gate python -I -m boundary.server preflight
+./scripts/gate_service.sh status   # ledger, budget, and last provider outcome
+```
+
+Workers never receive the operator access key. The launcher mints a
+short-lived run token per launch (time-to-live covers the run plus a
+grace period), passes only that token into the guest, and revokes it on
+exit; expiry backstops the revoke. The run receipt records the token id,
+never the secret.
+
+To rotate or revoke the provider credential, use the provider's own key
+management: revoke the old key there first, then restart the service
+with the fresh key (same ledger volume):
+
+```bash
+docker stop canary-gate && docker rm canary-gate
+read -rs MUSE_API_KEY
+export MUSE_API_KEY
+./scripts/gate_service.sh start
+unset MUSE_API_KEY
+```
+
+Never copy a credential from archived logs, issues, or shell history,
+and never place one in files, chat transcripts, or GitHub. A redacted
+variable template lives in `.env.example`.
+
 Run a bounded job through the worker launcher:
 
 ```bash

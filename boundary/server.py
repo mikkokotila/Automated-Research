@@ -28,7 +28,7 @@ def strict_object(pairs):
     return result
 
 
-def make_server(gateway, token, address=("0.0.0.0", 8787)):
+def make_server(gateway, access_token, address=("0.0.0.0", 8787)):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass  # never record prompts, credentials, or provider error bodies
@@ -47,12 +47,19 @@ def make_server(gateway, token, address=("0.0.0.0", 8787)):
 
         def authorized(self):
             supplied = self.headers.get("Authorization", "")
-            if not hmac.compare_digest(supplied, "Bearer " + token):
-                raise PolicyBlocked("Request credential rejected")
+            if supplied.startswith("Bearer ") and hmac.compare_digest(
+                    supplied, "Bearer " + access_token):
+                return
+            if supplied.startswith("Bearer ") and gateway.ledger.check_run_token(supplied[7:]):
+                return
+            raise PolicyBlocked("Request credential rejected")
 
         def handle_error(self, exc):
             if isinstance(exc, BoundaryError):
-                self.reply(exc.status, {"error": exc.code, "message": str(exc)})
+                body = {"error": exc.code, "message": str(exc)}
+                if getattr(exc, "retry_after", None) is not None:
+                    body["retry_after"] = exc.retry_after
+                self.reply(exc.status, body)
             else:
                 self.reply(503, {"error": "boundary_unavailable", "message": "Request failed closed"})
 
@@ -103,22 +110,46 @@ def make_server(gateway, token, address=("0.0.0.0", 8787)):
     return ThreadingHTTPServer(address, Handler)
 
 
-def main():
+def main(argv=None, state_dir="/state", clock=None):
+    from .ledger import system_clock
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=("init", "serve", "status"))
-    args = parser.parse_args()
-    path = Path("/state/usage.sqlite3")
-    access = Path("/state/access.key")
+    parser.add_argument("command", choices=("init", "serve", "status", "preflight",
+                                            "mint-token", "revoke-token"))
+    parser.add_argument("--ttl", type=int, default=3600, help="run-token lifetime in seconds")
+    parser.add_argument("--id", default="", help="run-token id for revoke-token")
+    args = parser.parse_args(argv)
+    state = Path(state_dir)
+    path = state / "usage.sqlite3"
+    access = state / "access.key"
+    clock = clock or system_clock
     if args.command == "init":
-        Ledger.initialize(path)
+        Ledger.initialize(path, clock)
         with access.open("x") as out:
             out.write(secrets.token_urlsafe(32))
         access.chmod(0o600)
         print("Persistent ledger initialized; ceiling 200000000 tokens / 86400 seconds")
         return
-    ledger = Ledger(path)  # missing or corrupt state never creates a fresh allowance
+    ledger = Ledger(path, clock)  # missing or corrupt state never creates a fresh allowance
     if args.command == "status":
         print(json.dumps(ledger.status(), indent=2))
+        return
+    if args.command == "preflight":
+        state = ledger.status()
+        outcome = state["last_provider_outcome"] or {}
+        if state["halted"]:
+            print(json.dumps({"access": "blocked", "reason": state["halted"]}))
+        elif outcome.get("kind") == "success":
+            print(json.dumps({"access": "authorized", **outcome}))
+        else:
+            print(json.dumps({"access": "unknown",
+                              "reason": "no provider request yet; live acceptance blocked"}))
+        return 0 if not state["halted"] and outcome.get("kind") == "success" else 1
+    if args.command == "mint-token":
+        ident, secret = ledger.mint_run_token(args.ttl)
+        print(f"{ident} {secret}")
+        return
+    if args.command == "revoke-token":
+        print("revoked" if ledger.revoke_run_token(args.id) else "unknown")
         return
     key = os.environ.get("MUSE_API_KEY")
     if not key:
@@ -128,4 +159,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

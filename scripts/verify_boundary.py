@@ -105,6 +105,7 @@ with httpx.Client(trust_env=False,timeout=5) as c:
             capture_output=True,text=True,timeout=60).stdout
         result.update(launcher_checks(args.image,network,name))
         result.update(containment_checks(args.image,network))
+        result.update(token_checks(name))
         tree_after=subprocess.run(["git","status","--porcelain","--","src","tests"],
             capture_output=True,text=True,timeout=60).stdout
         result["source_checkout_untouched"]=tree_before==tree_after
@@ -227,6 +228,36 @@ def containment_checks(image, network):
     return checks
 
 
+def token_checks(gate):
+    """Build 05: run-scoped tokens mint/use/revoke/expire; preflight honest."""
+    checks = {}
+    tid, secret = call(["exec", gate, "python", "-I", "-m", "boundary.server",
+                        "mint-token", "--ttl", "60"]).split()
+    probe = ("from boundary.ledger import Ledger;"
+             "print(Ledger('/state/usage.sqlite3').check_run_token('%s'))" % secret)
+    checks["minted_token_valid"] = call(
+        ["exec", gate, "python", "-I", "-c", probe]) == "True"
+    checks["revoke_token"] = call(
+        ["exec", gate, "python", "-I", "-m", "boundary.server",
+         "revoke-token", "--id", tid]) == "revoked"
+    checks["revoked_token_rejected"] = call(
+        ["exec", gate, "python", "-I", "-c", probe]) == "False"
+    tid2, secret2 = call(["exec", gate, "python", "-I", "-m", "boundary.server",
+                          "mint-token", "--ttl", "1"]).split()
+    time.sleep(2)
+    probe2 = ("from boundary.ledger import Ledger;"
+              "print(Ledger('/state/usage.sqlite3').check_run_token('%s'))" % secret2)
+    checks["expired_token_rejected"] = call(
+        ["exec", gate, "python", "-I", "-c", probe2]) == "False"
+    preflight = subprocess.run(["docker", "exec", gate, "python", "-I", "-m",
+                                "boundary.server", "preflight"],
+                               capture_output=True, text=True, timeout=60)
+    checks["preflight_reports_unknown"] = (
+        preflight.returncode == 1
+        and json.loads(preflight.stdout)["access"] == "unknown")
+    return checks
+
+
 def launcher_checks(image, network, gate):
     """Build 03: drive the real launcher; fail closed on every unsafe path."""
     root = Path(__file__).resolve().parent.parent
@@ -282,6 +313,8 @@ def launcher_checks(image, network, gate):
         checks["workspaces_independent"] = (
             r2.returncode == 0 and "[]" in r2.stdout
             and {p.name for p in out2.iterdir()} <= {"manifest.canary.json"})
+        checks["run_tokens_scoped_per_run"] = (
+            rec1["TOKEN_ID"] != "" and receipt(out2)["TOKEN_ID"] not in ("", rec1["TOKEN_ID"]))
 
         # 3. forbidden destinations fail closed from the guest
         out3 = tmp / "out3"
