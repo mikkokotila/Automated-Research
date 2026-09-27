@@ -1,0 +1,11 @@
+{"ts": "2026-09-27T22:52:47.573165+00:00", "phase": "cycle", "event": "start", "detail": "seed=seed? max_iter=5", "seq": 1, "source": "worker", "run_id": "20260927-225247-eb9e3c", "v": 1}
+{"ts": "2026-09-27T22:52:47.573909+00:00", "phase": "review", "event": "start", "detail": "seed?", "seq": 2, "source": "worker", "run_id": "20260927-225247-eb9e3c", "v": 1}
+{"ts": "2026-09-27T22:52:47.574552+00:00", "phase": "review", "event": "retrieved", "detail": "1 candidates", "seq": 3, "source": "worker", "run_id": "20260927-225247-eb9e3c", "v": 1}
+{"ts": "2026-09-27T22:52:47.574669+00:00", "phase": "review", "event": "coverage-warning", "detail": "weak relevance: best candidate doi:10.1/x covers 0/1 question terms (needs 1); citations do not establish relevance", "seq": 4, "source": "worker", "run_id": "20260927-225247-eb9e3c", "v": 1}
+{"ts": "2026-09-27T22:52:47.575178+00:00", "phase": "review", "event": "synthesized", "detail": "1 papers, cited 1", "seq": 5, "source": "worker", "run_id": "20260927-225247-eb9e3c", "v": 1}
+{"ts": "2026-09-27T22:52:47.576328+00:00", "phase": "cycle", "event": "iter-done", "detail": "n=1 kind=review", "seq": 6, "source": "worker", "run_id": "20260927-225247-eb9e3c", "v": 1}
+{"ts": "2026-09-27T22:52:47.576418+00:00", "phase": "schedule", "event": "decide", "detail": "research: research first", "seq": 7, "source": "worker", "run_id": "20260927-225247-eb9e3c", "v": 1}
+{"ts": "2026-09-27T22:52:47.576640+00:00", "phase": "cycle", "event": "proposed", "detail": "q2? parent=iter1 gap=", "seq": 8, "source": "worker", "run_id": "20260927-225247-eb9e3c", "v": 1}
+{"ts": "2026-09-27T22:52:47.577202+00:00", "phase": "cycle", "event": "finalize-reserve", "detail": "holding 1 calls for the final report", "seq": 9, "source": "worker", "run_id": "20260927-225247-eb9e3c", "v": 1}
+{"ts": "2026-09-27T22:52:47.577277+00:00", "phase": "cycle", "event": "budget-exhausted", "detail": "model-call budget exhausted (2/2)", "seq": 10, "source": "worker", "run_id": "20260927-225247-eb9e3c", "v": 1}
+{"ts": "2026-09-27T22:52:47.578343+00:00", "phase": "bundle", "event": "sealed", "detail": "stopped=budget_exhausted", "seq": 11, "source": "trusted", "run_id": "20260927-225247-eb9e3c", "v": 1}

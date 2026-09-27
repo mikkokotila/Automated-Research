@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "run_id": "20260927-225212-69700b",
+  "kind": "analyze",
+  "spec": {
+    "version": 1,
+    "question": "what predicts t?",
+    "csv": "acceptance/2026-09-27/scenarios/synthetic-csv/input.csv",
+    "target": "t",
+    "max_papers": 5,
+    "year_from": null,
+    "model": "muse-spark-1.3-contributor",
+    "maintenance": false,
+    "max_iterations": 3,
+    "revise_rounds": 1,
+    "max_model_calls": 25,
+    "max_tokens": 20000000,
+    "wall_time_s": 1800,
+    "finalize_calls": 1,
+    "out_dir": "acceptance/2026-09-27/scenarios/synthetic-csv"
+  },
+  "status": "completed",
+  "started_at": "2026-09-27T22:52:12.055128+00:00",
+  "finished_at": "2026-09-27T22:52:12.453733+00:00",
+  "artefacts": [
+    {
+      "path": "analysis.jsonl",
+      "sha256": "3d1dfdca5037664cca07a8abe52bcd245d570fcf9284926a211b39640ffca9ea",
+      "size": 865
+    },
+    {
+      "path": "analysis.md",
+      "sha256": "3fdabd74a59c7ac08a6b6b871a82fd648ee009b95e7f93d5275c155992ea2f76",
+      "size": 848
+    },
+    {
+      "path": "input.csv",
+      "sha256": "162ca0c46016d92547f48f30f5fca75a72f328fbe5bc8d9ca1d6587d3a21aad1",
+      "size": 969
+    },
+    {
+      "path": "journal.jsonl",
+      "sha256": "6c57ba123a5edc2d4de30ac9866a85c01ac2a271c2a7cb80f0c7e4f98566eb13",
+      "size": 189
+    },
+    {
+      "path": "provenance.json",
+      "sha256": "dcbae41b13628d1419881503bec23ed37f423a66bcd74765c0169ac4ea99cc0d",
+      "size": 1468
+    }
+  ],
+  "forked_from": null
+}

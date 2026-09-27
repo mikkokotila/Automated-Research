@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "run_id": "20260927-225211-9685e7",
+  "kind": "review",
+  "spec": {
+    "version": 1,
+    "question": "Does X matter?",
+    "csv": null,
+    "target": null,
+    "max_papers": 5,
+    "year_from": null,
+    "model": "muse-spark-1.3-contributor",
+    "maintenance": false,
+    "max_iterations": 3,
+    "revise_rounds": 1,
+    "max_model_calls": 25,
+    "max_tokens": 20000000,
+    "wall_time_s": 1800,
+    "finalize_calls": 1,
+    "out_dir": "acceptance/2026-09-27/scenarios/review-only"
+  },
+  "status": "completed",
+  "started_at": "2026-09-27T22:52:11.008038+00:00",
+  "finished_at": "2026-09-27T22:52:11.010922+00:00",
+  "artefacts": [
+    {
+      "path": "journal.jsonl",
+      "sha256": "40db5d218cdc88f79a53f45dcd57e1e3c7ce36d14a8e8e7b649c3906a8d06a8c",
+      "size": 371
+    },
+    {
+      "path": "provenance.json",
+      "sha256": "5e79b03bd3e847f375e5140f6f545a8e23373e3d9185abcdc9383c76db330dd1",
+      "size": 1595
+    },
+    {
+      "path": "retrieval.jsonl",
+      "sha256": "50fee95c8e401089e75da0e0cd01880e1c958f57ee0db52d292fbd369799912f",
+      "size": 1284
+    },
+    {
+      "path": "review.md",
+      "sha256": "dbea1a2e10a2db66414c24e47ed90870bd32a5118e3b4697bc9b3c2fa5747a46",
+      "size": 610
+    }
+  ],
+  "forked_from": null
+}

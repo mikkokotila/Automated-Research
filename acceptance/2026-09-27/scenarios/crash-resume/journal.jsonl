@@ -1,0 +1,21 @@
+{"ts": "2026-09-27T22:52:46.527580+00:00", "phase": "cycle", "event": "start", "detail": "seed=seed? max_iter=3", "seq": 1, "source": "worker", "run_id": "20260927-225246-6b4eb4", "v": 1}
+{"ts": "2026-09-27T22:52:46.528408+00:00", "phase": "review", "event": "start", "detail": "seed?", "seq": 2, "source": "worker", "run_id": "20260927-225246-6b4eb4", "v": 1}
+{"ts": "2026-09-27T22:52:46.529094+00:00", "phase": "review", "event": "retrieved", "detail": "1 candidates", "seq": 3, "source": "worker", "run_id": "20260927-225246-6b4eb4", "v": 1}
+{"ts": "2026-09-27T22:52:46.529219+00:00", "phase": "review", "event": "coverage-warning", "detail": "weak relevance: best candidate doi:10.1/x covers 0/1 question terms (needs 1); citations do not establish relevance", "seq": 4, "source": "worker", "run_id": "20260927-225246-6b4eb4", "v": 1}
+{"ts": "2026-09-27T22:52:46.529780+00:00", "phase": "review", "event": "synthesized", "detail": "1 papers, cited 1", "seq": 5, "source": "worker", "run_id": "20260927-225246-6b4eb4", "v": 1}
+{"ts": "2026-09-27T22:52:46.530900+00:00", "phase": "cycle", "event": "iter-done", "detail": "n=1 kind=review", "seq": 6, "source": "worker", "run_id": "20260927-225246-6b4eb4", "v": 1}
+{"ts": "2026-09-27T22:52:46.531004+00:00", "phase": "schedule", "event": "decide", "detail": "research: research first", "seq": 7, "source": "worker", "run_id": "20260927-225246-6b4eb4", "v": 1}
+{"ts": "2026-09-27T22:52:46.531340+00:00", "phase": "cycle", "event": "proposed", "detail": "q2? parent=iter1 gap=", "seq": 8, "source": "worker", "run_id": "20260927-225246-6b4eb4", "v": 1}
+{"ts": "2026-09-27T22:52:46.531977+00:00", "phase": "review", "event": "start", "detail": "q2?", "seq": 9, "source": "worker", "run_id": "20260927-225246-6b4eb4", "v": 1}
+{"ts": "2026-09-27T22:52:46.532369+00:00", "phase": "review", "event": "retrieved", "detail": "1 candidates", "seq": 10, "source": "worker", "run_id": "20260927-225246-6b4eb4", "v": 1}
+{"ts": "2026-09-27T22:52:46.532716+00:00", "phase": "cycle", "event": "cancelled", "detail": "simulated crash", "seq": 11, "source": "worker", "run_id": "20260927-225246-6b4eb4", "v": 1}
+{"ts": "2026-09-27T22:52:46.534385+00:00", "phase": "resume", "event": "continued", "detail": "from checkpoint 2 (1 iterations kept)", "seq": 12, "source": "trusted", "run_id": "20260927-225246-6b4eb4", "v": 1}
+{"ts": "2026-09-27T22:52:46.534527+00:00", "phase": "resume", "event": "ambiguous-op", "detail": "complete:cc4e1143633a has no recorded response; replaying as a new attempt", "seq": 13, "source": "trusted", "run_id": "20260927-225246-6b4eb4", "v": 1}
+{"ts": "2026-09-27T22:52:46.534651+00:00", "phase": "cycle", "event": "start", "detail": "seed=seed? max_iter=3", "seq": 14, "source": "worker", "run_id": "20260927-225246-6b4eb4", "v": 1}
+{"ts": "2026-09-27T22:52:46.535302+00:00", "phase": "review", "event": "start", "detail": "q2?", "seq": 15, "source": "worker", "run_id": "20260927-225246-6b4eb4", "v": 1}
+{"ts": "2026-09-27T22:52:46.535691+00:00", "phase": "review", "event": "retrieved", "detail": "1 candidates", "seq": 16, "source": "worker", "run_id": "20260927-225246-6b4eb4", "v": 1}
+{"ts": "2026-09-27T22:52:46.536086+00:00", "phase": "review", "event": "synthesized", "detail": "1 papers, cited 1", "seq": 17, "source": "worker", "run_id": "20260927-225246-6b4eb4", "v": 1}
+{"ts": "2026-09-27T22:52:46.537222+00:00", "phase": "cycle", "event": "iter-done", "detail": "n=2 kind=review", "seq": 18, "source": "worker", "run_id": "20260927-225246-6b4eb4", "v": 1}
+{"ts": "2026-09-27T22:52:46.537305+00:00", "phase": "schedule", "event": "decide", "detail": "research: research first", "seq": 19, "source": "worker", "run_id": "20260927-225246-6b4eb4", "v": 1}
+{"ts": "2026-09-27T22:52:46.537714+00:00", "phase": "cycle", "event": "done", "detail": "iters=2 stopped=converged", "seq": 20, "source": "worker", "run_id": "20260927-225246-6b4eb4", "v": 1}
+{"ts": "2026-09-27T22:52:46.539201+00:00", "phase": "bundle", "event": "sealed", "detail": "stopped=converged", "seq": 21, "source": "trusted", "run_id": "20260927-225246-6b4eb4", "v": 1}
