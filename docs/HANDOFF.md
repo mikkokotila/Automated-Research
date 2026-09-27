@@ -45,3 +45,28 @@ Live provider behavior, real GitHub publishing, end-to-end containment, and old 
 ## Request-boundary update
 
 The naming-checkpoint description above is historical. The current request path now requires the external service in [TOKEN_BOUNDARY.md](TOKEN_BOUNDARY.md): exact model lock, persistent rolling token reservations, and no direct worker egress or provider credentials. Old direct-key launch recipes are no longer valid. The current launcher also withholds GitHub credentials. Tests and fixture profiling are saved under `validation/token-boundary/`; no live model call was made for this update.
+
+## Build 17 addendum (2026-09-27, acceptance and handoff)
+
+Everything above stays as written; this section records where the
+continuation work landed. Builds 02–16 are implemented on `main` with
+per-build evidence under `validation/2026-09-27/build-*.md`: hardened
+container boundary, launcher + broker, export path, provider boundary,
+versioned run specs and budgets, durable bundles, checkpoint/resume,
+retrieval contracts, claim anchoring, leakage-free analysis, assessment
+records, validated changesets, the evaluation gate, transactional
+promotion, and the interleaved research–assessment–revision cycle with
+fresh-worker restarts.
+
+Start here now: [RUNBOOK.md](RUNBOOK.md) (operator workflow from a clean
+clone), [WORKERS.md](WORKERS.md) (worker contract), and
+`scripts/run_acceptance.py` (ten deterministic offline scenarios sealing a
+dated bundle under `acceptance/<date>/`). The release decision, with
+demonstrated vs untested vs deferred work, ships as DECISION.md beside
+each acceptance bundle.
+
+Two facts a continuer must not lose: revision entry points still refuse
+on every host (revision behavior is verified through the hermetic suite,
+not live promotion), and no live provider run has been made from this
+tree (explicit release blocker, tracked in its own issue). Original
+recovery evidence is untouched in history at `pre-canary-20260926`.
