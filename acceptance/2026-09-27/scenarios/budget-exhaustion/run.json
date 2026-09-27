@@ -1,0 +1,70 @@
+{
+  "generated_at": "2026-09-27T22:36:12.912989+00:00",
+  "kind": "cycle",
+  "seed": "seed?",
+  "stopped": "budget_exhausted",
+  "model": "acceptance-scripted",
+  "unanswered": [
+    "q2?"
+  ],
+  "usage": {
+    "model_calls": 2,
+    "tokens": 0,
+    "tokens_reported": false
+  },
+  "spec": {
+    "version": 1,
+    "question": "seed?",
+    "csv": null,
+    "target": null,
+    "max_papers": 5,
+    "year_from": null,
+    "model": "muse-spark-1.3-contributor",
+    "maintenance": false,
+    "max_iterations": 5,
+    "revise_rounds": 1,
+    "max_model_calls": 2,
+    "max_tokens": 20000000,
+    "wall_time_s": 1800,
+    "finalize_calls": 1,
+    "out_dir": "acceptance/2026-09-27/scenarios/budget-exhaustion"
+  },
+  "iterations": [
+    {
+      "n": 1,
+      "kind": "review",
+      "question": "seed?",
+      "papers": [
+        "Study on X"
+      ],
+      "model": "acceptance-scripted",
+      "coverage_warning": "weak relevance: best candidate doi:10.1/x covers 0/1 question terms (needs 1); citations do not establish relevance",
+      "claims": [
+        {
+          "id": "c1",
+          "text": "X was studied",
+          "evidence": [
+            {
+              "paper": 1,
+              "span": "Study on X",
+              "anchored": true
+            }
+          ],
+          "scope": "",
+          "uncertainty": "",
+          "support": "supported"
+        }
+      ],
+      "validation": {
+        "claims_parsed": 1,
+        "citation_validity": "markers resolved against the provided papers",
+        "semantic_support": "unchecked \u2014 overlap_hint is fallible and proves nothing",
+        "rejected": [],
+        "unresolved": [
+          "semantic support of each claim is unverified"
+        ],
+        "dangling_citations": []
+      }
+    }
+  ]
+}

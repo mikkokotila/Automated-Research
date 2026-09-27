@@ -1,0 +1,69 @@
+{
+  "generated_at": "2026-09-27T22:35:37.311930+00:00",
+  "question": "Does X matter?",
+  "max_papers": 5,
+  "year_from": null,
+  "model": "acceptance-scripted",
+  "cited": [
+    1
+  ],
+  "coverage_warning": "weak relevance: best candidate doi:10.1/x covers 0/1 question terms (needs 1); citations do not establish relevance",
+  "claims": [
+    {
+      "id": "c1",
+      "text": "X was studied",
+      "evidence": [
+        {
+          "paper": 1,
+          "span": "Study on X",
+          "anchored": true
+        }
+      ],
+      "scope": "",
+      "uncertainty": "",
+      "support": "supported"
+    }
+  ],
+  "validation": {
+    "claims_parsed": 1,
+    "citation_validity": "markers resolved against the provided papers",
+    "semantic_support": "unchecked \u2014 overlap_hint is fallible and proves nothing",
+    "rejected": [],
+    "unresolved": [
+      "semantic support of each claim is unverified"
+    ],
+    "dangling_citations": []
+  },
+  "papers": [
+    {
+      "n": 1,
+      "ref": "doi:10.1/x",
+      "title": "Study on X",
+      "authors": [
+        "A. Uthor"
+      ],
+      "year": 2023,
+      "venue": "J X",
+      "doi": "10.1/x",
+      "url": "https://doi.org/10.1/x",
+      "citations": 5,
+      "source": "openalex",
+      "score": 0.8844,
+      "evidence": "abstract",
+      "oa_url": "",
+      "license": "",
+      "identifiers": {
+        "openalex": "W1"
+      },
+      "rank_reasons": {
+        "keywords": [
+          "matter"
+        ],
+        "title_hits": [],
+        "abstract_hits": [],
+        "citations": 5,
+        "citation_driven": true
+      }
+    }
+  ]
+}

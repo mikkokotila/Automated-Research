@@ -1,0 +1,105 @@
+{
+  "generated_at": "2026-09-27T22:36:23.926401+00:00",
+  "repo_rev": "7719f16a312985e745ca47582c4297f0ada2c772",
+  "python": "3.12.12",
+  "verdicts": [
+    {
+      "scenario": "review-only",
+      "status": "pass",
+      "detail": "cited=1 grounded=1",
+      "duration_s": 1.0,
+      "artefacts": [
+        "scenarios/review-only/review.md",
+        "scenarios/review-only/provenance.json",
+        "scenarios/review-only/journal.jsonl"
+      ]
+    },
+    {
+      "scenario": "synthetic-csv",
+      "status": "pass",
+      "detail": "best=logreg test=0.25 seed=810278876",
+      "duration_s": 1.5,
+      "artefacts": [
+        "scenarios/synthetic-csv/analysis.md",
+        "scenarios/synthetic-csv/analysis.json",
+        "scenarios/synthetic-csv/journal.jsonl"
+      ]
+    },
+    {
+      "scenario": "cycle-research",
+      "status": "pass",
+      "detail": "2 iterations, converged, 5 calls",
+      "duration_s": 1.0,
+      "artefacts": [
+        "scenarios/cycle-research/synthesis.md",
+        "scenarios/cycle-research/run.json",
+        "scenarios/cycle-research/journal.jsonl"
+      ]
+    },
+    {
+      "scenario": "maintenance-refusal",
+      "status": "fail",
+      "detail": "FileExistsError: [Errno 17] File exists: 'acceptance/2026-09-27/scenarios/maintenance-refusal/repo'",
+      "duration_s": 0.0,
+      "artefacts": [
+        "scenarios/maintenance-refusal/FAILURE.txt"
+      ]
+    },
+    {
+      "scenario": "maintenance-logic",
+      "status": "pass",
+      "detail": "91 passed in 30.34s",
+      "duration_s": 31.0,
+      "artefacts": [
+        "scenarios/maintenance-logic/pytest.log"
+      ]
+    },
+    {
+      "scenario": "crash-resume",
+      "status": "pass",
+      "detail": "crash at call 3, resumed to converged, 5 calls carried",
+      "duration_s": 1.1,
+      "artefacts": [
+        "scenarios/crash-resume/synthesis.md",
+        "scenarios/crash-resume/run.json",
+        "scenarios/crash-resume/journal.jsonl"
+      ]
+    },
+    {
+      "scenario": "budget-exhaustion",
+      "status": "pass",
+      "detail": "stopped honestly at 2/2 calls, q2? carried forward",
+      "duration_s": 1.0,
+      "artefacts": [
+        "scenarios/budget-exhaustion/synthesis.md",
+        "scenarios/budget-exhaustion/run.json",
+        "scenarios/budget-exhaustion/journal.jsonl"
+      ]
+    },
+    {
+      "scenario": "provider-restriction",
+      "status": "pass",
+      "detail": "run blocked honestly; keyless client refuses (CANARY_GATE_TOKEN required; direct provider access is disabled)",
+      "duration_s": 0.0,
+      "artefacts": [
+        "scenarios/provider-restriction/journal.jsonl",
+        "scenarios/provider-restriction/key_presence.json",
+        "scenarios/provider-restriction/checkpoints/checkpoint-0000.json"
+      ]
+    },
+    {
+      "scenario": "containment",
+      "status": "fail",
+      "detail": "AssertionError: boundary suite: rc=1 true=0/43",
+      "duration_s": 10.0,
+      "artefacts": [
+        "scenarios/containment/FAILURE.txt"
+      ]
+    }
+  ],
+  "counts": {
+    "pass": 7,
+    "fail": 2,
+    "skip": 0
+  }
+}

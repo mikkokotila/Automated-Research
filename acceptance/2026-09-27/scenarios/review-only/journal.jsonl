@@ -1,0 +1,2 @@
+{"ts": "2026-09-27T22:35:37.310320+00:00", "phase": "review", "event": "start", "detail": "Does X matter?", "seq": 1, "source": "worker", "run_id": "20260927-223537-ca6610", "v": 1}
+{"ts": "2026-09-27T22:35:37.312165+00:00", "phase": "bundle", "event": "sealed", "detail": "artefacts finalized", "seq": 2, "source": "trusted", "run_id": "20260927-223537-ca6610", "v": 1}

@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "run_id": "20260927-223612-a4486c",
+  "kind": "cycle",
+  "spec": {
+    "version": 1,
+    "question": "seed?",
+    "csv": null,
+    "target": null,
+    "max_papers": 5,
+    "year_from": null,
+    "model": "muse-spark-1.3-contributor",
+    "maintenance": false,
+    "max_iterations": 5,
+    "revise_rounds": 1,
+    "max_model_calls": 2,
+    "max_tokens": 20000000,
+    "wall_time_s": 1800,
+    "finalize_calls": 1,
+    "out_dir": "acceptance/2026-09-27/scenarios/budget-exhaustion"
+  },
+  "status": "budget_exhausted",
+  "started_at": "2026-09-27T22:36:12.906455+00:00",
+  "finished_at": "2026-09-27T22:36:12.913667+00:00",
+  "artefacts": [
+    {
+      "path": "checkpoints/checkpoint-0000.json",
+      "sha256": "6448e07943e72dc3acece15cf852b90e1228fb461f1e944e94bcf60047c67568",
+      "size": 1751
+    },
+    {
+      "path": "checkpoints/checkpoint-0001.json",
+      "sha256": "ec69c60aa1da168bce68620405063056a92e79e16330babc467e299ab0d3afb6",
+      "size": 3665
+    },
+    {
+      "path": "checkpoints/checkpoint-0002.json",
+      "sha256": "98561ba1655eafefc6fafb18966ba95212872f3659109b38aa9e75fa0f1017c7",
+      "size": 3804
+    },
+    {
+      "path": "iterations/iter1-review.md",
+      "sha256": "7ea9fde0e63025477f55c85a42465b8385a2c3069b23ba671c6ed01b83bfebf0",
+      "size": 602
+    },
+    {
+      "path": "iterations/iter1.json",
+      "sha256": "168c5d72bada4456c1c72d09006b0476eb7e1ef316e32bda33d0b9937a4e636a",
+      "size": 886
+    },
+    {
+      "path": "journal.jsonl",
+      "sha256": "910c1d08fbca723616a5ed7bb3c72d01d059fb8462a1f2f21d5ddb89bbe39efd",
+      "size": 2223
+    },
+    {
+      "path": "ops.jsonl",
+      "sha256": "a53939e8a15c64ad0cd47c14dda6c308692c1bcc6f152c12c8fe70d72dffe5f3",
+      "size": 1204
+    },
+    {
+      "path": "retrieval.jsonl",
+      "sha256": "603aec3dd83c786fac1fd17196c19567afa1d42635ed9da3ae268e81c4208ff3",
+      "size": 2524
+    },
+    {
+      "path": "run.json",
+      "sha256": "266f253427905e5d70ad085d1abeb0b66d361a3215f8138babba574ec2c0add2",
+      "size": 1764
+    },
+    {
+      "path": "spec.json",
+      "sha256": "6913ce426272e0a7e153e83c4c385ccf7a79a32fa9785e797fb88852f245345a",
+      "size": 386
+    },
+    {
+      "path": "synthesis.md",
+      "sha256": "74b462a803d55042bd52f04b4529b6e714b2bb8988b4fde0bce2ce93863515cd",
+      "size": 300
+    }
+  ],
+  "forked_from": null
+}

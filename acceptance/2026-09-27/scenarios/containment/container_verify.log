@@ -1,0 +1,17 @@
+sha256:b57d7a7081db40cd282f9332d331337c84e7dbcdb02a097974ea6bf4b0ba0dd0
+sha256:d311ca855cca231d9aeb39fdd4d39f5da5bb036c24fb3742b1f01e412ac3e66e
+Traceback (most recent call last):
+  File "/Users/mikkokotila/Canary/scripts/verify_boundary.py", line 391, in <module>
+    main()
+  File "/Users/mikkokotila/Canary/scripts/verify_boundary.py", line 106, in main
+    result.update(launcher_checks(args.image,network,name))
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/mikkokotila/Canary/scripts/verify_boundary.py", line 295, in launcher_checks
+    r1 = launch(out1, ["exec", "python", "-c", GUEST_FIXTURE],
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/mikkokotila/Canary/scripts/verify_boundary.py", line 278, in launch
+    raise RuntimeError(f"launcher {args} exited {proc.returncode}: "
+RuntimeError: launcher ['exec', 'python', '-c', "\nimport json, subprocess, sys\nfrom pathlib import Path\npage = Path('/inputs/page.html').read_text()\nr = subprocess.run([sys.executable, '-m', 'pip', 'install', '--quiet', '--no-index',\n    '--no-deps', '--target', '/tmp/site', '--find-links', '/wheels', 'fixture_pkg'],\n    capture_output=True, text=True, timeout=120)\nassert r.returncode == 0, r.stderr[-500:]\nsys.path.insert(0, '/tmp/site')\nimport fixture_pkg\nlocked = {}\nfor p in ('/etc/launcher-probe', '/app/launcher-probe'):\n    try:\n        Path(p).write_text('x')\n        locked[p] = False\n    except OSError:\n        locked[p] = True\nPath('/work/out/result.json').write_text(json.dumps(\n    {'answer': fixture_pkg.answer(), 'page': page, 'locked': locked}))\n"] exited 1: Exported 0 files
+exit=1 out=/var/folders/zg/pwnp530s7m5731gmlbhqyh_r0000gn/T/launcher-vjv89hcj/out1 receipt=/var/folders/zg/pwnp530s7m5731gmlbhqyh_r0000gn/T/launcher-vjv89hcj/out1.receipt.json
+ cp: cannot access '/app/./acceptance/2026-09-27/scenarios/export-scan/exported': Permission denied
+

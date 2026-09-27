@@ -1,0 +1,80 @@
+{
+  "schema_version": 2,
+  "seq": 0,
+  "run_id": "20260927-223612-a4486c",
+  "spec": {
+    "version": 1,
+    "question": "seed?",
+    "csv": null,
+    "target": null,
+    "max_papers": 5,
+    "year_from": null,
+    "model": "muse-spark-1.3-contributor",
+    "maintenance": false,
+    "max_iterations": 5,
+    "revise_rounds": 1,
+    "max_model_calls": 2,
+    "max_tokens": 20000000,
+    "wall_time_s": 1800,
+    "finalize_calls": 1,
+    "out_dir": "acceptance/2026-09-27/scenarios/budget-exhaustion"
+  },
+  "code_hash": "sha256:5cc720c93b2d7a24be62dca68056cecaa47b53b2c228235d3662b3bab11a4a0b",
+  "csv_hash": "none",
+  "repo_root": null,
+  "check_cmd": null,
+  "iterations": [],
+  "pending": [
+    {
+      "question": "seed?",
+      "kind": "review",
+      "rationale": "seed",
+      "gap": "",
+      "parent": ""
+    }
+  ],
+  "seen": [
+    "seed"
+  ],
+  "failed_q": null,
+  "budget": {
+    "max_calls": 2,
+    "max_tokens": 20000000,
+    "wall_time_s": 1800,
+    "calls": 0,
+    "tokens": 0,
+    "tokens_reported": false,
+    "elapsed_s": 0.0009769159951247275
+  },
+  "scheduler": {
+    "assess_every": 1,
+    "max_no_progress": 2,
+    "max_failed_revisions": 2,
+    "max_revision_calls": 8,
+    "max_restarts": 3,
+    "allow_revision": false,
+    "restart_on_revision": true,
+    "version": 1,
+    "scope": {
+      "maintenance": false,
+      "repo_root": null,
+      "check_cmd": null,
+      "revise_rounds": 1
+    },
+    "iters_since_assess": 0,
+    "no_progress": 0,
+    "failed_revisions": 0,
+    "revision_calls": 0,
+    "restarts": 0,
+    "assess_rounds": 0,
+    "gaps_open": 0
+  },
+  "scope": {
+    "maintenance": false,
+    "repo_root": null,
+    "check_cmd": null,
+    "revise_rounds": 1
+  },
+  "restart_pending": null,
+  "journal_len": 1
+}
