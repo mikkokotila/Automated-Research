@@ -143,6 +143,7 @@ def _process_attempt(path):
         return False
 
 
+@pytest.mark.containment  # needs Linux boot_id + spawn; runs in CI, not in the portable default suite
 def test_processes_share_one_ledger(tmp_path):
     ledger = Ledger.initialize(tmp_path / "usage.sqlite3")
     with multiprocessing.get_context("spawn").Pool(4) as pool:
@@ -258,7 +259,7 @@ def test_provider_access_block_is_persistent(book, status):
 def endpoint(book):
     gate, calls = service(book)
     server = make_server(gate, "test-access", ("127.0.0.1", 0))
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.02}, daemon=True)
     thread.start()
     try:
         yield "http://127.0.0.1:"+str(server.server_port), calls

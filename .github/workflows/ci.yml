@@ -1,20 +1,67 @@
+# Budgets (enforced by timeout-minutes, measured 2026-09-27):
+#   smoke ~21s -> 3 min; matrix ~22s -> 5 min; docker cold ~2.5min / warm ~90s -> 8 min
+# smoke runs on every push; matrix + docker run only on pull_request.
 name: ci
 on: [push, pull_request]
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
-  test:
+  smoke:
     runs-on: ubuntu-latest
+    timeout-minutes: 3
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install -e . pytest
-      - run: pytest -q
-  docker:
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked
+      - run: |
+          uv run --no-sync python -c "import sys, platform; print(sys.version); print(platform.platform())"
+          uv run --no-sync pytest -q --durations=10
+  matrix:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.13"]
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t canary:ci .
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked
+      - run: uv run --no-sync pytest -q --durations=10
+      - run: uv run --no-sync pytest -q -m containment
+  docker:
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          tags: canary:ci
+          load: true
+          cache-from: type=gha,scope=canary-main
+          cache-to: ${{ github.ref == 'refs/heads/main' && 'type=gha,mode=max,scope=canary-main' || '' }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: boundary/Dockerfile
+          tags: canary-boundary:check
+          load: true
+          cache-from: type=gha,scope=canary-gate
+          cache-to: ${{ github.ref == 'refs/heads/main' && 'type=gha,mode=max,scope=canary-gate' || '' }}
       - run: ./scripts/container_verify.sh
         env:
           IMG: canary:ci
+          CANARY_PREBUILT: "1"
