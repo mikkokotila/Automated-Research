@@ -1,11 +1,17 @@
 """Crash-safe rolling-window reservations, shared by service processes."""
 from contextlib import contextmanager
 from pathlib import Path
+import hashlib
+import json
 import os
+import secrets
 import sqlite3
 import time
 import uuid
 from .policy import TOKEN_LIMIT, WINDOW_NS, BudgetBlocked, StateBlocked
+
+MAX_TOKEN_TTL_S = 7 * 86_400
+OUTCOME_KEY = "last_provider_outcome"
 
 
 def system_clock():
@@ -23,6 +29,11 @@ class Ledger:
             row = db.execute("SELECT version, ceiling, window_ns FROM policy").fetchone()
             if row != (1, TOKEN_LIMIT, WINDOW_NS):
                 raise StateBlocked("Ledger policy mismatch")
+            db.execute("""CREATE TABLE IF NOT EXISTS run_tokens(
+                id TEXT PRIMARY KEY, digest TEXT NOT NULL UNIQUE,
+                expires INTEGER NOT NULL, revoked INTEGER NOT NULL DEFAULT 0)""")
+            db.execute("CREATE TABLE IF NOT EXISTS notes(key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+            db.commit()
 
     @classmethod
     def initialize(cls, path, clock=system_clock):
@@ -120,10 +131,46 @@ class Ledger:
         with self._transaction() as (db, _, __):
             db.execute("UPDATE policy SET halted=?", (reason,))
 
+    def mint_run_token(self, ttl_s):
+        """Short-lived worker credential. The secret is shown once, never stored."""
+        if type(ttl_s) is not int or not 1 <= ttl_s <= MAX_TOKEN_TTL_S:
+            raise StateBlocked("Invalid token TTL")
+        with self._transaction() as (db, now, halted):
+            if halted:
+                raise StateBlocked("Request service halted: " + halted)
+            db.execute("DELETE FROM run_tokens WHERE expires<=?", (now,))
+            ident, secret = uuid.uuid4().hex, secrets.token_urlsafe(32)
+            digest = hashlib.sha256(secret.encode()).hexdigest()
+            db.execute("INSERT INTO run_tokens VALUES(?,?,?,0)",
+                       (ident, digest, now + ttl_s * 1_000_000_000))
+            return ident, secret
+
+    def check_run_token(self, secret):
+        with self._transaction() as (db, now, halted):
+            if halted or not secret:
+                return False
+            digest = hashlib.sha256(secret.encode()).hexdigest()
+            row = db.execute("SELECT expires,revoked FROM run_tokens WHERE digest=?",
+                             (digest,)).fetchone()
+            return row is not None and not row[1] and row[0] > now
+
+    def revoke_run_token(self, ident):
+        with self._transaction() as (db, _, __):
+            row = db.execute("UPDATE run_tokens SET revoked=1 WHERE id=?", (ident,))
+            return row.rowcount > 0
+
+    def note_outcome(self, outcome):
+        """Record the last provider interaction for preflight. Never secrets."""
+        with self._transaction() as (db, _, __):
+            db.execute("INSERT OR REPLACE INTO notes VALUES(?,?)",
+                       (OUTCOME_KEY, json.dumps(outcome, sort_keys=True)))
+
     def status(self):
         with self._transaction() as (db, now, halted):
             used = self._used(db, now)
             pending = db.execute("SELECT COUNT(*) FROM entries WHERE finished IS NULL").fetchone()[0]
+            row = db.execute("SELECT value FROM notes WHERE key=?", (OUTCOME_KEY,)).fetchone()
             return {"ceiling": TOKEN_LIMIT, "window_seconds": WINDOW_NS//1_000_000_000,
                     "charged_and_reserved": used, "remaining": TOKEN_LIMIT-used,
-                    "pending_requests": pending, "halted": halted}
+                    "pending_requests": pending, "halted": halted,
+                    "last_provider_outcome": json.loads(row[0]) if row else None}

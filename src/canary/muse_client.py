@@ -66,13 +66,18 @@ class MuseClient:
                 raise RequestBlocked("Invalid request-service response") from exc
             if response.status_code != 200:
                 if body.get("error") == "provider_request_failed" and attempt < MAX_ATTEMPTS-1:
-                    time.sleep(BACKOFF_S[attempt])
+                    wait = BACKOFF_S[attempt]
+                    hint = body.get("retry_after")
+                    if type(hint) is int and 0 <= hint <= 60:
+                        wait = hint  # server backoff, honored only for retryable failures
+                    time.sleep(wait)
                     continue
                 raise RequestBlocked(str(body.get("error", "request_blocked")) + ": " +
                                      str(body.get("message", "request denied")))
             if body.get("model") != DEFAULT_MODEL:
                 raise RequestBlocked("Request-service model mismatch")
-            self.receipts.append({k:body[k] for k in ("model", "usage", "receipt")})
+            self.receipts.append({**{k: body[k] for k in ("model", "usage", "receipt")},
+                                  "finish_reason": body.get("finish_reason", "unknown")})
             text = body.get("text", "").strip()
             if text:
                 return text

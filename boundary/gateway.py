@@ -9,6 +9,10 @@ class ProviderFailure(BoundaryError):
     code = "provider_request_failed"
     status = 502
 
+    def __init__(self, message, retry_after=None):
+        super().__init__(message)
+        self.retry_after = retry_after  # server backoff hint, seconds or None
+
 
 class Gateway:
     def __init__(self, ledger, api_key, transport=None):
@@ -32,12 +36,22 @@ class Gateway:
                     "max_completion_tokens": data["max_tokens"], "stream": False, "n": 1})
         except httpx.HTTPError as exc:
             # No known completion time or usage: retain the full reservation forever.
+            self.ledger.note_outcome({"kind": "failure", "error": "transport"})
             raise ProviderFailure("Provider transport failed; reservation retained") from exc
         if response.status_code in (401, 403):
             self.ledger.halt("provider_access_denied")
+            self.ledger.note_outcome({"kind": "denied", "status": response.status_code})
             raise PolicyBlocked("Provider access denied; service halted, no fallback")
         if response.status_code != 200:
-            raise ProviderFailure("Provider request failed; reservation retained")
+            retry_after = None
+            if response.status_code == 429:
+                try:
+                    retry_after = min(max(int(response.headers.get("retry-after", "0")), 0), 60)
+                except ValueError:
+                    retry_after = None
+            self.ledger.note_outcome({"kind": "failure", "status": response.status_code})
+            raise ProviderFailure("Provider request failed; reservation retained",
+                                  retry_after=retry_after)
         try:
             value = response.json()
             if value["model"] != ALLOWED_MODEL:
@@ -66,7 +80,10 @@ class Gateway:
             finish = choices[0].get("finish_reason", "unknown")
         except (ValueError, KeyError, TypeError, IndexError, AttributeError) as exc:
             self.ledger.halt("invalid_provider_accounting_or_model")
+            self.ledger.note_outcome({"kind": "invalid", "error": "contract_mismatch"})
             raise StateBlocked("Provider contract mismatch; full reservation retained") from exc
         self.ledger.settle(ident, total, json.dumps(usage, sort_keys=True))
+        self.ledger.note_outcome({"kind": "success", "model": ALLOWED_MODEL,
+                                  "tokens": total, "finish_reason": finish})
         return {"model": ALLOWED_MODEL, "text": (text or "").strip(), "finish_reason": finish,
                 "usage": usage, "receipt": ident}

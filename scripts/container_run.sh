@@ -36,6 +36,7 @@ NAME="canary-run-$(date +%s)-$$"
 VOL="$NAME-out"
 WVOL="$NAME-wheels"
 IVOL="$NAME-inputs"
+TOKEN_ID=""
 OUT="${OUT:-./container-out/$NAME}"
 STARTED=$(date +%s)
 # Unsafe launch configurations fail closed before anything starts.
@@ -65,6 +66,9 @@ HAVE_WHEELS="false"
 HAVE_INPUTS="false"
 STAGED=""
 cleanup() {
+  if [ -n "$TOKEN_ID" ]; then
+    docker exec "$GATE" python -I -m boundary.server revoke-token --id "$TOKEN_ID" >/dev/null 2>&1 || true
+  fi
   docker rm -f "$NAME" >/dev/null 2>&1 || true
   docker volume rm "$VOL" "$WVOL" "$IVOL" >/dev/null 2>&1 || true
 }
@@ -101,9 +105,12 @@ if [ -n "${CANARY_STAGE:-}" ]; then
   helper_copy "$STAGE_DIR" "$IVOL"
   HAVE_INPUTS="true"
 fi
-# Only this narrow service credential reaches the worker, never the upstream key.
+# The worker gets a short-lived run token, never the operator access key or
+# the upstream provider key. Revoked on exit; expiry backstops the revoke.
 export CANARY_GATE_TOKEN
-CANARY_GATE_TOKEN=$(docker exec "$GATE" cat /state/access.key)
+MINTED=$(docker exec "$GATE" python -I -m boundary.server mint-token --ttl $((TIMEOUT_S + 300)))
+TOKEN_ID="${MINTED%% *}"
+CANARY_GATE_TOKEN="${MINTED#* }"
 docker run --rm --network none --user 0 --entrypoint sh \
   --mount type=volume,src="$VOL",dst=/export "$IMG" -c 'chown 10002:10002 /export'
 MOUNTS=(--mount "type=volume,src=$VOL,dst=/work/out")
@@ -138,8 +145,8 @@ FINISHED=$(date +%s)
 RECEIPT="$OUT.receipt.json"
 RECEIPT="$RECEIPT" NAME="$NAME" IMG="$IMG" IMAGE_ID="$IMAGE_ID" IMAGE_DIGEST="$IMAGE_DIGEST" NETWORK="$NETWORK" \
 GATE="$GATE" TIMEOUT_S="$TIMEOUT_S" TIMED_OUT="$TIMED_OUT" RC="$RC" DIRTY="$DIRTY" \
-HAVE_WHEELS="$HAVE_WHEELS" HAVE_INPUTS="$HAVE_INPUTS" STAGED="$STAGED" \
+HAVE_WHEELS="$HAVE_WHEELS" HAVE_INPUTS="$HAVE_INPUTS" STAGED="$STAGED" TOKEN_ID="$TOKEN_ID" \
 STARTED="$STARTED" FINISHED="$FINISHED" GIT_REV="$(git rev-parse HEAD)" \
-python3 -c 'import json, os; json.dump({k: os.environ[k] for k in ("NAME","IMG","IMAGE_ID","IMAGE_DIGEST","NETWORK","GATE","TIMEOUT_S","TIMED_OUT","RC","DIRTY","HAVE_WHEELS","HAVE_INPUTS","STAGED","STARTED","FINISHED","GIT_REV")}, open(os.environ["RECEIPT"], "w"), indent=2)'
+python3 -c 'import json, os; json.dump({k: os.environ[k] for k in ("NAME","IMG","IMAGE_ID","IMAGE_DIGEST","NETWORK","GATE","TIMEOUT_S","TIMED_OUT","RC","DIRTY","HAVE_WHEELS","HAVE_INPUTS","STAGED","TOKEN_ID","STARTED","FINISHED","GIT_REV")}, open(os.environ["RECEIPT"], "w"), indent=2)'
 echo "exit=$RC out=$OUT receipt=$RECEIPT"
 exit "$RC"
