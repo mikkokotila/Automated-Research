@@ -164,13 +164,26 @@ def tree_clean(repo: Path) -> bool:
 
 
 def checks_pass(repo: Path, check_cmd: list[str], journal: Journal | None = None,
-                timeout_s: int = 600) -> bool:
+                timeout_s: int = 600, log_path: str | Path | None = None) -> bool:
+    from .redact import redact_text
+
     try:
         r = subprocess.run(check_cmd, cwd=repo, capture_output=True, text=True, timeout=timeout_s)
     except subprocess.TimeoutExpired:
         emit(journal, "revise", "checks", f"cmd={' '.join(check_cmd)} TIMEOUT after {timeout_s}s")
         return False
-    emit(journal, "revise", "checks", f"cmd={' '.join(check_cmd)} rc={r.returncode} tail={r.stdout[-300:] + r.stderr[-300:]}")
+    logged = ""
+    if log_path is not None:
+        try:
+            Path(log_path).parent.mkdir(parents=True, exist_ok=True)
+            Path(log_path).write_text(
+                redact_text(f"$ {' '.join(check_cmd)}\nrc={r.returncode}\n"
+                            f"--- stdout ---\n{r.stdout}\n--- stderr ---\n{r.stderr}"),
+                encoding="utf-8")
+            logged = f" log={Path(log_path).name}"
+        except OSError:
+            logged = " log=unwritable"  # best-effort: never fail the gate
+    emit(journal, "revise", "checks", f"cmd={' '.join(check_cmd)} rc={r.returncode}{logged} tail={r.stdout[-300:] + r.stderr[-300:]}")
     return r.returncode == 0
 
 
@@ -458,7 +471,9 @@ def revise_round(
                  f"worktree differs from {store.latest_rev()}: {divergent}")
             report.skipped = len(doc.proposals)
             return report
-    if not checks_pass(repo, check_cmd, journal):
+    checks_log = (Path(assess_dir) / f"checks-{assessment_id}.log"
+                  if assess_dir is not None else None)
+    if not checks_pass(repo, check_cmd, journal, log_path=checks_log):
         emit(journal, "revise", "aborted", "baseline checks not green")
         report.skipped = len(doc.proposals)
         return report
