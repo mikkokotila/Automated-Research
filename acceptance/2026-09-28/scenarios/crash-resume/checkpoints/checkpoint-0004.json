@@ -1,0 +1,161 @@
+{
+  "schema_version": 2,
+  "seq": 4,
+  "run_id": "20260928-174314-825b8d",
+  "spec": {
+    "version": 1,
+    "question": "seed?",
+    "csv": null,
+    "target": null,
+    "max_papers": 5,
+    "year_from": null,
+    "model": "muse-spark-1.3-contributor",
+    "maintenance": false,
+    "profile": "dev",
+    "max_iterations": 3,
+    "revise_rounds": 1,
+    "max_model_calls": 25,
+    "max_tokens": 20000000,
+    "wall_time_s": 1800,
+    "finalize_calls": 1,
+    "out_dir": "acceptance/2026-09-28/scenarios/crash-resume"
+  },
+  "code_hash": "sha256:ad6c79fa38d5f0f255ec4e35e89d01e5c7b7e47de7cb0acf588b66acc211a0f8",
+  "csv_hash": "none",
+  "repo_root": null,
+  "check_cmd": null,
+  "iterations": [
+    {
+      "n": 1,
+      "question": "seed?",
+      "kind": "review",
+      "summary": "Q: seed?\nReview of 1 papers (cited [1]). R1 [1].\n```claims\n[{\"id\": \"c1\", \"text\": \"X was studied\", \"support\": \"supported\", \"evidence\": [{\"paper\": 1, \"span\": \"Study on X\"}]}]\n```",
+      "detail": "# Literature review: seed?\n\n_Papers reviewed: 1 | Model: acceptance-scripted | Cited: 1/1_\n\n> Coverage warning: weak relevance: best candidate doi:10.1/x covers 0/1 question terms (needs 1); citations do not establish relevance\n\nR1 [1].\n```claims\n[{\"id\": \"c1\", \"text\": \"X was studied\", \"support\": \"supported\", \"evidence\": [{\"paper\": 1, \"span\": \"Study on X\"}]}]\n```\n\n## Sources\n\n[1] Study on X \u2014 A. Uthor (2023). https://doi.org/10.1/x (score 0.88)\n\n## Validated claims\n\n- c1 (supported, scope ?): X was studied\n  - evidence: [paper 1 \u2713]\n\n_Unresolved: semantic support of each claim is unverified_\n\n",
+      "provenance": {
+        "kind": "review",
+        "papers": [
+          "Study on X"
+        ],
+        "model": "acceptance-scripted",
+        "coverage_warning": "weak relevance: best candidate doi:10.1/x covers 0/1 question terms (needs 1); citations do not establish relevance",
+        "claims": [
+          {
+            "id": "c1",
+            "text": "X was studied",
+            "evidence": [
+              {
+                "paper": 1,
+                "span": "Study on X",
+                "anchored": true
+              }
+            ],
+            "scope": "",
+            "uncertainty": "",
+            "support": "supported"
+          }
+        ],
+        "validation": {
+          "claims_parsed": 1,
+          "citation_validity": "markers resolved against the provided papers",
+          "semantic_support": "unchecked \u2014 overlap_hint is fallible and proves nothing",
+          "rejected": [],
+          "unresolved": [
+            "semantic support of each claim is unverified"
+          ],
+          "dangling_citations": []
+        }
+      }
+    },
+    {
+      "n": 2,
+      "question": "q2?",
+      "kind": "review",
+      "summary": "Q: q2?\nReview of 1 papers (cited [1]). R2 [1].\n```claims\n[{\"id\": \"c1\", \"text\": \"X was studied\", \"support\": \"supported\", \"evidence\": [{\"paper\": 1, \"span\": \"Study on X\"}]}]\n```",
+      "detail": "# Literature review: q2?\n\n_Papers reviewed: 1 | Model: acceptance-scripted | Cited: 1/1_\n\nR2 [1].\n```claims\n[{\"id\": \"c1\", \"text\": \"X was studied\", \"support\": \"supported\", \"evidence\": [{\"paper\": 1, \"span\": \"Study on X\"}]}]\n```\n\n## Sources\n\n[1] Study on X \u2014 A. Uthor (2023). https://doi.org/10.1/x (score 0.88)\n\n## Validated claims\n\n- c1 (supported, scope ?): X was studied\n  - evidence: [paper 1 \u2713]\n\n_Unresolved: semantic support of each claim is unverified_\n\n",
+      "provenance": {
+        "kind": "review",
+        "papers": [
+          "Study on X"
+        ],
+        "model": "acceptance-scripted",
+        "coverage_warning": null,
+        "claims": [
+          {
+            "id": "c1",
+            "text": "X was studied",
+            "evidence": [
+              {
+                "paper": 1,
+                "span": "Study on X",
+                "anchored": true
+              }
+            ],
+            "scope": "",
+            "uncertainty": "",
+            "support": "supported"
+          }
+        ],
+        "validation": {
+          "claims_parsed": 1,
+          "citation_validity": "markers resolved against the provided papers",
+          "semantic_support": "unchecked \u2014 overlap_hint is fallible and proves nothing",
+          "rejected": [],
+          "unresolved": [
+            "semantic support of each claim is unverified"
+          ],
+          "dangling_citations": []
+        }
+      }
+    }
+  ],
+  "pending": [],
+  "seen": [
+    "q2",
+    "seed"
+  ],
+  "failed_q": null,
+  "budget": {
+    "max_calls": 25,
+    "max_tokens": 20000000,
+    "wall_time_s": 1800,
+    "calls": 3,
+    "tokens": 0,
+    "tokens_reported": false,
+    "elapsed_s": 0.007608083018567413
+  },
+  "scheduler": {
+    "assess_every": 1,
+    "max_no_progress": 2,
+    "max_failed_revisions": 2,
+    "max_revision_calls": 8,
+    "max_restarts": 3,
+    "allow_revision": false,
+    "restart_on_revision": true,
+    "version": 1,
+    "scope": {
+      "maintenance": false,
+      "repo_root": null,
+      "check_cmd": null,
+      "revise_rounds": 1,
+      "bandit": null,
+      "profile": "dev"
+    },
+    "iters_since_assess": 1,
+    "no_progress": 0,
+    "failed_revisions": 0,
+    "revision_calls": 0,
+    "restarts": 0,
+    "assess_rounds": 0,
+    "gaps_open": 0
+  },
+  "scope": {
+    "maintenance": false,
+    "repo_root": null,
+    "check_cmd": null,
+    "revise_rounds": 1,
+    "bandit": null,
+    "profile": "dev"
+  },
+  "restart_pending": null,
+  "journal_len": 18
+}

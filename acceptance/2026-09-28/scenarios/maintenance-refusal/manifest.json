@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "run_id": "20260928-174234-32a337",
+  "kind": "cycle",
+  "spec": {
+    "version": 1,
+    "question": "seed?",
+    "csv": null,
+    "target": null,
+    "max_papers": 5,
+    "year_from": null,
+    "model": "muse-spark-1.3-contributor",
+    "maintenance": true,
+    "profile": "dev",
+    "max_iterations": 1,
+    "revise_rounds": 1,
+    "max_model_calls": 25,
+    "max_tokens": 20000000,
+    "wall_time_s": 1800,
+    "finalize_calls": 1,
+    "out_dir": "acceptance/2026-09-28/scenarios/maintenance-refusal"
+  },
+  "status": "in_progress",
+  "started_at": "2026-09-28T17:42:34.508850+00:00",
+  "finished_at": null,
+  "artefacts": [],
+  "forked_from": null
+}

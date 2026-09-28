@@ -1,0 +1,36 @@
+{
+  "n": 2,
+  "kind": "review",
+  "question": "q2?",
+  "papers": [
+    "Study on X"
+  ],
+  "model": "acceptance-scripted",
+  "coverage_warning": null,
+  "claims": [
+    {
+      "id": "c1",
+      "text": "X was studied",
+      "evidence": [
+        {
+          "paper": 1,
+          "span": "Study on X",
+          "anchored": true
+        }
+      ],
+      "scope": "",
+      "uncertainty": "",
+      "support": "supported"
+    }
+  ],
+  "validation": {
+    "claims_parsed": 1,
+    "citation_validity": "markers resolved against the provided papers",
+    "semantic_support": "unchecked \u2014 overlap_hint is fallible and proves nothing",
+    "rejected": [],
+    "unresolved": [
+      "semantic support of each claim is unverified"
+    ],
+    "dangling_citations": []
+  }
+}
