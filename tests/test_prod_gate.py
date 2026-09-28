@@ -28,6 +28,8 @@ def _clone(tmp_path):
     _git(work, "add", "-A")
     _git(work, "commit", "-qm", "init")
     _git(work, "push", "-q", "origin", "main")
+    subprocess.run(["git", "--git-dir", str(origin), "symbolic-ref", "HEAD",
+                    "refs/heads/main"], capture_output=True, check=True)
     return origin, work
 
 
@@ -55,6 +57,7 @@ def test_prod_refuses_stale_and_ahead_main(tmp_path):
     other = tmp_path / "other"
     subprocess.run(["git", "clone", "-q", str(origin), str(other)], capture_output=True,
                    check=True)
+    _git(other, "checkout", "-q", "main")
     _git(other, "config", "user.email", "t@t")
     _git(other, "config", "user.name", "t")
     (other / "f.txt").write_text("2\n", encoding="utf-8")
