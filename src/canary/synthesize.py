@@ -173,7 +173,10 @@ def validate_claims(raw: list[dict], papers: list[Paper]) -> tuple[tuple[Claim, 
                                 "fulltext scope overstated")
             evidence.append(Evidence(paper=n, span=span, anchored=anchored))
         if support in ("supported", "partial"):
-            numbers = set(_NUM_RE.findall(ctext))
+            # Citation markers are references, not factual numbers: a claim
+            # must not die on its own [n] (Issue #54). Dangling markers are
+            # still reported separately via dangling_citations.
+            numbers = set(_NUM_RE.findall(_CITE_RE.sub("", ctext)))
             quoted = set(_NUM_RE.findall(" ".join(e.span for e in evidence)))
             invented = numbers - quoted
             if invented:

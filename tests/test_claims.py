@@ -106,6 +106,26 @@ def test_invented_numbers_rejected():
     assert any("42%" in r for r in s.validation["rejected"])
 
 
+def test_citation_markers_exempt_from_number_check():
+    # Live shape (Issue #54): a verbatim-anchored, correctly-cited claim
+    # must not die on its own [1] marker digit.
+    block = claims_fence({"id": "c1", "text": "Delay raises mortality [1].",
+                          "evidence": [{"paper": 1, "span": "Delay raises mortality"}],
+                          "scope": "abstract", "uncertainty": "", "support": "supported"})
+    s = synthesize.synthesize("q", [paper()], FakeCompleter(block))
+    assert s.claims[0].support == "supported"
+    assert not any("not present in evidence spans" in r for r in s.validation["rejected"])
+
+
+def test_invented_numbers_still_rejected_beside_markers():
+    block = claims_fence({"id": "c1", "text": "Mortality rises 42% with delay [1].",
+                          "evidence": [{"paper": 1, "span": "raises mortality"}],
+                          "scope": "abstract", "uncertainty": "", "support": "supported"})
+    s = synthesize.synthesize("q", [paper()], FakeCompleter(block))
+    assert s.claims[0].support == "unsupported"
+    assert any("42%" in r for r in s.validation["rejected"])
+
+
 def test_fulltext_scope_on_abstract_only_rejected():
     block = claims_fence({"id": "c1", "text": "Delay raises mortality.",
                           "evidence": [{"paper": 1, "span": "raises mortality by 12%"}],
