@@ -116,3 +116,60 @@ def test_scanner_fails_closed_on_symlink(tmp_path):
     report = scan_export(out)
     assert report["symlinked"] == ["notes.txt"]
     assert not report["clean"]  # unscanned content is not a clean bill
+
+
+class _FakeStdin:
+    def __init__(self, payload: bytes):
+        self.buffer = io.BytesIO(payload)
+
+
+def test_export_cli_help_prints_usage_and_creates_nothing(tmp_path, capsys):
+    from scripts.export_bundle import main
+
+    with pytest.raises(SystemExit) as exc:
+        main(["--help"])
+    assert exc.value.code == 0
+    assert "usage" in capsys.readouterr().out
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_export_cli_rejects_bad_argv_without_side_effects(tmp_path, capsys):
+    from scripts.export_bundle import main
+
+    for argv in ([], ["a", "b"]):
+        with pytest.raises(SystemExit) as exc:
+            main(argv)
+        assert exc.value.code == 2
+    capsys.readouterr()
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_export_cli_nontar_stdin_fails_clean_with_one_line_error(tmp_path, monkeypatch, capsys):
+    from scripts import export_bundle
+
+    monkeypatch.setattr("sys.stdin", _FakeStdin(b"this is not a tar stream"))
+    rc = export_bundle.main([str(tmp_path / "dest")])
+    assert rc == 1
+    err = capsys.readouterr().err.strip()
+    assert err.startswith("export_bundle: error:") and "\n" not in err
+    assert not (tmp_path / "dest").exists()  # failed export leaves nothing
+
+
+def test_export_cli_refuses_existing_destination(tmp_path, monkeypatch, capsys):
+    from scripts import export_bundle
+
+    (tmp_path / "dest").mkdir()
+    monkeypatch.setattr("sys.stdin", _FakeStdin(b""))
+    rc = export_bundle.main([str(tmp_path / "dest")])
+    assert rc == 1
+    assert "already exists" in capsys.readouterr().err
+
+
+def test_export_cli_roundtrip_from_stdin(tmp_path, monkeypatch, capsys):
+    from scripts import export_bundle
+
+    monkeypatch.setattr("sys.stdin", _FakeStdin(_archive([("r.md", b"# hi")]).read()))
+    rc = export_bundle.main([str(tmp_path / "dest")])
+    assert rc == 0
+    assert capsys.readouterr().out.strip() == "Exported 1 files"
+    assert (tmp_path / "dest" / MANIFEST_NAME).is_file()
