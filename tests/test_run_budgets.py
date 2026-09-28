@@ -205,3 +205,52 @@ def test_cli_rejects_invalid_input_before_any_work(tmp_path, capsys):
     rc = climod.main(["cycle", "seed?", "--max-calls", "0", "--out", str(tmp_path / "o2")])
     assert rc == 2
     assert not (tmp_path / "o2").exists()
+
+
+def test_cycle_bundle_usage_includes_post_assessment_spend(tmp_path, monkeypatch):
+    """run.json usage must reconcile with the budget after --assess (Issue #56)."""
+    import httpx
+
+    from canary import cli as climod
+
+    inner = ScriptedMuse()
+    inner.queues["review"] = [grounded_review("R1"), grounded_review("R2")]
+    inner.queues["follow"] = ['[{"question": "q2?", "kind": "review", "rationale": "r"}]', "[]"]
+    inner.queues["final"] = ["Final."]
+    inner.queues["assess"] = [json.dumps({"assessment": "R", "proposals": []})]
+    seen = {}
+
+    from canary.muse_client import MuseClient
+
+    class BudgetedMuse(MuseClient):
+        """Emulates production accounting: every complete reserves + reports."""
+
+        def __init__(self, inner, budget):
+            self._inner = inner
+            self.budget = budget
+            self.calls = 0
+            self.recorder = None
+
+        @property
+        def model(self):
+            return "budgeted"
+
+        def complete(self, system, user, max_tokens=8000):
+            self.budget.reserve_call()
+            out = self._inner.complete(system, user, max_tokens)
+            self.budget.note_usage(10, 5)
+            return out
+
+    def factory(*a, **k):
+        seen["budget"] = k["budget"]
+        return BudgetedMuse(inner, k["budget"])
+
+    monkeypatch.setattr(climod, "MuseClient", factory)
+    http = mock_http()  # built before the patch: the CLI builds its own client
+    monkeypatch.setattr(httpx, "Client", lambda *a, **k: http)
+    out = tmp_path / "out"
+    climod.cycle(_spec(out_dir=str(out)), assess=True)
+    reported = json.loads((out / "run.json").read_text())["usage"]
+    actual = seen["budget"].usage_summary()
+    assert reported == actual  # stale snapshot misses the post-assess calls
+    assert reported["model_calls"] > 0 and reported["tokens"] == reported["model_calls"] * 15
