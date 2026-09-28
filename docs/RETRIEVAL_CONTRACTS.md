@@ -60,6 +60,11 @@ made; unit tests and CI use fixtures only.
   `primary_category`, `doi` (when the record carries one), `url_abs`,
   `url_pdf`. The guest parses that shape only — foreign shapes degrade to
   zero papers, never a crash.
+- Wire client: the broker fetches upstream with stdlib urllib, not httpx.
+  On 2026-09-28 httpx's compressed keep-alive requests were 406'd while
+  urllib/curl passed the same URLs from the same egress within minutes;
+  single-term queries passed under both, complex ones only under urllib.
+  Do not "unify" this back to httpx without re-verifying live.
 - Consumed as `Paper(source="arxiv")`: `citations` is always 0 (arXiv
   reports none; never fabricated), `evidence` is `fulltext` when a PDF link
   is present, and `year_from` is applied client-side (unknown years kept).
