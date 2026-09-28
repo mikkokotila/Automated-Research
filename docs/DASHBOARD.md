@@ -49,7 +49,21 @@ pause; anything else explains why it cannot.
 (`<name> (rerun)`). Starts record the exact argv array, so arguments with
 spaces round-trip; legacy rows with only a command string re-split it on
 a best-effort basis. Adopted history without any spec says so instead of
-guessing.
+guessing. Recorded launch env (see below) is re-applied on rerun.
+
+## Launch env (advanced)
+
+Runs sometimes need operator variables such as `CANARY_STAGE`. Three
+equivalent ways; all are allowlisted to `CANARY_STAGE`,
+`CANARY_TIMEOUT_S`, `CANARY_WHEELS` (anything else is rejected):
+
+1. Dashboard UI: the optional `ENV` field (one `KEY=value` per line).
+2. `canary runs start`: picks up allowlisted keys from your shell.
+3. API: `POST /api/runs` accepts an `env` object.
+
+The daemon merges them into the launcher child's environment and records
+them on the row as `launch_env`. Daemon-managed vars (`OUT`, `RUN_*`,
+registry) are never passable. Default launches need none of this.
 
 ## Other views
 

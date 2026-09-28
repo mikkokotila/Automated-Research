@@ -476,7 +476,8 @@ def runs_cmd(args) -> int:
         if argv and argv[0] == "--":
             argv = argv[1:]
         data, err = _runs_post(port, "/api/runs",
-                               {"name": args.name, "brief": args.brief, "argv": argv})
+                               {"name": args.name, "brief": args.brief, "argv": argv,
+                                "env": runsmod.ambient_launch_env()})
         if err:
             print(f"canary: error: {err}", file=sys.stderr)
             return 1

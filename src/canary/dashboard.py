@@ -71,8 +71,10 @@ class Supervisor:
 
     # -- spawning --
 
-    def start(self, name: str, brief: str, argv: list[str]) -> dict:
+    def start(self, name: str, brief: str, argv: list[str],
+              env: dict | None = None) -> dict:
         argv = validate_launch(argv)
+        extra = runs.sanitize_launch_env(env)
         if not name.strip() or len(name) > 120:
             raise ValueError("name must be 1..120 chars")
         if len(brief) > 2000:
@@ -91,6 +93,7 @@ class Supervisor:
         env = dict(os.environ, OUT=str(bundle), RUN_KEY=key,
                    RUN_NAME=name, RUN_BRIEF=brief,
                    CANARY_RUNS_REGISTRY=str(self.registry))
+        env.update(extra)
         launcher_log = self.root / "container-out" / f"{key}.launcher.log"
         launcher_log.parent.mkdir(parents=True, exist_ok=True)
         logfh = open(launcher_log, "a", encoding="utf-8", errors="replace")
@@ -106,7 +109,7 @@ class Supervisor:
             self.owned[key] = proc
         runs.register_start(key, name, brief, kind, str(bundle), "",
                             shlex.join(argv), path=self.registry,
-                            launch_argv=list(argv))
+                            launch_argv=list(argv), launch_env=extra)
         threading.Thread(target=self._wait, args=(key, proc, logfh),
                          daemon=True).start()
         return {"key": key, "bundle": str(bundle)}
@@ -239,7 +242,8 @@ class Supervisor:
                     f"recorded launch is not parseable: {e}") from e
         new_name = name or row.get("name", key) + " (rerun)"
         new_brief = brief or (row.get("brief", "") + f"\nRerun of {key}.")
-        started = self.start(new_name, new_brief, argv)
+        started = self.start(new_name, new_brief, argv,
+                             env=row.get("launch_env") or {})
         started["from"] = key
         return started
 
@@ -356,7 +360,7 @@ class Handler(BaseHTTPRequestHandler):
             if parsed.path == "/api/runs":
                 started = self.supervisor.start(
                     str(body.get("name", "")), str(body.get("brief", "")),
-                    body.get("argv", []))
+                    body.get("argv", []), env=body.get("env"))
                 self._send(201, started)
             elif parsed.path.endswith("/pause") and parsed.path.startswith("/api/runs/"):
                 key = parsed.path[len("/api/runs/"):-len("/pause")]

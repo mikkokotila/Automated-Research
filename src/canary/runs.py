@@ -18,6 +18,31 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 # Overridable so tests and alternate checkouts isolate their registry; the
 # daemon exports it for launcher children so hooks land in the same file.
 REGISTRY = Path(os.environ.get("CANARY_RUNS_REGISTRY", ROOT / "runs" / "registry.json"))
+# Operator env passthrough for launches (advanced mode; default runs need
+# none of it). Daemon-managed vars (OUT, RUN_*, registry) are never passed.
+LAUNCH_ENV_KEYS = ("CANARY_STAGE", "CANARY_TIMEOUT_S", "CANARY_WHEELS")
+LAUNCH_ENV_MAXLEN = 2000
+
+
+def sanitize_launch_env(env) -> dict:
+    """Allowlisted launch env or ValueError; the launcher rechecks semantics."""
+    if env is None:
+        return {}
+    if not isinstance(env, dict):
+        raise ValueError("env must be an object of KEY: value strings")
+    clean = {}
+    for key, value in env.items():
+        if key not in LAUNCH_ENV_KEYS:
+            raise ValueError(f"env key not allowed: {key!r}")
+        if not isinstance(value, str) or len(value) > LAUNCH_ENV_MAXLEN:
+            raise ValueError(f"env value for {key} must be a string <= 2000 chars")
+        clean[key] = value
+    return clean
+
+
+def ambient_launch_env() -> dict:
+    """Allowlisted keys from this process's environment (launcher hook)."""
+    return {k: v for k in LAUNCH_ENV_KEYS if (v := os.environ.get(k))}
 
 
 def utcnow() -> str:
@@ -55,11 +80,13 @@ def get(key: str, path: str | Path = REGISTRY) -> dict | None:
 def register_start(key: str, name: str, brief: str, kind: str = "?",
                    bundle: str = "", container: str = "", launch: str = "",
                    path: str | Path = REGISTRY,
-                   launch_argv: list[str] | None = None) -> dict:
+                   launch_argv: list[str] | None = None,
+                   launch_env: dict | None = None) -> dict:
     return upsert({"key": key, "name": name, "brief": brief, "run_id": "?",
                    "kind": kind, "status": "running", "started_at": utcnow(),
                    "ended_at": None, "bundle": bundle, "container": container,
                    "launch": launch, "launch_argv": list(launch_argv or []),
+                   "launch_env": dict(launch_env or {}),
                    "seed": "?", "profile": "?",
                    "maintenance": False, "model": "?", "usage": {},
                    "iterations": [], "improvements": [], "tally": {}}, path)

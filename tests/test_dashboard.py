@@ -144,6 +144,54 @@ def test_rerun_prefers_recorded_argv(server, monkeypatch):
     assert row["launch_argv"] == argv  # spaces survived; lossy string ignored
 
 
+def test_start_applies_env_to_child_and_records_it(server, monkeypatch):
+    monkeypatch.setattr(dashboard, "validate_launch", lambda argv: list(argv))
+    stub = server["root"] / "stub-env.sh"
+    manifest = {"run_id": "stub-1", "kind": "cycle", "status": "converged",
+                "started_at": "2026-09-28T08:00:00+00:00",
+                "finished_at": "2026-09-28T08:01:00+00:00",
+                "spec": {"question": "stub?", "profile": "dev"}}
+    run = {"model": "stub", "usage": {"model_calls": 2, "tokens": 50}}
+    stub.write_text(
+        "#!/bin/bash\n"
+        'mkdir -p "$OUT"\n'
+        'printf "%s" "${CANARY_STAGE:-unset}" > "$OUT/stage.txt"\n'
+        f"printf '%s' '{json.dumps(manifest)}' > \"$OUT/manifest.json\"\n"
+        f"printf '%s' '{json.dumps(run)}' > \"$OUT/run.json\"\n"
+        "exit 0\n")
+    stub.chmod(0o755)
+    r = server["client"].post("/api/runs", json={
+        "name": "env probe", "brief": "b",
+        "argv": ["/bin/bash", str(stub)], "env": {"CANARY_STAGE": "dev"}})
+    assert r.status_code == 201, r.text
+    row = _wait_for(server["client"], r.json()["key"], "converged")
+    assert row["launch_env"] == {"CANARY_STAGE": "dev"}
+    stage = server["root"] / "container-out" / r.json()["key"] / "stage.txt"
+    assert stage.read_text() == "dev"
+
+
+def test_start_rejects_disallowed_env(server, monkeypatch):
+    monkeypatch.setattr(dashboard, "validate_launch", lambda argv: list(argv))
+    argv = _stub_launcher(server["root"])
+    for env in ({"OUT": "x"}, {"PATH": "/bin"}, ["CANARY_STAGE"], {"CANARY_STAGE": 7}):
+        r = server["client"].post("/api/runs", json={
+            "name": "n", "brief": "b", "argv": argv, "env": env})
+        assert r.status_code == 400, env
+
+
+def test_rerun_carries_recorded_env(server, monkeypatch):
+    monkeypatch.setattr(dashboard, "validate_launch", lambda argv: list(argv))
+    argv = _stub_launcher(server["root"])
+    runs.register_start("orig", "n", "b", bundle="", container="",
+                        launch=shlex.join(argv), path=server["registry"],
+                        launch_argv=argv, launch_env={"CANARY_STAGE": "dev"})
+    r = server["client"].post("/api/runs/orig/rerun", json={"name": "re"})
+    assert r.status_code == 201, r.text
+    row = runs.get(r.json()["key"], server["registry"])
+    assert row["launch_env"] == {"CANARY_STAGE": "dev"}
+    _wait_for(server["client"], r.json()["key"], "converged")
+
+
 def test_start_rejects_bad_input(server):
     c = server["client"]
     assert c.post("/api/runs", json={

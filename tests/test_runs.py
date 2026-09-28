@@ -154,3 +154,45 @@ def test_cli_actions_without_daemon_hint_serve(tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("CANARY_RUNS_PORT", "9")  # nothing serves discard-port
     assert climod.main(["runs", "pause", "k1"]) == 1
     assert "canary runs serve" in capsys.readouterr().err
+
+
+def test_sanitize_launch_env_allows_only_allowlisted_keys():
+    assert runs.sanitize_launch_env(None) == {}
+    assert runs.sanitize_launch_env({"CANARY_STAGE": "dev"}) == {"CANARY_STAGE": "dev"}
+    for bad in ({"OUT": "x"}, {"RUN_KEY": "x"}, {"CANARY_RUNS_REGISTRY": "x"},
+                {"PATH": "/bin"}, ["CANARY_STAGE"], "CANARY_STAGE=dev",
+                {"CANARY_STAGE": 7}, {"CANARY_STAGE": "x" * 2001}):
+        with pytest.raises(ValueError):
+            runs.sanitize_launch_env(bad)
+
+
+def test_ambient_launch_env_picks_allowlisted_keys(monkeypatch):
+    monkeypatch.setenv("CANARY_STAGE", "dev")
+    monkeypatch.setenv("CANARY_TIMEOUT_S", "30")
+    monkeypatch.setenv("MUSE_API_KEY", "must-never-pass")
+    assert runs.ambient_launch_env() == {"CANARY_STAGE": "dev", "CANARY_TIMEOUT_S": "30"}
+
+
+def test_register_start_stores_launch_env(registry):
+    row = runs.register_start("k", "n", "b", path=registry,
+                              launch_env={"CANARY_STAGE": "dev"})
+    assert row["launch_env"] == {"CANARY_STAGE": "dev"}
+    assert runs.get("k", registry)["launch_env"] == {"CANARY_STAGE": "dev"}
+    assert runs.register_start("k2", "n", "b", path=registry)["launch_env"] == {}
+
+
+def test_cli_start_sends_ambient_launch_env(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("CANARY_RUNS_REGISTRY", str(tmp_path / "registry.json"))
+    monkeypatch.setenv("CANARY_STAGE", "dev")
+    monkeypatch.setenv("MUSE_API_KEY", "must-never-pass")
+    seen = {}
+
+    def fake_post(port, path, payload):
+        seen["payload"] = payload
+        return {"key": "k1"}, ""
+
+    monkeypatch.setattr(climod, "_runs_post", fake_post)
+    assert climod.main(["runs", "start", "--name", "n", "--brief", "b",
+                        "--", "bash", "scripts/container_run.sh", "cycle"]) == 0
+    assert seen["payload"]["env"] == {"CANARY_STAGE": "dev"}
+    assert "launched k1" in capsys.readouterr().out
