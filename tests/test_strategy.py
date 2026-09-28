@@ -273,9 +273,34 @@ def test_corrupt_store_falls_back_to_fixed(tmp_path):
     assert any(n.event == "fallback" for n in journal.notes)
 
 
+def test_learning_policy_outside_record_dir_fails_fast(tmp_path):
+    # Issue #57: a learning policy that cannot export must refuse at
+    # construction — never run healthy-looking while learning evaporates.
+    with pytest.raises(BanditError, match="escapes the record dir"):
+        SelectorSession(BanditConfig(mode="learning", seed=2,
+                                     policy_dir=str(tmp_path / "pol")),
+                        record_dir=tmp_path / "rec")
+
+
+def test_learning_policy_inside_record_dir_allowed(tmp_path):
+    session = SelectorSession(BanditConfig(mode="learning", seed=2,
+                                           policy_dir=str(tmp_path / "rec" / "pol")),
+                              record_dir=tmp_path / "rec")
+    assert session.decide("Why is X red?").strategy_id in STRATEGY_IDS
+    assert (tmp_path / "rec" / "pol" / "snapshot.json").is_file()
+
+
+def test_frozen_policy_outside_record_dir_allowed(tmp_path):
+    # Frozen never writes: reading a staged prior outside the bundle is fine.
+    session = SelectorSession(BanditConfig(mode="frozen", seed=1,
+                                           policy_dir=str(tmp_path / "pol")),
+                              record_dir=tmp_path / "rec")
+    assert session.decide("Why is X red?").strategy_id in STRATEGY_IDS
+
+
 def test_decision_record_carries_full_provenance(tmp_path):
     session = SelectorSession(BanditConfig(mode="learning", epsilon=0.2, seed=2,
-                                           policy_dir=str(tmp_path / "pol")),
+                                           policy_dir=str(tmp_path / "rec" / "pol")),
                               record_dir=tmp_path / "rec", run_tag="run-9")
     decision = session.decide("Why is X red?", budget_frac=0.5, model="m-x")
     record = session.records[-1]
@@ -509,19 +534,19 @@ def test_cycle_learning_budget_stop_keeps_snapshot_resumable(tmp_path):
     muse.queues["review"] = [grounded_review("R1"), grounded_review("R2")]
     muse.queues["follow"] = ['[{"question": "q2?", "kind": "review", "rationale": "r"}]']
     muse.queues["final"] = ["Final."]
-    bandit = BanditConfig(mode="learning", seed=4, policy_dir=str(tmp_path / "pol"))
+    bandit = BanditConfig(mode="learning", seed=4, policy_dir=str(out / "pol"))
     res = cyclemod.run_cycle("seed?", None, None, 5, 5, muse, mock_http(),
                              journal=journal, spec=spec,
                              budget=RunBudget.from_spec(spec), record_dir=str(out),
                              bandit=bandit)
     assert res.stopped == "budget_exhausted"
-    applied_before = PolicyStore(tmp_path / "pol").snapshot["applied_ids"]
+    applied_before = PolicyStore(out / "pol").snapshot["applied_ids"]
     assert len(applied_before) == 1  # one scored review before exhaustion
     cont = ScriptedMuse()
     cont.queues["follow"] = ["[]"]
     cont.queues["final"] = ["Final."]
     cyclemod.resume_cycle(out, cont, mock_http())
-    applied_after = PolicyStore(tmp_path / "pol").snapshot["applied_ids"]
+    applied_after = PolicyStore(out / "pol").snapshot["applied_ids"]
     assert len(set(applied_after)) == len(applied_after)  # exactly once
     assert set(applied_before) <= set(applied_after)
 

@@ -127,7 +127,10 @@ def main(argv: list[str] | None = None) -> int:
     lo.add_argument("--bandit-mode", default="off", choices=["off", "fixed", "learning", "frozen"],
                     help="retrieval-strategy experiment: off (default), fixed, learning, frozen")
     lo.add_argument("--bandit-dir", default=None,
-                    help="operator-owned policy dir (required for learning/frozen)")
+                    help="policy dir (required for learning/frozen); learning must live "
+                         "inside --out so it exports (e.g. $OUT/bandit); frozen may read "
+                         "a staged prior (stage snapshot.json + observations.jsonl, "
+                         "then point here at /inputs)")
     lo.add_argument("--bandit-seed", type=int, default=0, help="selector RNG seed")
     lo.add_argument("--bandit-eps", type=float, default=0.1, help="exploration rate 0-0.5")
     im = sub.add_parser("revise", help="assess a past run's journal and patch")
