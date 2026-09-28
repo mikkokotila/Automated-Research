@@ -1,8 +1,11 @@
 """Contract checks for the shared offline fixtures in conftest.py."""
+import socket
+
 import pytest
 
 from canary import retrieval, synthesize
 from canary.spec import ResearchSpec
+from conftest import OfflineGuardError
 from tests.conftest import FakeMuse, recorded_http_client
 
 
@@ -48,3 +51,41 @@ def test_recorded_client_rejects_unknown_hosts():
 @pytest.mark.skip(reason="template: live provider checks stay opt-in and unimplemented in step 01")
 def test_live_template_never_runs_by_default():
     raise AssertionError("live marker must be deselected in the default suite")
+
+
+def test_offline_guard_blocks_non_loopback_connect():
+    # TEST-NET-1: unroutable, so even an unguarded connect sends nothing
+    # meaningful; the guard must fire before the wire is touched.
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        with pytest.raises(OfflineGuardError, match="non-loopback connect"):
+            sock.connect(("192.0.2.1", 443))
+        with pytest.raises(OfflineGuardError, match="non-loopback connect"):
+            sock.connect_ex(("192.0.2.1", 443))
+    finally:
+        sock.close()
+
+
+def test_offline_guard_blocks_external_dns():
+    with pytest.raises(OfflineGuardError, match="blocked DNS"):
+        socket.getaddrinfo("example.com", 443)
+
+
+def test_offline_guard_blocks_real_http_client():
+    import httpx
+
+    with httpx.Client(trust_env=False) as http:
+        with pytest.raises(OfflineGuardError):
+            http.get("http://192.0.2.1/")
+
+
+def test_offline_guard_allows_loopback():
+    # Closed loopback port: ConnectionRefusedError proves the guard passed
+    # the call through to the real socket instead of raising itself.
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        with pytest.raises(ConnectionRefusedError):
+            sock.connect(("127.0.0.1", 1))
+    finally:
+        sock.close()
+    assert socket.getaddrinfo("localhost", 80)  # loopback DNS still works
