@@ -139,7 +139,7 @@ python3 scripts/register_run.py start --key "$RUN_KEY" --name "$RUN_NAME" \
   --launch "bash scripts/container_run.sh $ARGV_STR" \
   --launch-argv "$ARGV_JSON" >/dev/null 2>&1 || true
 docker run --name "$NAME" --network "$NETWORK" --user 10002:10002 \
-  --cap-drop ALL --security-opt no-new-privileges --pids-limit 256 --memory 4g --cpus 2 \
+  --cap-drop ALL --security-opt no-new-privileges --pids-limit 1024 --memory 4g --cpus 2 \
   --stop-timeout 30 --read-only --tmpfs /tmp:rw,exec,size=512m --tmpfs /work:rw,size=2g,uid=10002,gid=10002 \
   "${MOUNTS[@]}" -e CANARY_GATE_TOKEN -e CANARY_GATE_URL=http://canary-gate:8787 \
   -e CANARY_GUEST=1 -e "CANARY_BASE_REV=$BASE_REV" \
