@@ -5,16 +5,17 @@ Safety properties:
 - .github/, Dockerfile*, lockfiles, and this gate file are off-limits.
 - The tree must be clean and the suite green BEFORE any patch is attempted.
 - Every patch is reverted unless the full suite passes after it.
-- Until a trusted execution path exists (Builds 03-04), every public revision
+- Until a launcher-attested execution path exists, every public revision
   entry point refuses before any model call, subprocess, or filesystem
   mutation. See docs/TRUST_BOUNDARY.md.
 
 This gate is an interlock against accidental uncontained execution, not a
 security boundary against malicious in-process code: in-process callers can
 always monkeypatch it, which is why the container boundary (Builds 03-05) is
-the real enforcement. Tests exercise revision logic through that same
-explicit monkeypatch seam; nothing implicit (environment, /.dockerenv,
-container-mode strings) ever authorizes revision.
+the real enforcement. The interim role check (Issue #52) authorizes exactly
+two launcher/operator-provided markers; host-side attestation is deferred
+(Issues #62-#64). Tests exercise revision logic through the explicit
+monkeypatch seam plus genuine-path tests with the role markers set.
 """
 
 from __future__ import annotations
@@ -43,19 +44,76 @@ class ContainmentBlocked(RuntimeError):
     """Revision refused: no trusted execution path. Fail closed, never guess."""
 
 
-def require_revision_trust() -> None:
-    """Fail closed: no caller-controlled evidence authorizes revision.
+GUEST_ENV_VAR = "CANARY_GUEST"
+PUBLISHER_ENV_VAR = "CANARY_PUBLISHER"
+TRUSTED_ROLE_VALUE = "1"
 
-    Intentionally reads no environment, filesystem, or string flags. A
-    trusted execution path (Builds 03-04) will replace this stub with a
-    launcher-attested check; until then every public revision entry point
-    refuses. In-process tests bypass it only via explicit monkeypatch.
+
+def require_revision_trust() -> None:
+    """Interim role check: exactly one launcher/operator role marker (Issue #52).
+
+    CANARY_GUEST=1 is injected only by scripts/container_run.sh into
+    disposable workers (which must hold no export credentials).
+    CANARY_PUBLISHER=1 is set only by the owner's publish driver on the
+    host (which holds GITHUB_TOKEN and never runs worker code).
+    Anything else — including both markers at once — fails closed.
+
+    INTERIM AND FORGEABLE: a marker is a claim, not proof. It stops
+    accidental uncontained runs, not a malicious in-process actor (which
+    can monkeypatch this anyway) or a forged guest. Host-side
+    attestation (Issue #64), an independent review identity (#62), and
+    externally governed CI (#63) are deferred hardening; until they
+    land, treat this as a misconfiguration interlock, not a boundary.
     """
-    raise ContainmentBlocked(
-        "refusing: revision has no trusted execution path yet "
-        "(see docs/TRUST_BOUNDARY.md, Builds 03-04); "
-        "environment flags and container evidence are not authorization"
-    )
+    import os
+
+    guest = os.environ.get(GUEST_ENV_VAR) == TRUSTED_ROLE_VALUE
+    publisher = os.environ.get(PUBLISHER_ENV_VAR) == TRUSTED_ROLE_VALUE
+    if guest and publisher:
+        raise ContainmentBlocked(
+            "refusing: ambiguous revision role "
+            "(guest and publisher markers are both set)")
+    if not (guest or publisher):
+        raise ContainmentBlocked(
+            "refusing: revision needs a launcher-provided role "
+            "(CANARY_GUEST=1 in a disposable worker, or CANARY_PUBLISHER=1 "
+            "in the owner publish driver); refusing on this host"
+        )
+
+
+def current_branch(repo: Path) -> str:
+    """Worktree branch, or ContainmentBlocked when git cannot say (fail closed)."""
+    try:
+        return git(repo, "rev-parse", "--abbrev-ref", "HEAD").strip()
+    except Exception as e:
+        raise ContainmentBlocked(
+            f"refusing: cannot determine worktree branch: {e}") from e
+
+
+def require_prod_branch(repo: str | Path, profile: str) -> None:
+    """Prod-profile runs execute on main only (code-level; see Issue #64).
+
+    Dev runs may use any branch. Remote-SHA attestation (is this main the
+    current origin/main?) cannot be proven where this check runs and is
+    deferred to the host-side prod gate; until then this stops branch
+    mistakes, not a forged checkout.
+    """
+    if profile not in ("dev", "prod"):
+        raise ContainmentBlocked(f"refusing: unknown run profile {profile!r}")
+    if profile == "dev":
+        return
+    branch = current_branch(Path(repo))
+    if branch != "main":
+        raise ContainmentBlocked(
+            f"refusing: prod profile requires the main branch (on {branch!r})")
+
+
+def require_main_branch(repo: str | Path) -> None:
+    """Publish cuts auto-branches from main only, so PRs carry no foreign commits."""
+    branch = current_branch(Path(repo))
+    if branch != "main":
+        raise ContainmentBlocked(
+            f"refusing: publish requires the main branch (on {branch!r})")
 
 DIFF_SYSTEM = (
     "You emit ONLY a unified diff (git format with a/ b/ paths, no fences, no "
@@ -474,6 +532,7 @@ def publish_round(
 
     require_revision_trust()  # before runs/ writes and any GitHub side effects
     repo = Path(repo)
+    require_main_branch(repo)  # auto-branches cut from main only
     runs = repo / "runs"
     runs.mkdir(exist_ok=True)
     (runs / f"{run_id}-assessment.md").write_text(doc.markdown + "\n", encoding="utf-8")

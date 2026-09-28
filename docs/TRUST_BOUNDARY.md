@@ -141,12 +141,31 @@ adopts that narrowing explicitly:
 `require_revision_trust()` refuses every public revision entry point
 (`revise_round`, `revise_from_journal`, `publish_round`,
 `commit_and_push`, `cycle --maintenance`, CLI `revise`) before any model
-call, subprocess, or mutation. It reads no evidence and takes no input,
-so there is nothing to spoof. It is an interlock against accidental
-uncontained execution, **not** a boundary against malicious in-process
-code (in-process callers can monkeypatch anything). Tests use that same
-explicit seam; the container boundary in Builds 03-05 is the real
-enforcement.
+call, subprocess, or mutation, unless exactly one interim role marker is
+present (Issue #52): `CANARY_GUEST=1`, injected only by
+`scripts/container_run.sh` into disposable workers, or
+`CANARY_PUBLISHER=1`, set only by the owner's publish driver on the
+host. Both markers at once, or any other value, refuses. It is an
+interlock against accidental uncontained execution, **not** a boundary
+against malicious in-process code (in-process callers can monkeypatch
+anything) or a forged guest (a marker is a claim, not proof). Tests use
+the explicit monkeypatch seam plus genuine-path tests with markers set;
+the container boundary in Builds 03-05 remains the real enforcement.
+
+Deferred hardening, tracked, not claimed: an independent review
+identity for auto-merge PRs (#62), safety properties governed by CI
+from a repo the worker account cannot reach (#63), and a host-side
+prod gate pinning the launch SHA to `origin/main` (#64).
+
+## Run profiles: dev branches, prod on main
+
+`--profile dev` (default) may run on any branch. `--profile prod`
+refuses unless the worktree branch is `main`, and `publish` refuses
+unless it cuts auto-branches from `main`, so bot PRs carry no foreign
+commits. `main` itself is protected by a repo ruleset (PR-only, no
+force pushes), so every code change lands through a PR with CI. These
+are code-level checks against mistakes, not attestation: in-guest
+claims about branches prove nothing, which is why #64 exists.
 
 ## Explicit exclusions
 

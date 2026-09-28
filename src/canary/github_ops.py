@@ -171,9 +171,10 @@ def commit_stage_list(repo: Path) -> list[str]:
 
 
 def commit_and_push(repo: str | Path, branch: str, message: str, token: str) -> list[str]:
-    from .revise import require_revision_trust
+    from .revise import require_main_branch, require_revision_trust
 
     require_revision_trust()
+    require_main_branch(repo)
     repo = Path(repo)
     files = commit_stage_list(repo)
     if not files:

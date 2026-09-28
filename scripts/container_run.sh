@@ -117,10 +117,15 @@ MOUNTS=(--mount "type=volume,src=$VOL,dst=/work/out")
 if [ "$HAVE_WHEELS" = "true" ]; then MOUNTS+=(--mount "type=volume,src=$WVOL,dst=/wheels,readonly"); fi
 if [ "$HAVE_INPUTS" = "true" ]; then MOUNTS+=(--mount "type=volume,src=$IVOL,dst=/inputs,readonly"); fi
 set +e
+# CANARY_GUEST=1 is the interim worker role marker (Issue #52): injected only
+# by this launcher, never baked into the image. CANARY_BASE_REV records which
+# host revision the guest workspace was copied from (provenance, not proof).
+BASE_REV="$(git rev-parse HEAD)"
 docker run --name "$NAME" --network "$NETWORK" --user 10002:10002 \
   --cap-drop ALL --security-opt no-new-privileges --pids-limit 256 --memory 4g --cpus 2 \
   --stop-timeout 30 --read-only --tmpfs /tmp:rw,size=512m --tmpfs /work:rw,size=2g,uid=10002,gid=10002 \
   "${MOUNTS[@]}" -e CANARY_GATE_TOKEN -e CANARY_GATE_URL=http://canary-gate:8787 \
+  -e CANARY_GUEST=1 -e "CANARY_BASE_REV=$BASE_REV" \
   -e OPENALEX_MAILTO "$IMG" "${RUN[@]}" &
 RUNPID=$!
 TIMED_OUT="false"
