@@ -9,8 +9,8 @@ from __future__ import annotations
 import re
 
 PATTERNS = {
-    "muse_key": re.compile(rb"\b(MUSE|MODEL|META)_API_KEY\b\s*[:=]"),
-    "github_token": re.compile(rb"\bGITHUB_TOKEN\b\s*[:=]|gh[opsu]_[A-Za-z0-9_]+"),
+    "muse_key": re.compile(rb"\b(MUSE|MODEL|META)_API_KEY\b\s*[:=]\s*\S*"),
+    "github_token": re.compile(rb"\bGITHUB_TOKEN\b\s*[:=]\s*\S*|gh[opsu]_[A-Za-z0-9_]+"),
     "aws_key": re.compile(rb"\bAKIA[0-9A-Z]{16}\b"),
     "private_key": re.compile(rb"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
     "canary_gate_url": re.compile(rb"canary-gate:\d+"),
