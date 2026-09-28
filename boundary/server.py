@@ -9,6 +9,9 @@ import secrets
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import urllib.error
+import urllib.parse
+import urllib.request
 from urllib.parse import parse_qs, urlsplit
 import xml.etree.ElementTree as ET
 import httpx
@@ -29,6 +32,7 @@ SOURCES = {
 _ARXIV_MIN_INTERVAL_S = 3.0
 _ARXIV_MAX_RESULTS = 50
 _ARXIV_MAX_BODY = 2_000_000
+_ARXIV_UPSTREAM_TIMEOUT_S = 30
 _ARXIV_SORT_BY = {"", "relevance", "lastUpdatedDate", "submittedDate"}
 _ARXIV_SORT_ORDER = {"", "ascending", "descending"}
 _arxiv_lock = threading.Lock()
@@ -42,6 +46,27 @@ _ARXIV_VERSIONED_ID = re.compile(r"(\d+\.\d+)v(\d+)$")
 
 def _collapse(text: str | None) -> str:
     return " ".join((text or "").split())
+
+
+def _fetch_arxiv_upstream(url: str, params: dict) -> tuple[int, bytes]:
+    """GET the arXiv API with stdlib urllib; returns (status, body).
+
+    urllib's minimal wire behavior (Accept-Encoding: identity, Connection:
+    close, default UA) passes arXiv's frontend where httpx's compressed
+    keep-alive requests were 406'd from our egress on 2026-09-28 (same
+    URLs, same source IP, minutes apart). Non-2xx surfaces as (status,
+    body); only transport failure raises URLError.
+    """
+    full = url + "?" + urllib.parse.urlencode(params)
+    try:
+        with urllib.request.urlopen(full, timeout=_ARXIV_UPSTREAM_TIMEOUT_S) as resp:
+            return resp.status, resp.read(_ARXIV_MAX_BODY + 1)
+    except urllib.error.HTTPError as e:
+        try:
+            return e.code, e.read(_ARXIV_MAX_BODY + 1)
+        except (OSError, ValueError):
+            return e.code, b""
+    # URLError (DNS, refused, timeout) propagates: caller maps it to 502.
 
 
 def _arxiv_entries(atom: bytes) -> list[dict]:
@@ -168,14 +193,17 @@ def make_server(gateway, access_token, address=("0.0.0.0", 8787)):
                 wait = _ARXIV_MIN_INTERVAL_S - (time.monotonic() - _arxiv_last_upstream)
                 if wait > 0:
                     time.sleep(wait)
-                response = gateway.http.get(url, params=params, timeout=30)
+                try:
+                    status, content = _fetch_arxiv_upstream(url, params)
+                except urllib.error.URLError:
+                    status, content = 0, b""
                 _arxiv_last_upstream = time.monotonic()
-            if response.status_code != 200 or len(response.content) > _ARXIV_MAX_BODY:
-                self.reply(response.status_code if response.status_code in (400, 429) else 502,
+            if status != 200 or len(content) > _ARXIV_MAX_BODY:
+                self.reply(status if status in (400, 429) else 502,
                            {"error": "source_unavailable"})
                 return
             try:
-                entries = _arxiv_entries(response.content)
+                entries = _arxiv_entries(content)
             except ValueError:
                 self.reply(502, {"error": "source_unavailable"})
                 return

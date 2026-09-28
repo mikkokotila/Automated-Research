@@ -339,22 +339,49 @@ _ARXIV_ACCESS = "test-access"
 _ARXIV_AUTH = {"Authorization": "Bearer " + _ARXIV_ACCESS}
 
 
+class _FakeUpstreamResponse:
+    def __init__(self, status, body):
+        self.status = status
+        self._body = body
+
+    def read(self, n=-1):
+        return self._body[:n] if n is not None and n >= 0 else self._body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
 @pytest.fixture
 def arxiv_canned(book, monkeypatch):
-    """Live broker whose upstream arXiv transport serves canned bytes."""
+    """Live broker whose arXiv upstream (urllib) serves canned bytes."""
+    import io
+    import urllib.error
+
     from boundary import server as server_mod
 
     monkeypatch.setattr(server_mod, "_ARXIV_MIN_INTERVAL_S", 0)
     monkeypatch.setattr(server_mod, "_arxiv_last_upstream", 0.0)
     ledger, _ = book
-    seen: list = []
-    bodies: list = [httpx.Response(200, content=ARXIV_ATOM.encode(),
-                                   headers={"Content-Type": "application/atom+xml"})]
+    calls: list = []  # urlopen URLs
+    script: list = [(200, ARXIV_ATOM.encode())]  # (status, body) or Exception
+
+    def fake_urlopen(url, timeout=None):
+        calls.append(url)
+        item = script[0] if len(script) == 1 else script.pop(0)
+        if isinstance(item, Exception):
+            raise item
+        status, body = item
+        if status != 200:
+            raise urllib.error.HTTPError(url, status, "upstream", {}, io.BytesIO(body))
+        return _FakeUpstreamResponse(status, body)
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
 
     def send(request):
-        seen.append(request)
-        body = bodies[0] if len(bodies) == 1 else bodies.pop(0)
-        return body
+        raise AssertionError("arXiv must bypass gateway.http")
 
     gate = Gateway(ledger, "fixture-provider-key", httpx.MockTransport(send))
     server = make_server(gate, "test-access", ("127.0.0.1", 0))
@@ -362,7 +389,7 @@ def arxiv_canned(book, monkeypatch):
                               daemon=True)
     thread.start()
     try:
-        yield f"http://127.0.0.1:{server.server_port}", seen, bodies
+        yield f"http://127.0.0.1:{server.server_port}", calls, script
     finally:
         server.shutdown()
         server.server_close()
@@ -370,7 +397,9 @@ def arxiv_canned(book, monkeypatch):
 
 
 def test_sources_arxiv_proxies_and_parses_atom(arxiv_canned):
-    url, seen, _ = arxiv_canned
+    import urllib.parse
+
+    url, calls, _ = arxiv_canned
     headers = _ARXIV_AUTH
     with httpx.Client(trust_env=False) as http:
         resp = http.get(url + "/v1/sources/arxiv?search_query=all%3Atiming&max_results=5",
@@ -388,13 +417,16 @@ def test_sources_arxiv_proxies_and_parses_atom(arxiv_canned):
     assert second["year"] == 1999 and second["authors"] == []
     assert second["url_abs"] == "https://arxiv.org/abs/hep-th/9901001"  # derived
     assert second["url_pdf"] == "https://arxiv.org/pdf/hep-th/9901001"
-    (upstream,) = seen
-    assert upstream.url.host == "export.arxiv.org"
-    assert dict(upstream.url.params)["max_results"] == "5"
+    (upstream,) = calls
+    parts = urllib.parse.urlsplit(upstream)
+    assert (parts.scheme, parts.hostname, parts.path) == (
+        "https", "export.arxiv.org", "/api/query")
+    qs = dict(urllib.parse.parse_qsl(parts.query))
+    assert qs["max_results"] == "5" and qs["search_query"] == "all:timing"
 
 
 def test_sources_arxiv_rejects_bad_params_without_upstream_call(arxiv_canned):
-    url, seen, _ = arxiv_canned
+    url, calls, _ = arxiv_canned
     headers = _ARXIV_AUTH
     bad = ["max_results=500", "max_results=0", "max_results=many", "start=-1",
            "start=x", "sortBy=evil", "sortOrder=sideways", "id_list=1",
@@ -403,21 +435,25 @@ def test_sources_arxiv_rejects_bad_params_without_upstream_call(arxiv_canned):
         for query in bad:
             assert http.get(url + "/v1/sources/arxiv?" + query, headers=headers).status_code == 403
         assert http.get(url + "/v1/sources/arxiv?search_query=all:x").status_code == 403
-    assert seen == []
+    assert calls == []
 
 
 def test_sources_arxiv_upstream_failures_map_to_502_or_429(arxiv_canned):
-    url, _, bodies = arxiv_canned
+    import urllib.error
+
+    url, _, script = arxiv_canned
     headers = _ARXIV_AUTH
-    bodies[:] = [httpx.Response(200, content=b"<html>not atom</html>"),
-                 httpx.Response(500, json={}),
-                 httpx.Response(429, json={}),
-                 httpx.Response(200, content=ARXIV_ATOM.encode())]
+    script[:] = [(200, b"<html>not atom</html>"),
+                 (500, b"upstream blew up"),
+                 (429, b"slow down"),
+                 urllib.error.URLError("connection refused"),
+                 (200, ARXIV_ATOM.encode())]
     with httpx.Client(trust_env=False) as http:
         base = url + "/v1/sources/arxiv?search_query=all:x"
         assert http.get(base, headers=headers).status_code == 502  # malformed feed
         assert http.get(base, headers=headers).status_code == 502  # upstream 5xx
         assert http.get(base, headers=headers).status_code == 429  # quota passes through
+        assert http.get(base, headers=headers).status_code == 502  # transport failure
         assert http.get(base, headers=headers).status_code == 200
 
 
@@ -441,9 +477,11 @@ def test_sources_arxiv_spaces_upstream_calls(book, monkeypatch):
     monkeypatch.setattr(server_mod, "_arxiv_last_upstream", 0.0)
     sleeps: list = []
     monkeypatch.setattr(_t, "sleep", sleeps.append)
+    monkeypatch.setattr("urllib.request.urlopen", lambda url, timeout=None: _FakeUpstreamResponse(
+        200, b"<feed xmlns='http://www.w3.org/2005/Atom'/>"))
     ledger, _ = book
     gate = Gateway(ledger, "fixture-provider-key", httpx.MockTransport(
-        lambda req: httpx.Response(200, content=b"<feed xmlns='http://www.w3.org/2005/Atom'/>")))
+        lambda req: (_ for _ in ()).throw(AssertionError("arXiv must bypass gateway.http"))))
     server = make_server(gate, "test-access", ("127.0.0.1", 0))
     thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.02},
                               daemon=True)
