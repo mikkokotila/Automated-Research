@@ -503,6 +503,39 @@ def test_empty_horizon_scored_before_no_evidence(tmp_path):
     assert obs["reward"] < 0  # genuine zero utility, honestly negative
 
 
+def test_degraded_run_flags_missing_coverage_footer(tmp_path):
+    import httpx
+
+    def flaky(request):
+        url = str(request.url)
+        if "openalex" in url:
+            raise httpx.ConnectError("down")
+        if "arxiv" in url:
+            return httpx.Response(200, json={"entries": []})
+        return httpx.Response(200, json={"data": [{
+            "paperId": "S1", "title": "Study on X", "abstract": "X",
+            "authors": [{"name": "A. Uthor"}], "year": 2023, "venue": "J X",
+            "url": "", "citationCount": 5, "externalIds": {"DOI": "10.1/x"},
+            "openAccessPdf": None, "publicationTypes": []}]})
+
+    def run(review_text):
+        journal = Journal()
+        muse = ScriptedMuse()
+        muse.queues["review"] = [review_text]
+        it = cyclemod.run_review("seed?", 5,
+                                 httpx.Client(transport=httpx.MockTransport(flaky)),
+                                 muse, journal=journal, record_dir=str(tmp_path))
+        return it, journal
+
+    it, journal = run(grounded_review("R"))
+    assert "degraded coverage: openalex failed" in (it.provenance["coverage_warning"] or "")
+    assert any(n.event == "coverage-warning" for n in journal.notes)
+    assert any(n.event == "coverage-footer-missing" for n in journal.notes)
+
+    _, journal2 = run(grounded_review("R") + "\n\nIncomplete coverage of the evidence.")
+    assert not any(n.event == "coverage-footer-missing" for n in journal2.notes)
+
+
 def test_cycle_with_bandit_freezes_scope_and_cannot_promote(tmp_path):
     out = tmp_path / "run"
     spec = RunSpec(question="seed?", max_iterations=1, max_papers=5)
