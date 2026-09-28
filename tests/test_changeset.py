@@ -287,6 +287,16 @@ def test_normalize_repairs_counts_and_git_accepts(repo):
     assert fixed.replace("@@ -1,1 +1,1 @@", "@@ -1,5 +1,9 @@") == DIFF_MISCOUNTED
 
 
+def test_normalize_terminates_newline(repo):
+    bare = DIFF_OK.rstrip("\n")
+    assert not bare.endswith("\n")
+    with pytest.raises(ChangesetError, match="corrupt patch"):
+        verify_in_disposable(repo, bare, parse_unified_diff(bare))
+    fixed = normalize_unified_diff(bare)
+    assert fixed.endswith("\n")
+    verify_in_disposable(repo, fixed, parse_unified_diff(fixed))
+
+
 def test_normalize_counts_empty_lines_as_context(repo):
     target = repo / "src" / "canary" / "foo.py"
     target.write_text("a\n\nb\n", encoding="utf-8")
