@@ -88,6 +88,28 @@ def test_start_finishes_and_parses_bundle(server, monkeypatch):
     assert (server["root"] / "container-out" / f"{key}.launcher.log").exists()
 
 
+def test_wait_finishes_before_dropping_ownership(server, monkeypatch):
+    sup = dashboard.Supervisor(registry=server["registry"], root=server["root"])
+    runs.register_start("k1", "n", "b", path=server["registry"])
+    seen = {}
+    real_finish = runs.register_finish
+
+    def spy(key, *a, **k):
+        with sup.lock:
+            seen["owned"] = key in sup.owned
+        return real_finish(key, *a, **k)
+
+    monkeypatch.setattr(runs, "register_finish", spy)
+    proc = subprocess.Popen(["true"])
+    with sup.lock:
+        sup.owned["k1"] = proc
+    with open(os.devnull, "w") as logfh:
+        sup._wait("k1", proc, logfh)
+    assert seen["owned"] is True  # reconcile must see owned until finished
+    with sup.lock:
+        assert "k1" not in sup.owned
+
+
 def test_failed_launch_marks_failed(server, monkeypatch):
     monkeypatch.setattr(dashboard, "validate_launch", lambda argv: list(argv))
     argv = _stub_launcher(server["root"], rc=1)

@@ -115,16 +115,21 @@ class Supervisor:
         try:
             rc = proc.wait()
         finally:
-            with self.lock:
-                self.owned.pop(key, None)
             try:
                 logfh.close()
             except OSError:
                 pass
-        row = runs.get(key, self.registry)
-        bundle = row.get("bundle", "") if row else ""
-        runs.register_finish(key, "done" if rc == 0 else "failed", bundle,
-                             path=self.registry)
+        # Record the finish BEFORE dropping ownership: reconcile finishes
+        # any unowned running row as interrupted, so popping first would let
+        # a concurrent poll misrecord a genuine finish as interrupted.
+        try:
+            row = runs.get(key, self.registry)
+            bundle = row.get("bundle", "") if row else ""
+            runs.register_finish(key, "done" if rc == 0 else "failed", bundle,
+                                 path=self.registry)
+        finally:
+            with self.lock:
+                self.owned.pop(key, None)
 
     # -- live state --
 
