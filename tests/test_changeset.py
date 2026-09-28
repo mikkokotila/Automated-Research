@@ -254,6 +254,24 @@ def test_checks_pass_persists_full_output(tmp_path):
     assert "log=unwritable" in journal3.notes[-1].detail
 
 
+def test_guest_pressure_best_effort(monkeypatch):
+    reading = revmod.guest_pressure()
+    assert reading == "" or "pids=" in reading
+
+    def boom(path):
+        raise OSError("no proc")
+
+    monkeypatch.setattr("os.listdir", boom)
+    assert revmod.guest_pressure() == ""
+
+
+def test_checks_pass_logs_pressure_markers(tmp_path):
+    journal = Journal()
+    assert revmod.checks_pass(tmp_path, ["true"], journal) is True
+    detail = journal.notes[-1].detail
+    assert "before=[" in detail and "after=[" in detail
+
+
 # --- hunk-count normalization (keep1c yield) ---
 
 

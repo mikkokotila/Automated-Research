@@ -163,15 +163,57 @@ def tree_clean(repo: Path) -> bool:
     return git(repo, "status", "--porcelain", "--", "src", "tests").strip() == ""
 
 
+def guest_pressure() -> str:
+    """One-line pid/zombie/memory snapshot for gate forensics (Linux only).
+
+    keep1h's post-run suite failed to fork with no static mechanism in our
+    code; this reports the numbers so the next occurrence convicts with
+    data instead of archaeology. Best-effort: "" anywhere it cannot read.
+    """
+    import os
+
+    try:
+        pids = [p for p in os.listdir("/proc") if p.isdigit()]
+    except OSError:
+        return ""
+    zombies = 0
+    for pid in pids:
+        try:
+            with open(f"/proc/{pid}/stat", encoding="utf-8") as fh:
+                if fh.read().split(") ", 1)[1].startswith("Z"):
+                    zombies += 1
+        except (OSError, IndexError):
+            continue
+    ceiling = "?"
+    for candidate in ("/sys/fs/cgroup/pids.max",
+                      "/sys/fs/cgroup/pids/pids.max"):
+        try:
+            ceiling = Path(candidate).read_text(encoding="utf-8").strip()
+            break
+        except OSError:
+            continue
+    mem_kb = "?"
+    try:
+        for line in Path("/proc/meminfo").read_text(encoding="utf-8").splitlines():
+            if line.startswith("MemAvailable:"):
+                mem_kb = line.split()[1]
+                break
+    except OSError:
+        pass
+    return f" pids={len(pids)}/{ceiling} zombies={zombies} memavail_kb={mem_kb}"
+
+
 def checks_pass(repo: Path, check_cmd: list[str], journal: Journal | None = None,
                 timeout_s: int = 600, log_path: str | Path | None = None) -> bool:
     from .redact import redact_text
 
+    before = guest_pressure()
     try:
         r = subprocess.run(check_cmd, cwd=repo, capture_output=True, text=True, timeout=timeout_s)
     except subprocess.TimeoutExpired:
         emit(journal, "revise", "checks", f"cmd={' '.join(check_cmd)} TIMEOUT after {timeout_s}s")
         return False
+    after = guest_pressure()
     logged = ""
     if log_path is not None:
         try:
@@ -183,7 +225,7 @@ def checks_pass(repo: Path, check_cmd: list[str], journal: Journal | None = None
             logged = f" log={Path(log_path).name}"
         except OSError:
             logged = " log=unwritable"  # best-effort: never fail the gate
-    emit(journal, "revise", "checks", f"cmd={' '.join(check_cmd)} rc={r.returncode}{logged} tail={r.stdout[-300:] + r.stderr[-300:]}")
+    emit(journal, "revise", "checks", f"cmd={' '.join(check_cmd)} rc={r.returncode}{logged} before=[{before.strip()}] after=[{after.strip()}] tail={r.stdout[-300:] + r.stderr[-300:]}")
     return r.returncode == 0
 
 
