@@ -168,6 +168,61 @@ def test_snapshot_ignore_is_symmetric(repo):
     assert not ok and divergent  # without the ignore, the drift still shows
 
 
+def test_eval_tree_is_fresh_git_repo(repo):
+    """Git-shaped checks behave in the eval copy as at baseline (demo52c)."""
+    store = Store(repo / "runs" / "promotions")
+    store.init_from_worktree(repo)
+    cand = promotemod.evaluate(store, prop("p1"), DIFF_A,
+                               ["git", "rev-parse", "HEAD"], "a1")
+    assert cand.test.get("exit") == 0
+
+
+GARBAGE_DIFF = "this is not a diff"
+NAPPLY_DIFF = ("--- a/src/canary/foo.py\n+++ b/src/canary/foo.py\n"
+               "@@ -1 +1 @@\n-X = 999\n+X = 2\n")
+
+
+class RetryMuse:
+    model = "m"
+
+    def __init__(self, diffs):
+        self.diffs = list(diffs)
+        self.users: list[str] = []
+
+    def complete(self, system, user, max_tokens=8000):
+        self.users.append(user)
+        return self.diffs.pop(0)
+
+
+def test_malformed_diff_retried_with_feedback(repo):
+    journal = Journal()
+    rep = revmod.revise_round(repo, AssessmentDoc("R", (prop("p1"),)),
+                              RetryMuse([GARBAGE_DIFF, DIFF_A]), journal, ["true"])
+    assert rep.kept == 1
+    assert (repo / "src/canary/foo.py").read_text() == "X = 2\n"
+    assert any(n.event == "diff-retry" for n in journal.notes)
+
+
+def test_retry_feedback_reaches_second_prompt(repo):
+    muse = RetryMuse([GARBAGE_DIFF, DIFF_A])
+    revmod.revise_round(repo, AssessmentDoc("R", (prop("p1"),)),
+                        muse, Journal(), ["true"])
+    assert len(muse.users) == 2
+    assert "Previous attempt failed" in muse.users[1]
+    assert "Previous attempt failed" not in muse.users[0]
+
+
+def test_unapplicable_diff_skips_after_bounded_retry(repo):
+    journal = Journal()
+    muse = RetryMuse([GARBAGE_DIFF, NAPPLY_DIFF])
+    rep = revmod.revise_round(repo, AssessmentDoc("R", (prop("p1"),)),
+                              muse, journal, ["true"])
+    assert rep.kept == 0 and rep.skipped == 1
+    assert len(muse.users) == 2  # exactly one retry, then a recorded skip
+    assert "no applicable diff after 2 attempts" in rep.outcomes[0].reason
+    assert (repo / "src/canary/foo.py").read_text() == "X = 1\n"
+
+
 def test_round_record_roundtrips_for_publish(repo):
     doc = AssessmentDoc("R1", (prop("p1"),))
     store = Store(repo / "runs" / "promotions")

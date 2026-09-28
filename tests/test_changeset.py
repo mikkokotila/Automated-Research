@@ -49,6 +49,16 @@ def test_valid_fix_binds_base_and_hashes(repo, tmp_path):
     assert oc.assessment_id == "a1"
 
 
+def test_verify_sees_uncommitted_kept_adds(repo):
+    """Follow-up diffs verify against kept adds, which land uncommitted."""
+    (repo / "src" / "canary" / "newmod.py").write_text("Y = 1\n", encoding="utf-8")
+    diff = ("--- a/src/canary/newmod.py\n+++ b/src/canary/newmod.py\n"
+            "@@ -1 +1 @@\n-Y = 1\n+Y = 2\n")
+    manifest = verify_in_disposable(repo, diff, parse_unified_diff(diff))
+    assert manifest.files[0]["path"] == "src/canary/newmod.py"
+    assert manifest.files[0]["old_sha"] != manifest.files[0]["new_sha"]
+
+
 def test_request_diff_records_context_and_omissions(repo):
     record: dict = {}
     seen = {}

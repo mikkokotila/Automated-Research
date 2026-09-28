@@ -124,6 +124,7 @@ DIFF_SYSTEM = (
 MAX_DIFF_FILES = 5
 MAX_DIFF_LINES = 300
 MAX_PROPOSALS_PER_ROUND = 3
+MAX_DIFF_ATTEMPTS = 2
 
 
 @dataclass
@@ -182,8 +183,12 @@ def refuse_maintainer_credentials() -> None:
 
 
 def request_diff(proposal: Proposal, client: Completer, repo: Path | None = None,
-                 record: dict | None = None) -> str:
-    """Ask for a diff against real base context; record what was sent/omitted."""
+                 record: dict | None = None, feedback: str = "") -> str:
+    """Ask for a diff against real base context; record what was sent/omitted.
+
+    Feedback carries a previous attempt's failure so the retry does not
+    repeat it. Callers that retry must bound attempts (MAX_DIFF_ATTEMPTS).
+    """
     from .redact import redact_text
 
     base_rev = "unknown"
@@ -219,10 +224,37 @@ def request_diff(proposal: Proposal, client: Completer, repo: Path | None = None
     user = (
         f"Target file: {proposal.target}\nRequested change: {proposal.change}\nReason: {proposal.reason}\n\n"
         f"Base revision: {base_rev}\nFile sha256: {file_sha}\n"
-        + (f"Omitted context: {omitted}\n" if omitted else "") +
+        + (f"Omitted context: {omitted}\n" if omitted else "")
+        + (f"Previous attempt failed, do not repeat it: {feedback}\n" if feedback else "") +
         f"Current content of {proposal.target}:\n```\n{redacted}\n```\n\nEmit the diff."
     )
     return client.complete(DIFF_SYSTEM, user)
+
+
+def request_applicable_diff(proposal: Proposal, client: Completer, repo: Path,
+                            context_record: dict | None = None,
+                            journal: Journal | None = None,
+                            max_attempts: int = MAX_DIFF_ATTEMPTS) -> str:
+    """Request a diff that parses, passes policy, and applies to the base.
+
+    Malformed or non-applying diffs get a retry with the failure fed back;
+    without this, most model diffs die expensively in full eval (demo52c:
+    1 applicable in 5). Raises ChangesetError when no attempt applies —
+    the caller records a skip, never a silent drop.
+    """
+    feedback = ""
+    for attempt in range(max(1, max_attempts)):
+        diff = request_diff(proposal, client, repo, context_record, feedback=feedback)
+        try:
+            ops = parse_unified_diff(diff)
+            check_policy(ops, target_allowed)
+            verify_in_disposable(repo, diff, ops)
+            return diff
+        except ChangesetError as e:
+            feedback = str(e)[:300]
+            emit(journal, "revise", "diff-retry",
+                 f"{proposal.id} attempt {attempt + 1}: {feedback}")
+    raise ChangesetError(f"no applicable diff after {max(1, max_attempts)} attempts: {feedback}")
 
 
 def _file_sha(path: Path) -> str:
@@ -404,7 +436,8 @@ def revise_round(
     for proposal in doc.proposals[:MAX_PROPOSALS_PER_ROUND]:
         context_record: dict = {}
         try:
-            diff = request_diff(proposal, client, repo, context_record)
+            diff = request_applicable_diff(proposal, client, repo, context_record,
+                                           journal)
         except RequestBlocked:
             raise
         except Exception as e:

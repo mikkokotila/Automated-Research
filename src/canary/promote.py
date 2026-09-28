@@ -50,6 +50,28 @@ def _new_id(prefix: str) -> str:
     return f"{prefix}-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
 
 
+def _git_run(tree: Path, *args: str) -> None:
+    r = subprocess.run(["git", *args], cwd=tree, capture_output=True, text=True,
+                       timeout=120, stdin=subprocess.DEVNULL)
+    if r.returncode != 0:
+        raise OSError(f"git {' '.join(args)} failed: {r.stderr.strip()[:200]}")
+
+
+def _git_init_fresh(tree: Path) -> None:
+    """Fresh local repo in the disposable eval copy (no host linkage).
+
+    Suites that shell out to git behave as they do in the worktree;
+    without this, git-shaped checks fail in the copy while passing at
+    baseline, vetoing good candidates for environmental reasons
+    (demo52c). Identity is local-only flags; nothing is pushed, linked,
+    or read from host git metadata.
+    """
+    ident = ("-c", "user.name=canary-eval", "-c", "user.email=canary-eval@local")
+    _git_run(tree, "init", "-q", "-b", "tree")
+    _git_run(tree, *ident, "add", "-A")
+    _git_run(tree, *ident, "commit", "-qm", "eval base")
+
+
 def _sha_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as f:
@@ -280,6 +302,13 @@ def evaluate(store: Store, proposal, diff: str, check_cmd: list[str],
             return cand
         cand.manifest["new_hashes"] = hash_tree(tree)
         _transition(store, cand, "applied", journal)
+        try:
+            _git_init_fresh(tree)
+        except Exception as e:
+            cand.wall_s = time.monotonic() - started
+            _transition(store, cand, "rejected", journal,
+                        f"eval tree git init failed: {e}")
+            return cand
         if "applied" in crash_at:
             raise _CrashSim("applied")
         env = dict(os.environ)
