@@ -76,3 +76,33 @@ recorded in `manifest.json` (`repo_rev`).
 - Tested revision: see `manifest.json`
 - Date: 2026-09-27
 - Maintainer sign-off: ______________________ (runbook reproduction on a fresh environment)
+
+## Live addendum 2026-09-28 (Issue #39)
+
+History above untouched. Broker deployed per runbook §4–5 on the owner
+host with a fresh owner-provisioned key (ledger `canary-token-ledger-v1`,
+ceiling 200M tokens/24h). Tested revision `cc9feea` (main incl. #49).
+All runs below went through `./scripts/container_run.sh` (disposable
+worker, `canary-private`, clean tree, per-run minted token, receipt per
+run). Bundles live outside the repo under `/tmp/ops-live/`; nothing live
+is committed here — observed results only.
+
+| Demo | Result |
+|---|---|
+| Preflight before any request | `access: unknown, no provider request yet` |
+| Live `review` (spaced repetition, 3 papers) | exit 0, `completed`, 3/3 cited, real papers, honest S2-429 degradation to OpenAlex-only, 7,860 tokens, 48.4s wall, export scan clean |
+| Live `cycle` pre-fix (test anxiety, 2 iters), 2 runs | identical `failed` at iter 0: empty text, `finish=length`, 9,173 tokens — reasoning burned the 8,000-token completion budget (filed #49, fixed, merged) |
+| Live `cycle` post-fix, same question | 2/2 iters, `budget_exhausted` (iteration budget with pending follow-ups — the correct stop), 5 calls, 33,317 tokens, export scan clean |
+| Preflight after requests | `access: authorized`, model `muse-spark-1.3-contributor` |
+| Token accounting | ledger charged 59,523 == 7860+9173+9173+33317 worker-reported. Exact. |
+
+Still untested: Semantic Scholar with a key (429s without one), broker
+behavior under load, real GitHub publishing, spontaneous live revision
+(entry points still refuse off-path by design). No cost claims; no
+scientific soundness claims. Live failure observed once (#49) was filed,
+fixed, and re-proven — not smoothed over.
+
+**Verdict update: the live model path is demonstrated.** The offline
+verdict stands as written; the live acceptance blocker (#39) is cleared
+by this addendum.
+
