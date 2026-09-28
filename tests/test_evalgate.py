@@ -84,8 +84,19 @@ def test_malformed_and_unknown_tasks_fail_closed(tmp_path):
 def test_timeout_fails_closed(tmp_path):
     tree = controller.build_tree(REPO, base_rev(), None, tmp_path / "tree")
     try:
-        detail = controller.run_task(tree, "leakage", {"seed": 0}, timeout_s=1)
+        # Deterministic: the worker sleeps 30s, the controller kills at 1s.
+        # (The old leakage fixture raced fast runners and flaked — #76.)
+        detail = controller.run_task(tree, "sleep", {"seconds": 30}, timeout_s=1)
         assert detail["ok"] is False and "timeout" in detail["error"]
+    finally:
+        controller.teardown(tree)
+
+
+def test_sleep_task_returns_when_fast_enough(tmp_path):
+    tree = controller.build_tree(REPO, base_rev(), None, tmp_path / "tree")
+    try:
+        detail = controller.run_task(tree, "sleep", {"seconds": 0}, timeout_s=30)
+        assert detail["ok"] is True and detail["output"] == {"slept": 0.0}
     finally:
         controller.teardown(tree)
 
