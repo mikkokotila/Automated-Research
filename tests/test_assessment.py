@@ -338,3 +338,34 @@ def test_revise_records_assess_failed_on_bad_target(repo, tmp_path):
                                           assess_dir=tmp_path)
     assert rep.kept == 0 and doc.proposals == ()
     assert any(n.event == "assess-failed" for n in journal.notes)
+
+
+def test_patchable_inventory_lists_policy_exact_py_files(tmp_path):
+    tree = _tree_with(tmp_path, "src/canary/real.py", "src/canary/revise.py",
+                      "src/canary/data.txt", "tests/x.py", "src/other.py")
+    assert assessmod.patchable_inventory(tree) == ("src/canary/real.py",)
+    assert assessmod.patchable_inventory(tmp_path / "missing") == ()
+
+
+def test_inventory_block_empty_when_nothing_listed(tmp_path):
+    assert assessmod.inventory_block(tmp_path / "missing") == ""
+    tree = _tree_with(tmp_path, "src/canary/revise.py")
+    assert assessmod.inventory_block(tree) == ""
+
+
+def test_assess_journal_prompt_carries_inventory(tmp_path):
+    tree = _tree_with(tmp_path, "src/canary/real.py")
+    muse = RecMuse([_one_prop("src/canary/real.py")])
+    record = assess_journal(None, "notes", "ok", muse, tree=tree)
+    assert [p.target for p in record.doc.proposals] == ["src/canary/real.py"]
+    assert "- src/canary/real.py" in muse.users[0]
+    assert "ONLY from this list" in muse.users[0]
+
+
+def test_assess_prompt_without_tree_degrades_to_instruction(monkeypatch):
+    monkeypatch.setattr(assessmod, "_running_tree", lambda: None)
+    muse = RecMuse([assessment_md("R", [])])
+    doc = assessmod.assess("notes", "ok", muse)
+    assert doc.proposals == ()
+    assert "Patchable files" not in muse.users[0]
+    assert "Assess and propose revisions." in muse.users[0]

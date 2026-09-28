@@ -5,16 +5,17 @@ Safety properties:
 - .github/, Dockerfile*, lockfiles, and this gate file are off-limits.
 - The tree must be clean and the suite green BEFORE any patch is attempted.
 - Every patch is reverted unless the full suite passes after it.
-- Until a trusted execution path exists (Builds 03-04), every public revision
+- Until a launcher-attested execution path exists, every public revision
   entry point refuses before any model call, subprocess, or filesystem
   mutation. See docs/TRUST_BOUNDARY.md.
 
 This gate is an interlock against accidental uncontained execution, not a
 security boundary against malicious in-process code: in-process callers can
 always monkeypatch it, which is why the container boundary (Builds 03-05) is
-the real enforcement. Tests exercise revision logic through that same
-explicit monkeypatch seam; nothing implicit (environment, /.dockerenv,
-container-mode strings) ever authorizes revision.
+the real enforcement. The interim role check (Issue #52) authorizes exactly
+two launcher/operator-provided markers; host-side attestation is deferred
+(Issues #62-#64). Tests exercise revision logic through the explicit
+monkeypatch seam plus genuine-path tests with the role markers set.
 """
 
 from __future__ import annotations
@@ -43,19 +44,76 @@ class ContainmentBlocked(RuntimeError):
     """Revision refused: no trusted execution path. Fail closed, never guess."""
 
 
-def require_revision_trust() -> None:
-    """Fail closed: no caller-controlled evidence authorizes revision.
+GUEST_ENV_VAR = "CANARY_GUEST"
+PUBLISHER_ENV_VAR = "CANARY_PUBLISHER"
+TRUSTED_ROLE_VALUE = "1"
 
-    Intentionally reads no environment, filesystem, or string flags. A
-    trusted execution path (Builds 03-04) will replace this stub with a
-    launcher-attested check; until then every public revision entry point
-    refuses. In-process tests bypass it only via explicit monkeypatch.
+
+def require_revision_trust() -> None:
+    """Interim role check: exactly one launcher/operator role marker (Issue #52).
+
+    CANARY_GUEST=1 is injected only by scripts/container_run.sh into
+    disposable workers (which must hold no export credentials).
+    CANARY_PUBLISHER=1 is set only by the owner's publish driver on the
+    host (which holds GITHUB_TOKEN and never runs worker code).
+    Anything else — including both markers at once — fails closed.
+
+    INTERIM AND FORGEABLE: a marker is a claim, not proof. It stops
+    accidental uncontained runs, not a malicious in-process actor (which
+    can monkeypatch this anyway) or a forged guest. Host-side
+    attestation (Issue #64), an independent review identity (#62), and
+    externally governed CI (#63) are deferred hardening; until they
+    land, treat this as a misconfiguration interlock, not a boundary.
     """
-    raise ContainmentBlocked(
-        "refusing: revision has no trusted execution path yet "
-        "(see docs/TRUST_BOUNDARY.md, Builds 03-04); "
-        "environment flags and container evidence are not authorization"
-    )
+    import os
+
+    guest = os.environ.get(GUEST_ENV_VAR) == TRUSTED_ROLE_VALUE
+    publisher = os.environ.get(PUBLISHER_ENV_VAR) == TRUSTED_ROLE_VALUE
+    if guest and publisher:
+        raise ContainmentBlocked(
+            "refusing: ambiguous revision role "
+            "(guest and publisher markers are both set)")
+    if not (guest or publisher):
+        raise ContainmentBlocked(
+            "refusing: revision needs a launcher-provided role "
+            "(CANARY_GUEST=1 in a disposable worker, or CANARY_PUBLISHER=1 "
+            "in the owner publish driver); refusing on this host"
+        )
+
+
+def current_branch(repo: Path) -> str:
+    """Worktree branch, or ContainmentBlocked when git cannot say (fail closed)."""
+    try:
+        return git(repo, "rev-parse", "--abbrev-ref", "HEAD").strip()
+    except Exception as e:
+        raise ContainmentBlocked(
+            f"refusing: cannot determine worktree branch: {e}") from e
+
+
+def require_prod_branch(repo: str | Path, profile: str) -> None:
+    """Prod-profile runs execute on main only (code-level; see Issue #64).
+
+    Dev runs may use any branch. Remote-SHA attestation (is this main the
+    current origin/main?) cannot be proven where this check runs and is
+    deferred to the host-side prod gate; until then this stops branch
+    mistakes, not a forged checkout.
+    """
+    if profile not in ("dev", "prod"):
+        raise ContainmentBlocked(f"refusing: unknown run profile {profile!r}")
+    if profile == "dev":
+        return
+    branch = current_branch(Path(repo))
+    if branch != "main":
+        raise ContainmentBlocked(
+            f"refusing: prod profile requires the main branch (on {branch!r})")
+
+
+def require_main_branch(repo: str | Path) -> None:
+    """Publish cuts auto-branches from main only, so PRs carry no foreign commits."""
+    branch = current_branch(Path(repo))
+    if branch != "main":
+        raise ContainmentBlocked(
+            f"refusing: publish requires the main branch (on {branch!r})")
 
 DIFF_SYSTEM = (
     "You emit ONLY a unified diff (git format with a/ b/ paths, no fences, no "
@@ -66,6 +124,7 @@ DIFF_SYSTEM = (
 MAX_DIFF_FILES = 5
 MAX_DIFF_LINES = 300
 MAX_PROPOSALS_PER_ROUND = 3
+MAX_DIFF_ATTEMPTS = 2
 
 
 @dataclass
@@ -124,8 +183,12 @@ def refuse_maintainer_credentials() -> None:
 
 
 def request_diff(proposal: Proposal, client: Completer, repo: Path | None = None,
-                 record: dict | None = None) -> str:
-    """Ask for a diff against real base context; record what was sent/omitted."""
+                 record: dict | None = None, feedback: str = "") -> str:
+    """Ask for a diff against real base context; record what was sent/omitted.
+
+    Feedback carries a previous attempt's failure so the retry does not
+    repeat it. Callers that retry must bound attempts (MAX_DIFF_ATTEMPTS).
+    """
     from .redact import redact_text
 
     base_rev = "unknown"
@@ -161,10 +224,37 @@ def request_diff(proposal: Proposal, client: Completer, repo: Path | None = None
     user = (
         f"Target file: {proposal.target}\nRequested change: {proposal.change}\nReason: {proposal.reason}\n\n"
         f"Base revision: {base_rev}\nFile sha256: {file_sha}\n"
-        + (f"Omitted context: {omitted}\n" if omitted else "") +
+        + (f"Omitted context: {omitted}\n" if omitted else "")
+        + (f"Previous attempt failed, do not repeat it: {feedback}\n" if feedback else "") +
         f"Current content of {proposal.target}:\n```\n{redacted}\n```\n\nEmit the diff."
     )
     return client.complete(DIFF_SYSTEM, user)
+
+
+def request_applicable_diff(proposal: Proposal, client: Completer, repo: Path,
+                            context_record: dict | None = None,
+                            journal: Journal | None = None,
+                            max_attempts: int = MAX_DIFF_ATTEMPTS) -> str:
+    """Request a diff that parses, passes policy, and applies to the base.
+
+    Malformed or non-applying diffs get a retry with the failure fed back;
+    without this, most model diffs die expensively in full eval (demo52c:
+    1 applicable in 5). Raises ChangesetError when no attempt applies —
+    the caller records a skip, never a silent drop.
+    """
+    feedback = ""
+    for attempt in range(max(1, max_attempts)):
+        diff = request_diff(proposal, client, repo, context_record, feedback=feedback)
+        try:
+            ops = parse_unified_diff(diff)
+            check_policy(ops, target_allowed)
+            verify_in_disposable(repo, diff, ops)
+            return diff
+        except ChangesetError as e:
+            feedback = str(e)[:300]
+            emit(journal, "revise", "diff-retry",
+                 f"{proposal.id} attempt {attempt + 1}: {feedback}")
+    raise ChangesetError(f"no applicable diff after {max(1, max_attempts)} attempts: {feedback}")
 
 
 def _file_sha(path: Path) -> str:
@@ -209,6 +299,26 @@ def _outcome_manifest(cand) -> dict:
     return {"base_rev": cand.base_rev, "diff_sha": cand.diff_sha, "files": files}
 
 
+def _record_ignore(repo: Path, assess_dir: str | Path | None) -> tuple[str, ...]:
+    """Top-level record dir to exclude from revision snapshots.
+
+    Run outputs (journal, checkpoints, candidates) live under out_dir,
+    which usually sits inside the repo under revision. Snapshots track
+    code, not run records: without the exclusion, the run's own writes
+    diverge the worktree and veto every later round (demo52b). Never
+    excludes src/ or tests/; assess dirs outside the repo need nothing.
+    """
+    if assess_dir is None:
+        return ()
+    try:
+        rel = Path(assess_dir).resolve().relative_to(Path(repo).resolve())
+    except (OSError, ValueError):
+        return ()
+    if not rel.parts or rel.parts[0] in ("src", "tests"):
+        return ()
+    return (rel.parts[0],)
+
+
 def apply_one(repo: Path, proposal: Proposal, diff: str, check_cmd: list[str], journal: Journal | None,
               assessment_id: str = "",
               assess_dir: str | Path | None = None,
@@ -222,12 +332,13 @@ def apply_one(repo: Path, proposal: Proposal, diff: str, check_cmd: list[str], j
     """
     repo = Path(repo)
     store = promotemod.Store(repo / "runs" / "promotions")
+    ignore = _record_ignore(repo, assess_dir)
     if store.latest_rev() is None:
         if not tree_clean(repo):
             return PatchOutcome(proposal.id, proposal.target, False, False,
                                 "worktree not clean; cannot anchor revision zero",
                                 assessment_id=assessment_id)
-        store.init_from_worktree(repo)
+        store.init_from_worktree(repo, ignore)
 
     def _record(status: str, reason: str, manifest: dict | None) -> None:
         if assess_dir is not None:
@@ -253,7 +364,7 @@ def apply_one(repo: Path, proposal: Proposal, diff: str, check_cmd: list[str], j
         return PatchOutcome(proposal.id, proposal.target, True, False, str(e),
                             cand.base_rev, manifest, assessment_id)
     emit(journal, "revise", "applied", f"{proposal.id}: rev {rev_id}")
-    sync_worktree_to_accepted(repo, store, journal)
+    sync_worktree_to_accepted(repo, store, journal, ignore)
     _record("kept", f"checks green, kept as {rev_id}", manifest)
     return PatchOutcome(proposal.id, proposal.target, True, True,
                         f"checks green, kept as {rev_id}",
@@ -261,14 +372,15 @@ def apply_one(repo: Path, proposal: Proposal, diff: str, check_cmd: list[str], j
 
 
 def sync_worktree_to_accepted(repo: Path, store: "promotemod.Store",
-                              journal: Journal | None = None) -> None:
+                              journal: Journal | None = None,
+                              ignore: tuple[str, ...] = ()) -> None:
     """Bring the live tree to the latest accepted snapshot. Halts on drift."""
     repo = Path(repo)
     rev_id = store.latest_rev()
     manifest = store.rev_manifest(rev_id) if rev_id else None
     if rev_id is None or manifest is None:
         raise RuntimeError("promotion store has no accepted revision to sync")
-    live = promotemod.hash_tree(repo)
+    live = promotemod.hash_tree(repo, ignore)
     want = manifest["files"]
     for path in sorted(set(live) ^ set(want)):
         target = repo / path
@@ -282,7 +394,7 @@ def sync_worktree_to_accepted(repo: Path, store: "promotemod.Store",
             target = repo / path
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(store.revs / rev_id / "tree" / path, target)
-    ok, divergent = promotemod.worktree_matches(store, repo)
+    ok, divergent = promotemod.worktree_matches(store, repo, ignore)
     if not ok:
         raise RuntimeError(f"worktree sync failed, divergent: {divergent}")
     emit(journal, "revise", "synced", f"worktree matches {rev_id}")
@@ -303,14 +415,15 @@ def revise_round(
     refuse_maintainer_credentials()
     require_revision_trust()
     store = promotemod.Store(repo / "runs" / "promotions")
+    ignore = _record_ignore(repo, assess_dir)
     if store.latest_rev() is None:
         if not tree_clean(repo):
             emit(journal, "revise", "aborted", "tree not clean")
             report.skipped = len(doc.proposals)
             return report
-        store.init_from_worktree(repo)
+        store.init_from_worktree(repo, ignore)
     else:
-        ok, divergent = promotemod.worktree_matches(store, repo)
+        ok, divergent = promotemod.worktree_matches(store, repo, ignore)
         if not ok:
             emit(journal, "revise", "aborted",
                  f"worktree differs from {store.latest_rev()}: {divergent}")
@@ -323,7 +436,8 @@ def revise_round(
     for proposal in doc.proposals[:MAX_PROPOSALS_PER_ROUND]:
         context_record: dict = {}
         try:
-            diff = request_diff(proposal, client, repo, context_record)
+            diff = request_applicable_diff(proposal, client, repo, context_record,
+                                           journal)
         except RequestBlocked:
             raise
         except Exception as e:
@@ -474,6 +588,7 @@ def publish_round(
 
     require_revision_trust()  # before runs/ writes and any GitHub side effects
     repo = Path(repo)
+    require_main_branch(repo)  # auto-branches cut from main only
     runs = repo / "runs"
     runs.mkdir(exist_ok=True)
     (runs / f"{run_id}-assessment.md").write_text(doc.markdown + "\n", encoding="utf-8")

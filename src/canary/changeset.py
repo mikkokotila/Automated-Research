@@ -181,10 +181,14 @@ def verify_in_disposable(repo: str | Path, diff: str, ops: list[FileOp],
     repo = Path(repo)
     base_rev = _git(repo, "rev-parse", "HEAD").strip()
     work = Path(tempfile.mkdtemp(prefix="canary-changeset-"))
-    # Plain copy of the worktree (tracked content only, no .git, no runs).
+    # Plain copy of the live base: tracked content plus untracked files
+    # under src/ and tests/ (kept patches land uncommitted, and follow-up
+    # diffs must verify against them). No .git, no runs, no junk.
     tracked = _git(repo, "ls-files", "-z").split("\0")
+    untracked = _git(repo, "ls-files", "--others", "--exclude-standard",
+                     "-z", "--", "src", "tests").split("\0")
     try:
-        for rel in tracked:
+        for rel in tracked + untracked:
             if not rel:
                 continue
             src = repo / rel

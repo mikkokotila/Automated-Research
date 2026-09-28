@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import sys
 from dataclasses import replace
 from pathlib import Path
@@ -117,6 +118,10 @@ def main(argv: list[str] | None = None) -> int:
     lo.add_argument("--max-papers", type=int, default=5)
     lo.add_argument("--out", default="./out")
     lo.add_argument("--maintenance", action="store_true", help="assess and patch mid-run and post-run")
+    lo.add_argument("--profile", default="dev", choices=["dev", "prod"],
+                    help="prod runs on main only (dev may use any branch)")
+    lo.add_argument("--check-cmd", default=None,
+                    help="eval-gate command for revision (default: pytest -q)")
     lo.add_argument("--revise-rounds", type=int, default=1)
     lo.add_argument("--max-calls", type=int, default=25, help="hard model-call budget")
     lo.add_argument("--max-tokens", type=int, default=20000000, help="hard token budget")
@@ -137,6 +142,10 @@ def main(argv: list[str] | None = None) -> int:
     im.add_argument("--run-dir", required=True, help="bundle dir containing journal.jsonl")
     im.add_argument("--repo", default=".", help="repo checkout to revise")
     im.add_argument("--rounds", type=int, default=1)
+    im.add_argument("--profile", default="dev", choices=["dev", "prod"],
+                    help="prod runs on main only (dev may use any branch)")
+    im.add_argument("--check-cmd", default=None,
+                    help="eval-gate command for revision (default: pytest -q)")
     im.add_argument("--out", default=None, help="optional dir for assessment.md")
     ins = sub.add_parser("inspect", help="report a bundle's status without executing anything")
     ins.add_argument("bundle", help="bundle directory to inspect")
@@ -187,6 +196,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         spec = build_spec(args)
         bandit = build_bandit(args)
+        check_cmd = parse_check_cmd(getattr(args, "check_cmd", None))
     except InvalidSpec as e:
         print(f"canary: invalid input: {e}", file=sys.stderr)
         return 2
@@ -196,9 +206,11 @@ def main(argv: list[str] | None = None) -> int:
         elif args.cmd == "analyze":
             path = analyze(spec, assess=args.assess)
         elif args.cmd == "revise":
-            path = revise(args.run_dir, args.repo, args.rounds, args.out)
+            path = revise(args.run_dir, args.repo, args.rounds, args.out,
+                          profile=args.profile, check_cmd=check_cmd)
         else:
-            path = cycle(spec, args.repo, assess=args.assess, bandit=bandit)
+            path = cycle(spec, args.repo, assess=args.assess, bandit=bandit,
+                         check_cmd=check_cmd)
     except Exception as e:  # honest failure, never fake output
         owned_out = spec.out_dir if spec is not None else args.out
         _journal_failure(owned_out, args.cmd, e)
@@ -220,9 +232,23 @@ def build_spec(args) -> RunSpec | None:
         return RunSpec(question=question, csv=args.csv, target=args.target, out_dir=args.out)
     return RunSpec(question=args.question, csv=args.csv, target=args.target,
                    max_iterations=args.max_iterations, max_papers=args.max_papers,
-                   maintenance=args.maintenance, revise_rounds=args.revise_rounds,
+                   maintenance=args.maintenance, profile=args.profile,
+                   revise_rounds=args.revise_rounds,
                    max_model_calls=args.max_calls, max_tokens=args.max_tokens,
                    wall_time_s=args.wall_time_s, out_dir=args.out)
+
+
+def parse_check_cmd(raw: str | None) -> list[str] | None:
+    """Operator-owned eval-gate command. None keeps the pytest default."""
+    if raw is None or not raw.strip():
+        return None
+    try:
+        parts = shlex.split(raw)
+    except ValueError as e:
+        raise InvalidSpec(f"check-cmd is not parseable: {e}") from e
+    if not parts:
+        return None
+    return parts
 
 
 def build_bandit(args):
@@ -239,7 +265,8 @@ def build_bandit(args):
         raise InvalidSpec(f"bandit config: {e}") from e
 
 
-def cycle(spec: RunSpec, repo: str = ".", assess: bool = False, bandit=None) -> str:
+def cycle(spec: RunSpec, repo: str = ".", assess: bool = False, bandit=None,
+          check_cmd: list[str] | None = None) -> str:
     run_id = report.begin_run(spec.out_dir, spec, "cycle")
     j = Journal(Path(spec.out_dir) / "journal.jsonl", run_id=run_id)
     outbox: dict = {}
@@ -250,6 +277,7 @@ def cycle(spec: RunSpec, repo: str = ".", assess: bool = False, bandit=None) -> 
         client, journal=j, maintenance=spec.maintenance,
         revise_rounds=spec.revise_rounds, repo_root=repo, outbox=outbox,
         spec=spec, budget=budget, record_dir=spec.out_dir, bandit=bandit,
+        check_cmd=check_cmd,
     )
     if assess and not spec.maintenance:  # maintenance already persists assessments
         stopped = getattr(res.stopped, "value", res.stopped)
@@ -358,7 +386,11 @@ def analyze(spec: RunSpec, assess: bool = False) -> str:
     return str(path / "analysis.md")
 
 
-def revise(run_dir: str, repo: str, rounds: int, out: str | None) -> str:
+def revise(run_dir: str, repo: str, rounds: int, out: str | None,
+           profile: str = "dev", check_cmd: list[str] | None = None) -> str:
+    from .revise import require_prod_branch
+
+    require_prod_branch(repo, profile)  # prod runs on main only, before any work
     jr = Journal.load(Path(run_dir) / "journal.jsonl")
     outcome = f"past run at {run_dir}: {len(jr)} notes"
     for cand in ("run.json", "provenance.json"):
@@ -366,7 +398,8 @@ def revise(run_dir: str, repo: str, rounds: int, out: str | None) -> str:
         if p.exists():
             outcome += f"; {cand}={p.read_text(encoding='utf-8')[:800]}"
             break
-    doc, rep = revise_from_journal(jr.text(), outcome, repo, MuseClient(), rounds=rounds, journal=jr)
+    doc, rep = revise_from_journal(jr.text(), outcome, repo, MuseClient(), rounds=rounds,
+                                   journal=jr, check_cmd=check_cmd)
     dest = Path(out or run_dir)
     dest.mkdir(parents=True, exist_ok=True)
     (dest / "assessment.md").write_text(doc.markdown + "\n", encoding="utf-8")

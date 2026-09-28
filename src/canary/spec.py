@@ -78,6 +78,7 @@ class RunSpec:
     year_from: int | None = None
     model: str = DEFAULT_MODEL
     maintenance: bool = False
+    profile: str = "dev"
     max_iterations: int = 3
     revise_rounds: int = 1
     max_model_calls: int = 25
@@ -96,6 +97,8 @@ class RunSpec:
             raise InvalidSpec(f"unsupported spec version {self.version}")
         if self.model != DEFAULT_MODEL:
             raise InvalidSpec(f"only {DEFAULT_MODEL} is permitted")
+        if self.profile not in ("dev", "prod"):
+            raise InvalidSpec("profile must be 'dev' or 'prod'")
         if bool(self.csv) != bool(self.target):
             raise InvalidSpec("csv and target must be given together")
         if not 1 <= self.max_papers <= 50:
@@ -119,7 +122,7 @@ class RunSpec:
         object.__setattr__(self, "question", question)
 
     _FIELDS = ("version", "question", "csv", "target", "max_papers", "year_from",
-                 "model", "maintenance", "max_iterations", "revise_rounds",
+                 "model", "maintenance", "profile", "max_iterations", "revise_rounds",
                  "max_model_calls", "max_tokens", "wall_time_s", "finalize_calls",
                  "out_dir")
 

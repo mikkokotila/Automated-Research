@@ -18,8 +18,8 @@ def repo(tmp_path, monkeypatch):
     r = tmp_path / "repo"
     (r / "src" / "canary").mkdir(parents=True)
     (r / "src" / "canary" / "foo.py").write_text("X = 1\n", encoding="utf-8")
-    for args in (["init", "-q"], ["config", "user.email", "t@t"], ["config", "user.name", "t"],
-                 ["add", "-A"], ["commit", "-qm", "init"]):
+    for args in (["init", "-q", "-b", "main"], ["config", "user.email", "t@t"],
+                 ["config", "user.name", "t"], ["add", "-A"], ["commit", "-qm", "init"]):
         subprocess.run(["git", *args], cwd=r, capture_output=True, check=True)
     return r
 
@@ -115,6 +115,112 @@ def test_second_round_starts_from_accepted_without_deadlock(repo):
     rep2 = revmod.revise_round(repo, doc2, DiffMuse([DIFF_B]), Journal(), ["true"])
     assert rep2.kept == 1  # no dirty-tree deadlock: gate compares to accepted
     assert (repo / "src/canary/foo.py").read_text() == "X = 3\n"
+
+
+def test_run_outputs_do_not_veto_later_rounds(repo, tmp_path):
+    """The run's own out/ writes are records, not code drift (demo52b)."""
+    adir = repo / "out" / "assessments"
+
+    class DiffMuse:
+        model = "m"
+
+        def __init__(self, diffs):
+            self.diffs = list(diffs)
+
+        def complete(self, system, user, max_tokens=8000):
+            return self.diffs.pop(0)
+
+    journal = Journal()
+    rep1 = revmod.revise_round(repo, AssessmentDoc("R1", (prop("p1"),)),
+                               DiffMuse([DIFF_A]), journal, ["true"],
+                               assess_dir=adir)
+    assert rep1.kept == 1
+    # Mid-run output lands after the anchor, as a live run's would.
+    (repo / "out" / "journal.jsonl").write_text("{}\n", encoding="utf-8")
+    (repo / "out" / "checkpoints").mkdir(parents=True, exist_ok=True)
+    (repo / "out" / "checkpoints" / "c.json").write_text("{}\n", encoding="utf-8")
+    rep2 = revmod.revise_round(repo, AssessmentDoc("R2", (prop("p2"),)),
+                               DiffMuse([DIFF_B]), journal, ["true"],
+                               assess_dir=adir)
+    assert rep2.kept == 1
+    assert (repo / "src/canary/foo.py").read_text() == "X = 3\n"
+    assert (repo / "out" / "journal.jsonl").exists()  # records survive the sync
+    assert not [n for n in journal.notes if n.event == "aborted"]
+
+
+def test_record_ignore_never_excludes_code(repo, tmp_path):
+    assert revmod._record_ignore(repo, None) == ()
+    assert revmod._record_ignore(repo, tmp_path / "elsewhere") == ()
+    assert revmod._record_ignore(repo, repo / "out" / "assessments") == ("out",)
+    assert revmod._record_ignore(repo, repo / "src" / "canary") == ()
+    assert revmod._record_ignore(repo, repo) == ()
+
+
+def test_snapshot_ignore_is_symmetric(repo):
+    (repo / "out").mkdir()
+    (repo / "out" / "j.jsonl").write_text("{}\n", encoding="utf-8")
+    store = Store(repo / "runs" / "promotions")
+    store.init_from_worktree(repo, ("out",))
+    (repo / "out" / "c.json").write_text("{}\n", encoding="utf-8")
+    ok, _ = promotemod.worktree_matches(store, repo, ("out",))
+    assert ok
+    ok, divergent = promotemod.worktree_matches(store, repo)
+    assert not ok and divergent  # without the ignore, the drift still shows
+
+
+def test_eval_tree_is_fresh_git_repo(repo):
+    """Git-shaped checks behave in the eval copy as at baseline (demo52c)."""
+    store = Store(repo / "runs" / "promotions")
+    store.init_from_worktree(repo)
+    cand = promotemod.evaluate(store, prop("p1"), DIFF_A,
+                               ["git", "rev-parse", "HEAD"], "a1")
+    assert cand.test.get("exit") == 0
+
+
+GARBAGE_DIFF = "this is not a diff"
+NAPPLY_DIFF = ("--- a/src/canary/foo.py\n+++ b/src/canary/foo.py\n"
+               "@@ -1 +1 @@\n-X = 999\n+X = 2\n")
+
+
+class RetryMuse:
+    model = "m"
+
+    def __init__(self, diffs):
+        self.diffs = list(diffs)
+        self.users: list[str] = []
+
+    def complete(self, system, user, max_tokens=8000):
+        self.users.append(user)
+        return self.diffs.pop(0)
+
+
+def test_malformed_diff_retried_with_feedback(repo):
+    journal = Journal()
+    rep = revmod.revise_round(repo, AssessmentDoc("R", (prop("p1"),)),
+                              RetryMuse([GARBAGE_DIFF, DIFF_A]), journal, ["true"])
+    assert rep.kept == 1
+    assert (repo / "src/canary/foo.py").read_text() == "X = 2\n"
+    assert any(n.event == "diff-retry" for n in journal.notes)
+
+
+def test_retry_feedback_reaches_second_prompt(repo):
+    muse = RetryMuse([GARBAGE_DIFF, DIFF_A])
+    revmod.revise_round(repo, AssessmentDoc("R", (prop("p1"),)),
+                        muse, Journal(), ["true"])
+    assert len(muse.users) == 2
+    assert "Previous attempt failed" in muse.users[1]
+    assert "Previous attempt failed" not in muse.users[0]
+
+
+def test_unapplicable_diff_skips_after_bounded_retry(repo):
+    journal = Journal()
+    muse = RetryMuse([GARBAGE_DIFF, NAPPLY_DIFF])
+    rep = revmod.revise_round(repo, AssessmentDoc("R", (prop("p1"),)),
+                              muse, journal, ["true"])
+    assert rep.kept == 0 and rep.skipped == 1
+    assert len(muse.users) == 2  # exactly one retry, then a recorded skip
+    assert "no applicable diff after 2 attempts" in rep.outcomes[0].reason
+    assert (repo / "src/canary/foo.py").read_text() == "X = 1\n"
 
 
 def test_round_record_roundtrips_for_publish(repo):

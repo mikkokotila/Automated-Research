@@ -45,11 +45,13 @@ class Scope:
     check_cmd: tuple[str, ...] | None
     revise_rounds: int
     bandit: dict | None = None
+    profile: str = "dev"
 
     def to_dict(self) -> dict:
         return {"maintenance": self.maintenance, "repo_root": self.repo_root,
                 "check_cmd": list(self.check_cmd) if self.check_cmd else None,
-                "revise_rounds": self.revise_rounds, "bandit": self.bandit}
+                "revise_rounds": self.revise_rounds, "bandit": self.bandit,
+                "profile": self.profile}
 
     @classmethod
     def from_dict(cls, data: dict) -> "Scope":
@@ -58,11 +60,14 @@ class Scope:
             raise ScheduleError("unusable scope block: bandit must be a dict")
         try:
             cmd = data.get("check_cmd")
+            profile = data.get("profile", "dev")
+            if profile not in ("dev", "prod"):
+                raise ScheduleError(f"unusable scope block: profile {profile!r}")
             return cls(maintenance=bool(data["maintenance"]),
                        repo_root=data.get("repo_root"),
                        check_cmd=tuple(cmd) if cmd else None,
                        revise_rounds=int(data.get("revise_rounds", 0)),
-                       bandit=bandit)
+                       bandit=bandit, profile=profile)
         except (KeyError, TypeError, ValueError) as exc:
             raise ScheduleError(f"unusable scope block: {exc}") from exc
 

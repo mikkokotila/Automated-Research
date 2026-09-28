@@ -382,6 +382,26 @@ def launcher_checks(image, network, gate):
         checks["launcher_imports_nothing"] = (
             "import canary" not in text and "from canary" not in text
             and "\neval " not in text)
+
+        # 10. interim role wiring (Issue #52): launcher injects the guest
+        # marker and a fresh guest repo; the image bakes in neither marker.
+        outm = tmp / "out-marker"
+        rm = launch(outm, ["exec", "sh", "-c",
+                           "echo MARKER=$CANARY_GUEST; "
+                           "git -C /work rev-parse --abbrev-ref HEAD; "
+                           "git -C /work log -1 --format=%s"])
+        checks["guest_marker_injected_by_launcher"] = (
+            rm.returncode == 0 and "MARKER=1" in rm.stdout)
+        checks["guest_workspace_is_git_repo"] = (
+            rm.returncode == 0 and "\nguest\n" in rm.stdout
+            and "canary guest base" in rm.stdout)
+        try:
+            call(["run", "--rm", "--network", "none", "--entrypoint", "sh",
+                  image, "-c",
+                  'test -z "${CANARY_GUEST:-}" && test -z "${CANARY_PUBLISHER:-}"'])
+            checks["image_bakes_no_role_marker"] = True
+        except RuntimeError:
+            checks["image_bakes_no_role_marker"] = False
         return checks
     finally:
         shutil.rmtree(tmp, ignore_errors=True)

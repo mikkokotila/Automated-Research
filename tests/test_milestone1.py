@@ -152,6 +152,10 @@ def test_semscolar_sends_api_key_when_set(monkeypatch):
         return httpx.Response(200, json={"data": []})
 
     monkeypatch.setenv("SEMANTIC_SCHOLAR_API_KEY", "s2key")
+    # Direct-provider headers only: a brokered route replaces them. Scrub the
+    # ambient gate env (present when the suite runs in-guest as the eval gate).
+    monkeypatch.delenv("CANARY_GATE_URL", raising=False)
+    monkeypatch.delenv("CANARY_GATE_TOKEN", raising=False)
     client = httpx.Client(transport=httpx.MockTransport(handler))
     retrieval.semscholar_search(ResearchSpec(question="q"), client)
     assert seen.get("x-api-key") == "s2key"

@@ -50,6 +50,28 @@ def _new_id(prefix: str) -> str:
     return f"{prefix}-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
 
 
+def _git_run(tree: Path, *args: str) -> None:
+    r = subprocess.run(["git", *args], cwd=tree, capture_output=True, text=True,
+                       timeout=120, stdin=subprocess.DEVNULL)
+    if r.returncode != 0:
+        raise OSError(f"git {' '.join(args)} failed: {r.stderr.strip()[:200]}")
+
+
+def _git_init_fresh(tree: Path) -> None:
+    """Fresh local repo in the disposable eval copy (no host linkage).
+
+    Suites that shell out to git behave as they do in the worktree;
+    without this, git-shaped checks fail in the copy while passing at
+    baseline, vetoing good candidates for environmental reasons
+    (demo52c). Identity is local-only flags; nothing is pushed, linked,
+    or read from host git metadata.
+    """
+    ident = ("-c", "user.name=canary-eval", "-c", "user.email=canary-eval@local")
+    _git_run(tree, "init", "-q", "-b", "tree")
+    _git_run(tree, *ident, "add", "-A")
+    _git_run(tree, *ident, "commit", "-qm", "eval base")
+
+
 def _sha_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as f:
@@ -69,13 +91,20 @@ def _atomic_write_json(path: Path, payload: dict) -> None:
     os.replace(tmp, path)
 
 
-def snapshot_tree(source: str | Path, dest: str | Path) -> dict[str, str]:
-    """Copy a runnable tree (minus VCS/caches) and hash every file."""
+def snapshot_tree(source: str | Path, dest: str | Path,
+                  ignore: tuple[str, ...] = ()) -> dict[str, str]:
+    """Copy a runnable tree (minus VCS/caches) and hash every file.
+
+    Extra ignore names (e.g. the run record dir) use the same
+    basename-at-any-level semantics as COPY_IGNORES. Anchor and every
+    later comparison must use the same ignore set, or manifests diverge
+    and the round aborts fail-closed.
+    """
     source, dest = Path(source), Path(dest)
     if dest.exists():
         shutil.rmtree(dest)
     shutil.copytree(source, dest,
-                    ignore=shutil.ignore_patterns(*COPY_IGNORES, "*.pyc"))
+                    ignore=shutil.ignore_patterns(*COPY_IGNORES, *ignore, "*.pyc"))
     manifest: dict[str, str] = {}
     for path in sorted(dest.rglob("*")):
         if path.is_file() and not path.is_symlink():
@@ -83,13 +112,14 @@ def snapshot_tree(source: str | Path, dest: str | Path) -> dict[str, str]:
     return manifest
 
 
-def hash_tree(root: str | Path) -> dict[str, str]:
+def hash_tree(root: str | Path, ignore: tuple[str, ...] = ()) -> dict[str, str]:
     """Hash the live tree the same way snapshots are hashed."""
     root = Path(root)
+    skipped = COPY_IGNORES + tuple(ignore)
     manifest: dict[str, str] = {}
     for path in sorted(root.rglob("*")):
         rel = path.relative_to(root)
-        if any(part in COPY_IGNORES or part.endswith(".pyc") for part in rel.parts):
+        if any(part in skipped or part.endswith(".pyc") for part in rel.parts):
             continue
         if path.is_file() and not path.is_symlink():
             manifest[str(rel)] = _sha_file(path)
@@ -153,10 +183,11 @@ class Store:
             return None
         return data if isinstance(data, dict) else None
 
-    def init_from_worktree(self, worktree: str | Path) -> str:
+    def init_from_worktree(self, worktree: str | Path,
+                         ignore: tuple[str, ...] = ()) -> str:
         """Revision zero: snapshot the (verified clean) worktree."""
         rev_id = _new_id("rev")
-        manifest = snapshot_tree(worktree, self.revs / rev_id / "tree")
+        manifest = snapshot_tree(worktree, self.revs / rev_id / "tree", ignore)
         _atomic_write_json(self.revs / rev_id / "manifest.json",
                            {"rev_id": rev_id, "parent": None, "candidate": None,
                             "ts": _utcnow(), "files": manifest})
@@ -271,6 +302,13 @@ def evaluate(store: Store, proposal, diff: str, check_cmd: list[str],
             return cand
         cand.manifest["new_hashes"] = hash_tree(tree)
         _transition(store, cand, "applied", journal)
+        try:
+            _git_init_fresh(tree)
+        except Exception as e:
+            cand.wall_s = time.monotonic() - started
+            _transition(store, cand, "rejected", journal,
+                        f"eval tree git init failed: {e}")
+            return cand
         if "applied" in crash_at:
             raise _CrashSim("applied")
         env = dict(os.environ)
@@ -478,7 +516,8 @@ def rollback(store: Store, to_rev: str, reason: str, journal=None,
     return rev_id
 
 
-def worktree_matches(store: Store, worktree: str | Path) -> tuple[bool, list[str]]:
+def worktree_matches(store: Store, worktree: str | Path,
+                     ignore: tuple[str, ...] = ()) -> tuple[bool, list[str]]:
     """Does the live tree equal the latest accepted snapshot? Divergences listed."""
     rev_id = store.latest_rev()
     if rev_id is None:
@@ -486,7 +525,7 @@ def worktree_matches(store: Store, worktree: str | Path) -> tuple[bool, list[str
     manifest = store.rev_manifest(rev_id)
     if manifest is None:
         return False, [f"revision {rev_id} has no manifest"]
-    live = hash_tree(worktree)
+    live = hash_tree(worktree, ignore)
     want = manifest["files"]
     divergent = sorted(set(live) ^ set(want))
     divergent += sorted(p for p in set(live) & set(want) if live[p] != want[p])
