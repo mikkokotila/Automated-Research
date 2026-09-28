@@ -20,7 +20,9 @@ MAX_DIFF_FILES = 5
 MAX_DIFF_LINES = 300
 
 _HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@")
+_HUNK_FULL_RE = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)$")
 _GIT_DIFF_RE = re.compile(r"^diff --git (\S+) (\S+)$")
+_BODY_PREFIXES = (" ", "+", "-", "\\")
 
 
 class ChangesetError(Exception):
@@ -108,6 +110,66 @@ def parse_unified_diff(diff: str) -> list[FileOp]:
     if len(set(paths)) != len(paths):
         raise ChangesetError("diff touches the same path twice")
     return ops
+
+
+def normalize_unified_diff(diff: str) -> str:
+    """Recompute hunk-header counts from hunk bodies; content untouched.
+
+    Models chronically miscount hunk ranges, and git rejects the result
+    as a corrupt patch (keep1c: 4/4 attempts). The +/-/space lines carry
+    the model's semantic change; the counts are mechanical framing, so
+    they are recomputed deterministically. Start lines are never moved:
+    a hunk that still does not match the base fails verification as
+    before. Anything structurally invalid — bad body prefixes, empty
+    hunks — raises ChangesetError instead of being guessed at.
+    """
+    trailing_nl = diff.endswith("\n")
+    lines = diff.split("\n")
+    if trailing_nl:
+        lines = lines[:-1]  # drop the split artifact, not a body line
+    out: list[str] = []
+    i, n = 0, len(lines)
+    while i < n:
+        line = lines[i]
+        m = _HUNK_FULL_RE.match(line)
+        if not m:
+            if line.startswith("@@"):
+                raise ChangesetError(f"malformed hunk header: {line[:80]}")
+            out.append(line)
+            i += 1
+            continue
+        old_count, new_count = 0, 0
+        j = i + 1
+        while j < n:
+            body = lines[j]
+            if body.startswith("@@") or body.startswith("diff --git "):
+                break
+            if body == "":
+                old_count += 1  # git reads empty lines as empty context
+                new_count += 1
+                j += 1
+                continue
+            if not body.startswith(_BODY_PREFIXES):
+                raise ChangesetError(
+                    f"unexpected line in hunk body: {body[:80]}")
+            if body.startswith("\\"):
+                j += 1  # "\ No newline" marker: attached, uncounted
+                continue
+            if body[0] in (" ", "-"):
+                old_count += 1
+            if body[0] in (" ", "+"):
+                new_count += 1
+            j += 1
+        if j == i + 1:
+            raise ChangesetError("empty hunk body")
+        out.append(f"@@ -{m.group(1)},{old_count} "
+                   f"+{m.group(3)},{new_count} @@{m.group(5)}")
+        out.extend(lines[i + 1:j])
+        i = j
+    fixed = "\n".join(out)
+    if trailing_nl and not fixed.endswith("\n"):
+        fixed += "\n"
+    return fixed
 
 
 def _strip_prefix(token: str, prefix: str) -> str:

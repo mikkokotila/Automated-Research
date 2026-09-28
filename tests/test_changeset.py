@@ -6,8 +6,8 @@ import pytest
 
 from canary import assess as assessmod
 from canary import revise as revmod
-from canary.changeset import (ChangesetError, check_policy, parse_unified_diff,
-                              verify_in_disposable)
+from canary.changeset import (ChangesetError, check_policy, normalize_unified_diff,
+                              parse_unified_diff, verify_in_disposable)
 from canary.journal import Journal
 
 
@@ -229,3 +229,91 @@ def test_parser_and_policy_agree_on_ops():
     check_policy(ops, revmod.target_allowed)  # raises nothing
     with pytest.raises(ChangesetError, match="empty"):
         parse_unified_diff("   ")
+
+
+# --- hunk-count normalization (keep1c yield) ---
+
+
+class QueuedCompleter:
+    model = "queued"
+
+    def __init__(self, *texts):
+        self.texts = list(texts)
+
+    def complete(self, system, user, max_tokens=8000):
+        return self.texts.pop(0) if len(self.texts) > 1 else self.texts[0]
+
+
+DIFF_MISCOUNTED = ("diff --git a/src/canary/foo.py b/src/canary/foo.py\n"
+                   "--- a/src/canary/foo.py\n"
+                   "+++ b/src/canary/foo.py\n"
+                   "@@ -1,5 +1,9 @@\n"
+                   "-X = 1\n"
+                   "+X = 2\n")
+
+
+def test_normalize_repairs_counts_and_git_accepts(repo):
+    with pytest.raises(ChangesetError, match="corrupt patch"):
+        verify_in_disposable(repo, DIFF_MISCOUNTED,
+                             parse_unified_diff(DIFF_MISCOUNTED))
+    fixed = normalize_unified_diff(DIFF_MISCOUNTED)
+    assert "@@ -1,1 +1,1 @@" in fixed
+    manifest = verify_in_disposable(repo, fixed, parse_unified_diff(fixed))
+    assert manifest.files[0]["new_sha"] != manifest.files[0]["old_sha"]
+    # content lines pass through byte-identical; only the header changes
+    assert fixed.replace("@@ -1,1 +1,1 @@", "@@ -1,5 +1,9 @@") == DIFF_MISCOUNTED
+
+
+def test_normalize_counts_empty_lines_as_context(repo):
+    target = repo / "src" / "canary" / "foo.py"
+    target.write_text("a\n\nb\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=repo, capture_output=True, check=True)
+    subprocess.run(["git", "commit", "-qm", "empty"], cwd=repo,
+                   capture_output=True, check=True)
+    diff = ("--- a/src/canary/foo.py\n+++ b/src/canary/foo.py\n"
+            "@@ -1,7 +1,7 @@\n a\n\n-b\n+c\n")
+    fixed = normalize_unified_diff(diff)
+    assert "@@ -1,3 +1,3 @@" in fixed
+    verify_in_disposable(repo, fixed, parse_unified_diff(fixed))
+
+
+def test_normalize_rejects_structural_garbage():
+    bad_body = ("--- a/f\n+++ b/f\n@@ -1,1 +1,1 @@\n"
+                "? not a hunk line\n")
+    with pytest.raises(ChangesetError, match="unexpected line"):
+        normalize_unified_diff(bad_body)
+    with pytest.raises(ChangesetError, match="empty hunk"):
+        normalize_unified_diff("--- a/f\n+++ b/f\n@@ -1,1 +1,1 @@\n")
+    with pytest.raises(ChangesetError, match="malformed hunk header"):
+        normalize_unified_diff("@@ -x +y @@\n foo\n")
+
+
+def test_applicable_diff_normalizes_first_attempt(repo, tmp_path):
+    client = QueuedCompleter(DIFF_MISCOUNTED)
+    attempts: list = []
+    diff = revmod.request_applicable_diff(prop(), client, repo, {},
+                                          Journal(), attempts_out=attempts)
+    assert "@@ -1,1 +1,1 @@" in diff  # repaired, applied, no retry burned
+    assert len(attempts) == 1
+    assert attempts[0]["error"] == ""
+    assert attempts[0]["raw"] == DIFF_MISCOUNTED
+    assert attempts[0]["normalized"] == diff
+
+
+def test_failed_attempts_persist_redacted(repo, tmp_path):
+    garbage = ("--- a/f\n+++ b/f\n@@ -1,1 +1,1 @@\n"
+               "? boom MUSE_API_KEY = sk-live\n")
+    client = QueuedCompleter(garbage)
+    attempts: list = []
+    with pytest.raises(ChangesetError, match="no applicable diff"):
+        revmod.request_applicable_diff(prop(), client, repo, {}, Journal(),
+                                       max_attempts=2, attempts_out=attempts)
+    assert len(attempts) == 2
+    assert all(a["error"] for a in attempts)
+    path = revmod.save_candidate(tmp_path, prop(), "", None, {}, "a1",
+                                 "diff-failed", "nope", attempts)
+    saved = json.loads(path.read_text())
+    assert len(saved["attempts"]) == 2
+    assert saved["attempts"][0]["normalized"] is False
+    assert "sk-live" not in saved["attempts"][0]["raw_diff"]
+    assert "[REDACTED:muse_key]" in saved["attempts"][0]["raw_diff"]
