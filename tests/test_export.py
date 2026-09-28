@@ -9,6 +9,25 @@ import pytest
 from scripts.export_bundle import MANIFEST_NAME, export
 
 
+def test_scanner_covers_candidate_artifacts(tmp_path):
+    """Bridge (#66): secrets and tampering inside candidates/ are caught."""
+    from scripts.scan_export import scan_export
+
+    out = tmp_path / "out"
+    export(_archive([
+        ("assessments/candidates/p1.json",
+         b'{"status": "kept", "note": "key: MUSE_API_KEY = fixture-planted"}'),
+        ("assessments/candidates/p2.json", b'{"status": "kept"}'),
+    ]), out)
+    report = scan_export(out)
+    assert not report["clean"]
+    assert ("assessments/candidates/p1.json", "muse_key") in {
+        (f["file"], f["pattern"]) for f in report["findings"]}
+    (out / "assessments/candidates/p2.json").write_text('{"tampered": true}')
+    report = scan_export(out)
+    assert "checksum mismatch: assessments/candidates/p2.json" in report["manifest_problems"]
+
+
 def _archive(entries):
     """entries: list of (name, bytes|type-marker)."""
     buf = io.BytesIO()

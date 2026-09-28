@@ -63,6 +63,11 @@ hard limits externally; these rules keep worker logic honest inside them.
   tree must match accepted afterwards or halt.
 - Publishing to GitHub is a separate maintainer action (`canary publish`)
   in a separate process; workers refuse to hold the token.
+- Container yields cross via `canary publish --bundle <export>`: the
+  bundle is scan-gated, each kept diff is verified against its
+  candidate manifest (`diff_sha`), policy-checked, and applied to
+  main before the auto-PR. Tampered or policy-breaking exports
+  refuse without side effects.
 
 ## Failure posture
 

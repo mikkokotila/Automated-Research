@@ -196,3 +196,15 @@ def test_cli_start_sends_ambient_launch_env(tmp_path, monkeypatch, capsys):
                         "--", "bash", "scripts/container_run.sh", "cycle"]) == 0
     assert seen["payload"]["env"] == {"CANARY_STAGE": "dev"}
     assert "launched k1" in capsys.readouterr().out
+
+
+def test_cli_publish_needs_bundle_or_rundir(tmp_path, capsys):
+    assert climod.main(["publish", "--repo", str(tmp_path)]) == 2
+    assert "needs --bundle or --run-dir" in capsys.readouterr().err
+
+
+def test_cli_publish_bundle_without_journal_fails_closed(tmp_path, capsys):
+    b = tmp_path / "bundle"
+    b.mkdir()
+    assert climod.main(["publish", "--repo", str(tmp_path),
+                        "--bundle", str(b)]) == 1
