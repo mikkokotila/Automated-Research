@@ -102,6 +102,29 @@ class GitHub:
     def get_pr(self, number: int) -> dict:
         return self._get(f"/repos/{self.repo}/pulls/{number}")
 
+    def reviews(self, number: int) -> list[dict]:
+        d = self._get(f"/repos/{self.repo}/pulls/{number}/reviews")
+        return d if isinstance(d, list) else []
+
+    def independently_approved(self, number: int, author: str | None) -> bool:
+        """An APPROVED review from anyone but the PR author (Issue #62).
+
+        Same-identity approval is no check against intentional evasion, so
+        it never counts. Unknown author fails closed. Which separate
+        identity must approve is pinned owner-side by branch ruleset; this
+        gate guarantees independence, not identity.
+        """
+        if not author:
+            return False
+        try:
+            reviews = self.reviews(number)
+        except Exception:
+            return False
+        return any(r.get("state") == "APPROVED"
+                   and isinstance(r.get("user"), dict)
+                   and r["user"].get("login") not in (None, "", author)
+                   for r in reviews if isinstance(r, dict))
+
     def check_runs(self, sha: str) -> list[dict]:
         d = self._get(f"/repos/{self.repo}/commits/{sha}/check-runs")
         return d.get("check_runs", [])
@@ -133,9 +156,14 @@ class GitHub:
             resp.raise_for_status()
 
     def wait_and_merge(self, pr: Pull, timeout_s: float = 900, interval_s: float = 20) -> str:
-        """Enable auto-merge, then ensure merge happens. Returns 'merged' or raises."""
+        """Enable auto-merge, then ensure merge happens. Returns 'merged' or raises.
+
+        Green checks alone never merge: an independent (non-author) approval
+        must also be present, else we keep waiting for one until the timeout.
+        """
         self.enable_automerge(pr.node_id)
         deadline = time.monotonic() + timeout_s
+        unapproved = False
         while time.monotonic() < deadline:
             state = self.get_pr(pr.number)
             if state.get("merged"):
@@ -148,9 +176,17 @@ class GitHub:
                 if bad:
                     names = ", ".join(r.get("name", "?") for r in bad)
                     raise RuntimeError(f"PR #{pr.number} checks failed: {names}")
+                author = state.get("user") or {}
+                if not self.independently_approved(pr.number, author.get("login")):
+                    unapproved = True
+                    time.sleep(interval_s)
+                    continue
                 if self.merge(pr.number):
                     return "merged"
             time.sleep(interval_s)
+        if unapproved:
+            raise RuntimeError(
+                f"PR #{pr.number} has no independent approval (self-approval does not count)")
         raise RuntimeError(f"PR #{pr.number} did not merge within {timeout_s}s")
 
 
