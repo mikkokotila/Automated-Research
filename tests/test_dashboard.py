@@ -1,5 +1,7 @@
 """Dashboard daemon: validation, supervision, API, and log merge."""
 import json
+import os
+import shutil
 import subprocess
 import threading
 import time
@@ -163,12 +165,23 @@ def test_experiments_lists_acceptance_verdicts(server, tmp_path):
     assert exps[0]["verdicts"][0]["scenario"] == "s1"
 
 
-@pytest.mark.containment
+@pytest.mark.live  # needs docker + broker + image build; unavailable on CI runners
 def test_pause_unpause_live_container(server, monkeypatch):
     """Real docker pause cycle around a trivial launcher run.
 
     Needs docker, the canary-gate broker, and an image build (~minutes).
     """
+    if shutil.which("docker") is None:
+        pytest.skip("needs docker")
+    gate = os.environ.get("CANARY_GATE_NAME", "canary-gate")
+    try:
+        out = subprocess.run(
+            ["docker", "container", "inspect", "-f", "{{.State.Running}}", gate],
+            capture_output=True, text=True, timeout=15)
+    except (OSError, subprocess.TimeoutExpired):
+        pytest.skip("needs a running docker daemon")
+    if out.returncode != 0 or out.stdout.strip() != "true":
+        pytest.skip(f"needs the {gate} broker container running")
     monkeypatch.setenv("ALLOW_DIRTY", "1")  # test checkout is mid-change
     c = server["client"]
     launcher = str(runs.ROOT / "scripts" / "container_run.sh")
