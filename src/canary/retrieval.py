@@ -1,4 +1,4 @@
-"""Retrieval from OpenAlex and Semantic Scholar, merged and deduped."""
+"""Retrieval from OpenAlex, Semantic Scholar, and arXiv, merged and deduped."""
 
 from __future__ import annotations
 
@@ -14,6 +14,14 @@ from .spec import ResearchSpec
 
 OPENALEX_URL = "https://api.openalex.org/works"
 SEMANTIC_SCHOLAR_URL = "https://api.semanticscholar.org/graph/v1/paper/search"
+ARXIV_URL = "https://export.arxiv.org/api/query"
+# Brokered path: guests resolve each provider URL to a broker route. arXiv is
+# keyless and quota-free, so it carries the run when aggregators rate-limit.
+_GATE_SOURCES = {
+    OPENALEX_URL: "openalex",
+    SEMANTIC_SCHOLAR_URL: "semanticscholar",
+    ARXIV_URL: "arxiv",
+}
 # OpenAlex retired the mailto polite pool; auth is a free API key (see
 # docs/RETRIEVAL_CONTRACTS.md). Without one, requests run on the keyless budget.
 MAX_ATTEMPTS = 3
@@ -37,9 +45,8 @@ def _wait(attempt: int, resp: httpx.Response | None = None) -> None:
 def _get(client: httpx.Client, url: str, params: dict, headers: dict | None = None) -> httpx.Response:
     """GET with retries on transient failures (429/5xx, timeouts)."""
     gate = os.environ.get("CANARY_GATE_URL")
-    if gate and url in (OPENALEX_URL, SEMANTIC_SCHOLAR_URL):
-        name = "openalex" if url == OPENALEX_URL else "semanticscholar"
-        url = gate.rstrip("/") + "/v1/sources/" + name
+    if gate and url in _GATE_SOURCES:
+        url = gate.rstrip("/") + "/v1/sources/" + _GATE_SOURCES[url]
         headers = {"Authorization": "Bearer " + os.environ.get("CANARY_GATE_TOKEN", "")}
     last: Exception | None = None
     for attempt in range(MAX_ATTEMPTS):
@@ -269,6 +276,106 @@ def semscholar_search(spec: ResearchSpec, client: httpx.Client, limit: int = 25,
     return out
 
 
+def arxiv_query(question: str, max_terms: int = 6) -> str:
+    """Distinctive keywords as a conjunctive arXiv query.
+
+    Bare space-separated terms default to OR on the API, which drifts into
+    unrelated work; explicit AND keeps every term binding. Terms come from
+    the same keyword machinery as ranking, so the query can never drift
+    outside the question's own vocabulary.
+    """
+    from .rank import keywords
+
+    # No fallback: when the question has no keywords the caller skips the
+    # call, which beats querying stopwords that match the whole archive.
+    terms = keywords(question)[:max_terms]
+    return " AND ".join(f"all:{t}" for t in terms)
+
+
+def arxiv_search(spec: ResearchSpec, client: httpx.Client, limit: int = 25,
+                 capture: dict | None = None) -> list[Paper]:
+    """Search arXiv via the broker's parsed-JSON shape (``{"entries": [...]}``).
+
+    Foreign shapes (other providers' payloads, direct Atom XML) yield no
+    papers rather than a crash: source confusion degrades, never poisons.
+    arXiv has no server-side year filter, so ``year_from`` is applied here;
+    papers with an unknown year are kept.
+    """
+    query = arxiv_query(spec.question)
+    if not query:
+        if capture is not None:
+            capture.update({"outcome": "ok", "papers": 0, "latency_ms": 0.0,
+                            "cache_hash": None})
+        return []
+    params = {
+        "search_query": query,
+        "start": "0",
+        "max_results": str(min(max(limit, 1), 50)),
+        "sortBy": "relevance",
+        "sortOrder": "descending",
+    }
+    started = time.monotonic()
+    resp = _get(client, ARXIV_URL, params)
+    latency_ms = round((time.monotonic() - started) * 1000, 1)
+    try:
+        body = resp.json()
+    except ValueError:
+        body = None  # direct Atom XML or any non-JSON body: no papers
+    cache_hash = "sha256:" + hashlib.sha256(resp.content).hexdigest()
+    out: list[Paper] = []
+    entries = body.get("entries", []) if isinstance(body, dict) else []
+    if not isinstance(entries, list):
+        entries = []
+    for e in entries:
+        if not isinstance(e, dict):
+            continue
+        title = _clean(e.get("title"))
+        aid = _clean(e.get("id"))
+        if not title or not aid:
+            continue
+        year = e.get("year")
+        year = year if isinstance(year, int) else None
+        if spec.year_from and year is not None and year < spec.year_from:
+            continue
+        authors = e.get("authors") or []
+        if not isinstance(authors, list):
+            authors = []
+        authors = tuple(a for a in (_clean(a) for a in authors[:10]) if a)
+        categories = e.get("categories") or []
+        if not isinstance(categories, list):
+            categories = []
+        categories = [_clean(c) for c in categories if _clean(c)]
+        doi = normalize_doi(e.get("doi"))
+        url = _clean(e.get("url_abs")) or (f"https://doi.org/{doi}" if doi else "")
+        oa_url = _clean(e.get("url_pdf"))
+        abstract = _clean(e.get("abstract"))
+        out.append(
+            Paper(
+                ref=f"doi:{doi}" if doi else f"arxiv:{aid}",
+                title=title,
+                abstract=abstract,
+                authors=authors,
+                year=year,
+                venue="arXiv",
+                doi=doi,
+                url=url,
+                citations=0,  # arXiv reports no citation counts; never fabricate one
+                source="arxiv",
+                evidence=_evidence_tier(abstract, oa_url),
+                oa_url=oa_url,
+                license="",
+                identifiers={"arxiv": aid},
+                extra={"version": _clean(e.get("version")), "categories": categories,
+                       "primary_category": _clean(e.get("primary_category")),
+                       "cache_hash": cache_hash},
+            )
+        )
+    if capture is not None:
+        capture.update({"outcome": "ok", "papers": len(out), "latency_ms": latency_ms,
+                        "cache_hash": cache_hash})
+    return out
+
+
 def dedupe_with_stats(papers: list[Paper]) -> tuple[list[Paper], dict]:
     """Dedupe by DOI, else by normalized title. Keeps richer abstract."""
     seen: dict[str, Paper] = {}
@@ -307,7 +414,8 @@ def refined_query(question: str) -> str:
 def _attempt(spec: ResearchSpec, client: httpx.Client) -> tuple[list[Paper], dict]:
     providers: dict[str, dict] = {}
     papers: list[Paper] = []
-    for name, fn in (("openalex", openalex_search), ("semanticscholar", semscholar_search)):
+    for name, fn in (("openalex", openalex_search), ("semanticscholar", semscholar_search),
+                     ("arxiv", arxiv_search)):
         capture: dict = {"outcome": "error", "papers": 0, "latency_ms": 0.0,
                          "cache_hash": None, "error": None}
         started = time.monotonic()
@@ -323,7 +431,7 @@ def _attempt(spec: ResearchSpec, client: httpx.Client) -> tuple[list[Paper], dic
 
 def retrieve_with_report(spec: ResearchSpec,
                          client: httpx.Client | None = None) -> tuple[list[Paper], dict]:
-    """Query both sources with a full provenance report; refine once if empty."""
+    """Query all sources with a full provenance report; refine once if empty."""
     from .rank import question_coverage
 
     own = client is None
@@ -333,7 +441,7 @@ def retrieve_with_report(spec: ResearchSpec,
         papers, providers = _attempt(spec, client)
         refinements: list[dict] = []
         if not papers and all(p["outcome"] == "ok" for p in providers.values()):
-            # Both providers answered but found nothing: one simplification retry.
+            # All providers answered but found nothing: one simplification retry.
             simplified = refined_query(spec.question)
             if simplified and simplified != search_text(spec.question):
                 refinements.append({"from": spec.question, "to": simplified})
@@ -363,5 +471,5 @@ def retrieve_with_report(spec: ResearchSpec,
 
 
 def retrieve(spec: ResearchSpec, client: httpx.Client | None = None) -> list[Paper]:
-    """Query both sources; degrade gracefully if one fails."""
+    """Query all sources; degrade gracefully if some fail."""
     return retrieve_with_report(spec, client)[0]

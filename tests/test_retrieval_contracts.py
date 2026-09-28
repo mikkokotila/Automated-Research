@@ -190,10 +190,11 @@ def test_single_provider_failure_degrades_with_honest_warning():
     assert "remaining sources only" in rep["warning"]
 
 
-def test_both_providers_failing_raises():
+def test_all_providers_failing_raises():
     client = mock_client(lambda req: (_ for _ in ()).throw(httpx.ConnectError("down")))
     with pytest.raises(RuntimeError, match="retrieval failed"):
-        retrieval.retrieve(ResearchSpec(question="q"), client)
+        # Keyword-bearing: arXiv must actually call (and fail) too.
+        retrieval.retrieve(ResearchSpec(question="timing evidence"), client)
 
 
 def test_empty_results_refine_once_with_recorded_simplification():
@@ -323,3 +324,99 @@ def test_render_marks_coverage_warning():
     assert "> Coverage warning: degraded coverage" in md
     md = report.render_markdown(ResearchSpec(question="q"), [], Synthesis("t", (), "m"), None)
     assert "Coverage warning" not in md
+
+
+# --- arXiv ---
+
+
+def arxiv_entry(**kw):
+    entry = {"id": "2601.00001", "version": "2", "title": "T",
+             "abstract": "An abstract.", "authors": ["Ada"], "year": 2026,
+             "categories": ["cs.AI"], "primary_category": "cs.AI", "doi": "",
+             "url_abs": "https://arxiv.org/abs/2601.00001v2",
+             "url_pdf": "https://arxiv.org/pdf/2601.00001v2"}
+    entry.update(kw)
+    return entry
+
+
+def test_arxiv_query_is_conjunctive_and_question_bound():
+    assert retrieval.arxiv_query("Does treatment delay raise cancer mortality?") == (
+        "all:treatment AND all:delay AND all:raise AND all:cancer AND all:mortality")
+    assert retrieval.arxiv_query("timing evidence", max_terms=1) == "all:timing"
+    assert retrieval.arxiv_query("???") == ""
+    assert retrieval.arxiv_query("does it?") == ""
+
+
+def test_arxiv_search_parses_broker_entries_and_caps_limit():
+    seen = {}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen["params"] = dict(req.url.params)
+        return httpx.Response(200, json={"entries": [arxiv_entry(), arxiv_entry(
+            id="2601.9", title="Second", doi="https://doi.org/10.9/ZZ",
+            year=None, authors="not-a-list", categories="cs.LG")]})
+
+    papers = retrieval.arxiv_search(ResearchSpec(question="timing evidence"),
+                                    mock_client(handler), limit=500)
+    assert seen["params"]["search_query"] == "all:timing AND all:evidence"
+    assert seen["params"]["max_results"] == "50"  # broker rejects more
+    assert (seen["params"]["sortBy"], seen["params"]["sortOrder"]) == ("relevance", "descending")
+    first, second = papers
+    assert first.ref == "arxiv:2601.00001" and first.source == "arxiv"
+    assert first.venue == "arXiv" and first.authors == ("Ada",) and first.year == 2026
+    assert first.citations == 0  # never fabricated
+    assert first.evidence == "fulltext"
+    assert first.oa_url == "https://arxiv.org/pdf/2601.00001v2"
+    assert first.url == "https://arxiv.org/abs/2601.00001v2"
+    assert first.identifiers == {"arxiv": "2601.00001"}
+    assert first.extra["version"] == "2" and first.extra["categories"] == ["cs.AI"]
+    assert first.extra["primary_category"] == "cs.AI"
+    assert first.extra["cache_hash"].startswith("sha256:")
+    assert second.ref == "doi:10.9/zz" and second.year is None
+    assert second.authors == () and second.extra["categories"] == []
+
+
+def test_arxiv_year_from_filters_client_side_keeping_unknown_years():
+    client = mock_client(lambda req: httpx.Response(200, json={"entries": [
+        arxiv_entry(title="Old", year=2020), arxiv_entry(title="Dateless", year=None),
+        arxiv_entry(title="New", year=2024)]}))
+    papers = retrieval.arxiv_search(ResearchSpec(question="timing evidence", year_from=2023),
+                                    client)
+    assert [p.title for p in papers] == ["Dateless", "New"]
+
+
+def test_arxiv_ignores_foreign_and_non_json_shapes():
+    for body in ({"data": [s2_paper()]}, {"results": [openalex_work()]},
+                 ["not-a-dict"], {"entries": "not-a-list"},
+                 {"entries": ["x", {"title": ""}, {"title": "T", "id": ""}, None]}):
+        client = mock_client(lambda req, body=body: httpx.Response(200, json=body))
+        assert retrieval.arxiv_search(ResearchSpec(question="timing evidence"), client) == []
+    xml = mock_client(lambda req: httpx.Response(200, text="<feed></feed>"))
+    assert retrieval.arxiv_search(ResearchSpec(question="timing evidence"), xml) == []
+
+
+def test_arxiv_without_terms_skips_the_call():
+    calls = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        calls.append(req)
+        return httpx.Response(200, json={"entries": []})
+
+    capture: dict = {}
+    papers = retrieval.arxiv_search(ResearchSpec(question="???"), mock_client(handler),
+                                    capture=capture)
+    assert papers == [] and calls == []
+    assert capture == {"outcome": "ok", "papers": 0, "latency_ms": 0.0, "cache_hash": None}
+
+
+def test_arxiv_carries_run_while_aggregators_fail():
+    def handler(req: httpx.Request) -> httpx.Response:
+        if "arxiv" in str(req.url):
+            return httpx.Response(200, json={"entries": [
+                arxiv_entry(title="Timing evidence reviewed")]})
+        raise httpx.ConnectError("quota")
+
+    papers, rep = retrieval.retrieve_with_report(ResearchSpec(question="timing evidence"),
+                                                 mock_client(handler))
+    assert len(papers) == 1 and papers[0].source == "arxiv"
+    assert rep["warning"].startswith("degraded coverage: openalex, semanticscholar failed")
