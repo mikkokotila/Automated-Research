@@ -92,6 +92,32 @@ def test_scanner_detects_manifest_tampering(tmp_path):
     assert report["manifest_problems"] == ["checksum mismatch: run.json"]
 
 
+def test_scanner_fails_closed_on_skipped_oversize_file(tmp_path):
+    from scripts.scan_export import MAX_SCAN_BYTES, scan_export
+
+    out = tmp_path / "out"
+    blob = b"x" * (MAX_SCAN_BYTES + 1) + b"MUSE_API_KEY = hidden-in-big-file"
+    export(_archive([("big.bin", blob)]), out)
+    report = scan_export(out)
+    assert report["skipped"] == 1
+    assert not report["clean"]  # unscanned content is not a clean bill
+
+
+def test_scanner_fails_closed_on_symlink(tmp_path):
+    import json
+
+    from scripts.scan_export import scan_export
+
+    out = tmp_path / "out"
+    out.mkdir()
+    (tmp_path / "outside.txt").write_bytes(b"MUSE_API_KEY = hidden-via-link")
+    (out / "notes.txt").symlink_to(tmp_path / "outside.txt")
+    (out / MANIFEST_NAME).write_text(json.dumps({"files": []}))
+    report = scan_export(out)
+    assert report["symlinked"] == ["notes.txt"]
+    assert not report["clean"]  # unscanned content is not a clean bill
+
+
 class _FakeStdin:
     def __init__(self, payload: bytes):
         self.buffer = io.BytesIO(payload)

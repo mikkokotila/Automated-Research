@@ -2,7 +2,10 @@
 
 Best-effort tripwire for known-prefix secrets, plus manifest checksum
 verification (detects post-export tampering). Exit 0 when clean, 1 on
-findings or manifest mismatch. Never executes guest content.
+findings, manifest mismatch, or unscanned content: files over
+MAX_SCAN_BYTES and symlinks are counted, never silently passed, and make
+the report unclean so the maintainer reviews them explicitly. Symlink
+targets are never followed. Never executes guest content.
 """
 from __future__ import annotations
 
@@ -52,9 +55,13 @@ def verify_manifest(root: Path) -> list[str]:
 def scan_export(root: str | Path) -> dict:
     root = Path(root)
     findings: list[dict] = []
+    symlinked: list[str] = []
     scanned = skipped = 0
     for path in sorted(root.rglob("*")):
-        if not path.is_file() or path.is_symlink():
+        if path.is_symlink():
+            symlinked.append(str(path.relative_to(root)))
+            continue
+        if not path.is_file():
             continue
         matched, too_big = scan_file(path)
         if too_big:
@@ -63,9 +70,10 @@ def scan_export(root: str | Path) -> dict:
         scanned += 1
         findings.extend({"file": str(path.relative_to(root)), "pattern": name} for name in matched)
     manifest_problems = verify_manifest(root)
-    return {"clean": not findings and not manifest_problems,
+    unclean = findings or manifest_problems or skipped or symlinked
+    return {"clean": not unclean,
             "findings": findings, "manifest_problems": manifest_problems,
-            "scanned": scanned, "skipped": skipped}
+            "scanned": scanned, "skipped": skipped, "symlinked": symlinked}
 
 
 def main() -> int:
