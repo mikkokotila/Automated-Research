@@ -21,9 +21,11 @@ monkeypatch seam plus genuine-path tests with the role markers set.
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import shutil
 import subprocess
+import sys
 import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -741,3 +743,193 @@ def _token() -> str:
     if not token:
         raise RuntimeError("GITHUB_TOKEN required to push")
     return token
+
+
+class BridgeRefused(RuntimeError):
+    """Container publish bridge refused: tamper, policy, drift, or dirty tree."""
+
+
+BRIDGE_MAX_DIFF_BYTES = 100_000
+
+
+@dataclass
+class BridgeCandidate:
+    proposal_id: str
+    target: str
+    change: str
+    reason: str
+    assessment_id: str
+    detail: str
+    diff: str  # normalized, verified text to apply
+    manifest: dict
+    drift: str = ""
+
+
+def load_bridge_candidates(bundle: str | Path) -> list[dict]:
+    """Kept-candidate records from a container export bundle."""
+    cdir = Path(bundle) / "assessments" / "candidates"
+    if not cdir.is_dir():
+        raise BridgeRefused(f"no candidates dir in {bundle}")
+    out = []
+    for path in sorted(cdir.glob("*.json")):
+        try:
+            entry = json.loads(path.read_text(encoding="utf-8"))
+        except (ValueError, OSError) as e:
+            raise BridgeRefused(f"{path.name}: unreadable candidate: {e}") from e
+        if not isinstance(entry, dict):
+            raise BridgeRefused(f"{path.name}: candidate is not an object")
+        entry["_source"] = path.name
+        out.append(entry)
+    return out
+
+
+def verify_bridge_candidate(entry: dict) -> BridgeCandidate:
+    """A kept candidate whose diff is intact, bounded, and policy-clean."""
+    src = entry.get("_source", "?")
+    if entry.get("status") != "kept":
+        raise BridgeRefused(f"{src}: not kept (status={entry.get('status')!r})")
+    raw = entry.get("raw_diff")
+    if not isinstance(raw, str) or not raw.strip():
+        raise BridgeRefused(f"{src}: empty diff")
+    if len(raw.encode()) > BRIDGE_MAX_DIFF_BYTES:
+        raise BridgeRefused(f"{src}: diff exceeds {BRIDGE_MAX_DIFF_BYTES} bytes")
+    manifest = entry.get("manifest")
+    if not isinstance(manifest, dict):
+        raise BridgeRefused(f"{src}: missing manifest")
+    want = manifest.get("diff_sha")
+    got = "sha256:" + hashlib.sha256(raw.encode()).hexdigest()
+    if want != got:
+        raise BridgeRefused(f"{src}: diff_sha mismatch (tampered export?)")
+    try:
+        norm = normalize_unified_diff(raw)
+        ops = parse_unified_diff(norm)
+        check_policy(ops, target_allowed)
+    except ChangesetError as e:
+        raise BridgeRefused(f"{src}: {e}") from e
+    paths = {op.new_path or op.old_path for op in ops}
+    target = entry.get("target", "")
+    if target not in paths:
+        raise BridgeRefused(f"{src}: declared target {target!r} not in diff")
+    return BridgeCandidate(
+        proposal_id=str(entry.get("proposal_id", src)),
+        target=str(target),
+        change=str(entry.get("change", ""))[:1000],
+        reason=str(entry.get("reason", ""))[:500],
+        assessment_id=str(entry.get("assessment_id", "")),
+        detail=str(entry.get("detail", ""))[:300],
+        diff=norm, manifest=manifest)
+
+
+def _file_sha(path: Path) -> str | None:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return None
+
+
+def apply_bridge_candidates(repo: str | Path, candidates: list[BridgeCandidate]) -> None:
+    """Apply verified diffs to the worktree; roll back and refuse on failure."""
+    repo = Path(repo)
+    applied: list[tuple[str, bool]] = []  # (path, existed_before)
+    try:
+        touched: list[str] = []
+        for cand in candidates:
+            touched.extend(op.new_path or op.old_path
+                           for op in parse_unified_diff(cand.diff))
+        # Once, up front: later candidates legitimately see earlier applies.
+        dirty = worktree_status_paths(repo, *touched) if touched else set()
+        if dirty:
+            raise BridgeRefused(f"worktree not clean: {sorted(dirty)}")
+        for cand in candidates:
+            ops = parse_unified_diff(cand.diff)
+            paths = [op.new_path or op.old_path for op in ops]
+            pre = {p: _file_sha(repo / p) for p in paths}
+            for check in (True, False):
+                args = ["git", "apply"] + (["--check"] if check else []) + ["-"]
+                r = subprocess.run(args, cwd=repo, input=cand.diff, capture_output=True,
+                                   text=True, timeout=60)
+                if r.returncode != 0:
+                    raise BridgeRefused(
+                        f"{cand.proposal_id}: git apply failed: {r.stderr.strip()[:300]}")
+            applied.extend((p, pre[p] is not None) for p in paths)
+            new_files = {f["path"]: f for f in cand.manifest.get("files", [])
+                         if isinstance(f, dict)}
+            notes = []
+            for p in paths:
+                post = _file_sha(repo / p)
+                want = new_files.get(p, {}).get("new_sha")
+                if post is None:
+                    notes.append(f"{p}: missing after apply")
+                elif isinstance(want, str) and want not in ("", "absent") and post != want:
+                    if pre[p] != new_files[p].get("old_sha"):
+                        notes.append(f"{p}: base drift (guest-tested bytes differ)")
+                    else:
+                        notes.append(f"{p}: result differs from guest-tested bytes")
+            cand.drift = "; ".join(notes)
+    except BridgeRefused:
+        for path, existed in applied:
+            try:
+                if existed:
+                    subprocess.run(["git", "checkout", "--", path], cwd=repo,
+                                   capture_output=True, timeout=60)
+                else:
+                    (repo / path).unlink(missing_ok=True)
+            except OSError:
+                pass
+        raise
+
+
+def _bundle_run_id(bundle: Path) -> str:
+    try:
+        manifest = json.loads((bundle / "manifest.json").read_text(encoding="utf-8"))
+        if isinstance(manifest.get("run_id"), str) and manifest["run_id"]:
+            return manifest["run_id"]
+    except (ValueError, OSError):
+        pass
+    return bundle.name
+
+
+def publish_container_bundle(repo: str | Path, bundle: str | Path, run_id: str,
+                             journal: Journal, gh,
+                             merge_timeout_s: float = 900,
+                             merge_interval_s: float = 20) -> PublishReport:
+    """Bridge: kept guest diffs from an export bundle to an auto-PR on main."""
+    require_revision_trust()
+    repo, bundle = Path(repo), Path(bundle)
+    require_main_branch(repo)
+    scan = subprocess.run([sys.executable, str(repo / "scripts" / "scan_export.py"),
+                           str(bundle)], capture_output=True, text=True, timeout=300)
+    if scan.returncode != 0:
+        raise BridgeRefused(
+            f"export scan failed: {(scan.stdout + scan.stderr).strip()[-300:]}")
+    entries = load_bridge_candidates(bundle)
+    kept = [verify_bridge_candidate(e) for e in entries if e.get("status") == "kept"]
+    rest = [e for e in entries if e.get("status") != "kept"]
+    apply_bridge_candidates(repo, kept)
+    guest_run = _bundle_run_id(bundle)
+    lines = [f"Container maintenance {guest_run} (bundle `{bundle.name}`).", "",
+             f"Kept: {len(kept)}, not kept: {len(rest)}. "
+             "Diffs verified against candidate manifests; export scan clean."]
+    for c in kept:
+        lines.append(f"- {c.proposal_id} `{c.target}`: {c.reason}"
+                     + (f" [{c.drift}]" if c.drift else ""))
+    doc = AssessmentDoc("\n".join(lines),
+                        tuple(Proposal(c.proposal_id, c.target, c.change, c.reason)
+                              for c in kept))
+    outcomes = [PatchOutcome(c.proposal_id, c.target, True, True, c.detail or c.reason,
+                             base_rev=str(c.manifest.get("base_rev", "")),
+                             manifest=c.manifest, assessment_id=c.assessment_id)
+                for c in kept]
+    reverted = skipped = 0
+    for e in rest:
+        if e.get("status") == "rejected":
+            reverted += 1
+        else:
+            skipped += 1
+        outcomes.append(PatchOutcome(str(e.get("proposal_id", e.get("_source", "?"))),
+                                     str(e.get("target", "?")), False, False,
+                                     str(e.get("detail", "") or e.get("status", ""))[:300]))
+    rep = ReviseReport(kept=len(kept), reverted=reverted, skipped=skipped,
+                       outcomes=outcomes)
+    return publish_round(repo, run_id, doc, rep, journal, gh,
+                         merge_timeout_s, merge_interval_s)

@@ -161,8 +161,10 @@ def main(argv: list[str] | None = None) -> int:
     am.add_argument("--out", default=None, help="dir for assessment records (default: run dir)")
     pb = sub.add_parser("publish", help="maintainer-only export of a recorded round")
     pb.add_argument("--repo", default=".", help="repo checkout holding the promotion store")
-    pb.add_argument("--run-dir", required=True, help="bundle dir containing journal.jsonl")
+    pb.add_argument("--run-dir", default=None, help="bundle dir containing journal.jsonl")
     pb.add_argument("--round", default="latest", help="recorded round id to publish")
+    pb.add_argument("--bundle", default=None,
+                    help="container export bundle to publish from (instead of --run-dir)")
     rn = sub.add_parser("runs", help="named runs: list, inspect, serve, control")
     rnsub = rn.add_subparsers(dest="runs_cmd", required=True)
     rnsub.add_parser("list", help="table of registered runs")
@@ -219,7 +221,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.cmd == "publish":
         try:
-            url = publish_recorded(args.repo, args.run_dir, args.round)
+            if args.bundle:
+                url = publish_bundle(args.repo, args.bundle)
+            elif args.run_dir:
+                url = publish_recorded(args.repo, args.run_dir, args.round)
+            else:
+                print("canary: error: publish needs --bundle or --run-dir",
+                      file=sys.stderr)
+                return 2
         except Exception as e:
             print(f"canary: error: {e}", file=sys.stderr)
             return 1
@@ -390,6 +399,25 @@ def publish_recorded(repo: str, run_dir: str, round_id: str = "latest") -> str:
     gh = GitHub(resolve_token(), resolve_repo(repo))
     pub = publish_round(repo, new_run_id(), doc, rep, jr, gh)
     jr.save(Path(run_dir) / "journal.jsonl")
+    print(f"publish: issue={pub.issue_url or 'none'} pr={pub.pr_url or 'none'} "
+          f"merged={pub.merged}")
+    return pub.pr_url or pub.issue_url or ""
+
+
+def publish_bundle(repo: str, bundle: str) -> str:
+    """Maintainer-only bridge: kept guest diffs from an export bundle to PR.
+
+    The worker never calls this: it requires GITHUB_TOKEN, which the worker
+    refuses to hold. The bundle is scan-gated and every kept diff is
+    verified against its candidate manifest before anything is applied.
+    """
+    from .github_ops import GitHub, resolve_repo, resolve_token
+    from .revise import new_run_id, publish_container_bundle
+
+    jr = Journal.load(Path(bundle) / "journal.jsonl")
+    gh = GitHub(resolve_token(), resolve_repo(repo))
+    pub = publish_container_bundle(repo, bundle, new_run_id(), jr, gh)
+    jr.save(Path(bundle) / "journal.jsonl")
     print(f"publish: issue={pub.issue_url or 'none'} pr={pub.pr_url or 'none'} "
           f"merged={pub.merged}")
     return pub.pr_url or pub.issue_url or ""
