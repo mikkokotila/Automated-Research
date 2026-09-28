@@ -28,6 +28,7 @@ $ uv run --no-sync pytest -q -m "not live" --deselect tests/test_budget.py::test
 
 ## Disposition
 
-Ready for PR (after #46 merges; rebased onto main). Closes #43 on merge.
+Ready for PR (merged main after #46; 14 export tests green on the merge).
+Closes #43 on merge.
 Maintainers reviewing a now-unclean oversize export must inspect the
 flagged files explicitly — that is the intended operator burden.
