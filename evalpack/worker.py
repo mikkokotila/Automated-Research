@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import sys
+import time
 
 
 def _task_relevance(payload: dict) -> dict:
@@ -194,6 +195,17 @@ def _task_budget(payload: dict) -> dict:
     return {"exhaustion_raised": raised, "calls": budget.calls}
 
 
+def _task_sleep(payload: dict) -> dict:
+    """Deterministic slow task: the timeout test's fixture, nothing else."""
+    try:
+        seconds = float(payload.get("seconds", 30))
+    except (TypeError, ValueError):
+        seconds = 30.0
+    seconds = min(max(seconds, 0.0), 120.0)
+    time.sleep(seconds)
+    return {"slept": seconds}
+
+
 TASKS = {
     "relevance": _task_relevance,
     "claims": _task_claims,
@@ -201,6 +213,7 @@ TASKS = {
     "leakage": _task_leakage,
     "resume": _task_resume,
     "budget": _task_budget,
+    "sleep": _task_sleep,
 }
 
 
