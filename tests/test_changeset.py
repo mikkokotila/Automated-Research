@@ -231,6 +231,29 @@ def test_parser_and_policy_agree_on_ops():
         parse_unified_diff("   ")
 
 
+# --- baseline check output persistence (keep1e flake) ---
+
+
+def test_checks_pass_persists_full_output(tmp_path):
+    journal = Journal()
+    log = tmp_path / "newdir" / "checks-a1.log"
+    assert revmod.checks_pass(tmp_path, ["true"], journal, log_path=log) is True
+    assert "rc=0" in log.read_text()
+    assert "log=checks-a1.log" in journal.notes[-1].detail
+    journal2 = Journal()
+    cmd = ["sh", "-c", "echo MUSE_API_KEY=sk-live-x; exit 3"]
+    assert revmod.checks_pass(tmp_path, cmd, journal2, log_path=log) is False
+    text = log.read_text()
+    assert "rc=3" in text
+    assert "sk-live-x" not in text and "[REDACTED:muse_key]" in text
+    (tmp_path / "blocker").write_text("x", encoding="utf-8")
+    journal3 = Journal()
+    assert revmod.checks_pass(
+        tmp_path, ["true"], journal3,
+        log_path=tmp_path / "blocker" / "x.log") is True  # degrades, gate holds
+    assert "log=unwritable" in journal3.notes[-1].detail
+
+
 # --- hunk-count normalization (keep1c yield) ---
 
 
