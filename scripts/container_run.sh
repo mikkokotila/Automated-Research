@@ -52,6 +52,8 @@ fi
 test "$(docker network inspect -f '{{.Internal}}' "$NETWORK")" = true
 test "$(docker inspect -f '{{.State.Running}}' "$GATE")" = true
 case "${TIMEOUT_S}" in ''|*[!0-9]*) echo "refusing: CANARY_TIMEOUT_S must be an integer" >&2; exit 2;; esac
+# Prod gate (Issue #64): prod profile pins HEAD to origin/main, host-side.
+bash scripts/prod_gate.sh . "$@"
 DIRTY="false"
 if [ -n "$(git status --porcelain -- src tests runs)" ]; then
   if [ -z "${ALLOW_DIRTY:-}" ]; then

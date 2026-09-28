@@ -94,12 +94,13 @@ def current_branch(repo: Path) -> str:
 
 
 def require_prod_branch(repo: str | Path, profile: str) -> None:
-    """Prod-profile runs execute on main only (code-level; see Issue #64).
+    """Prod-profile runs execute on main only (code-level branch check).
 
-    Dev runs may use any branch. Remote-SHA attestation (is this main the
-    current origin/main?) cannot be proven where this check runs and is
-    deferred to the host-side prod gate; until then this stops branch
-    mistakes, not a forged checkout.
+    Dev runs may use any branch. The strong gate is host-side
+    (scripts/prod_gate.sh, Issue #64): the launcher pins HEAD to
+    origin/main before build/run. This check stops branch mistakes
+    wherever worker code runs; it cannot prove remote-SHA, and
+    in-guest it trusts the guest tree, so it is not the boundary.
     """
     if profile not in ("dev", "prod"):
         raise ContainmentBlocked(f"refusing: unknown run profile {profile!r}")
