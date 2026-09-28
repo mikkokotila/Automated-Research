@@ -31,6 +31,30 @@ def _post_assess(journal: Journal, out_dir: str, enabled: bool, outcome: str,
              f"{type(e).__name__}: {str(e)[:200]}")
 
 
+def _journal_failure(out_dir: str | None, cmd: str, error: BaseException) -> None:
+    """Append a terminal failure event to the run's own journal.
+
+    Best-effort: error reporting must never fail because journaling
+    did. Skips sealed history (immutable) and missing journals (the run
+    never started). Redaction and fsync come from Journal.note.
+    """
+    if not out_dir:
+        return
+    journal_path = Path(out_dir) / "journal.jsonl"
+    if not journal_path.is_file():
+        return
+    try:
+        journal = Journal.load(journal_path)
+        if any(note.event == "sealed" for note in journal.notes):
+            return
+        journal.path = journal_path
+        if journal.notes:
+            journal.run_id = journal.notes[-1].run_id
+        journal.note(cmd, "failed", f"{type(error).__name__}: {error}"[:500])
+    except Exception:
+        pass
+
+
 def review(spec: RunSpec, assess: bool = False) -> str:
     run_id = report.begin_run(spec.out_dir, spec, "review")
     j = Journal(Path(spec.out_dir) / "journal.jsonl", run_id=run_id)
@@ -135,6 +159,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"canary: cannot resume: {e}", file=sys.stderr)
             return 2
         except Exception as e:  # honest failure, never fake output
+            _journal_failure(args.bundle, "resume", e)
             print(f"canary: error: {e}", file=sys.stderr)
             return 1
         print(path)
@@ -171,6 +196,8 @@ def main(argv: list[str] | None = None) -> int:
         else:
             path = cycle(spec, args.repo, assess=args.assess, bandit=bandit)
     except Exception as e:  # honest failure, never fake output
+        owned_out = spec.out_dir if spec is not None else args.out
+        _journal_failure(owned_out, args.cmd, e)
         print(f"canary: error: {e}", file=sys.stderr)
         return 1
     print(path)

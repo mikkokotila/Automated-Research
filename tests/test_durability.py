@@ -244,3 +244,77 @@ def test_sigkill_preserves_events_and_completed_iteration(tmp_path):
     assert ("cycle", "iter-done") in {(n.phase, n.event) for n in journal.notes}
     assert "victim?" in (out / "retrieval.jsonl").read_text()
     assert (out / "iterations" / "iter1.json").is_file()
+
+
+def _failed_lines(out):
+    return [json.loads(line) for line in (out / "journal.jsonl").read_text().splitlines()]
+
+
+def test_cli_review_failure_journals_failed_event(tmp_path, monkeypatch, capsys):
+    from canary import cli as climod
+    from canary import retrieval as retrievalmod
+
+    def boom(*a, **k):
+        raise RuntimeError("boom-probe")
+
+    monkeypatch.setattr(retrievalmod, "retrieve_with_report", boom)
+    out = tmp_path / "out"
+    rc = climod.main(["review", "q?", "--out", str(out)])
+    assert rc == 1
+    assert "boom-probe" in capsys.readouterr().err
+    events = _failed_lines(out)
+    assert [e["event"] for e in events] == ["start", "failed"]
+    assert events[-1]["detail"] == "RuntimeError: boom-probe"
+    assert events[-1]["seq"] == 2  # sequence continues, run_id preserved
+    assert events[-1]["run_id"] == events[0]["run_id"]
+
+
+def test_cli_resume_unexpected_failure_journals_failed_event(tmp_path, monkeypatch, capsys):
+    from canary import cli as climod
+
+    out = tmp_path / "out"
+    run_id = reportmod.begin_run(out, RunSpec(question="seed?"), "cycle")
+    Journal(out / "journal.jsonl", run_id=run_id).note("cycle", "start", "seed?")
+    monkeypatch.setattr(climod, "resume_bundle",
+                        lambda args: (_ for _ in ()).throw(RuntimeError("resume-boom")))
+    rc = climod.main(["resume", str(out)])
+    assert rc == 1
+    events = _failed_lines(out)
+    assert events[-1]["event"] == "failed"
+    assert "resume-boom" in events[-1]["detail"]
+
+
+def test_journal_failure_skips_sealed_history(tmp_path):
+    from canary import cli as climod
+
+    out = tmp_path / "out"
+    run_id = reportmod.begin_run(out, RunSpec(question="seed?"), "cycle")
+    j = Journal(out / "journal.jsonl", run_id=run_id)
+    j.note("cycle", "start", "seed?")
+    j.trusted_note("bundle", "sealed", "stopped=converged")
+    before = (out / "journal.jsonl").read_text()
+    climod._journal_failure(str(out), "review", RuntimeError("must-not-append"))
+    assert (out / "journal.jsonl").read_text() == before
+
+
+def test_journal_failure_noops_without_journal(tmp_path):
+    from canary import cli as climod
+
+    out = tmp_path / "empty"
+    out.mkdir()
+    climod._journal_failure(str(out), "review", RuntimeError("x"))
+    climod._journal_failure(None, "review", RuntimeError("x"))
+    assert list(out.iterdir()) == []
+
+
+def test_journal_failure_redacts_secret_shaped_detail(tmp_path):
+    from canary import cli as climod
+
+    out = tmp_path / "out"
+    run_id = reportmod.begin_run(out, RunSpec(question="seed?"), "cycle")
+    Journal(out / "journal.jsonl", run_id=run_id).note("cycle", "start", "seed?")
+    climod._journal_failure(str(out), "review",
+                            RuntimeError("MUSE_API_KEY = s3cr3t leaked in error"))
+    body = (out / "journal.jsonl").read_text()
+    assert "s3cr3t" not in body
+    assert "[REDACTED:muse_key]" in body
