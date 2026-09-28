@@ -14,6 +14,17 @@ case "${1:-}" in
     docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges       --mount type=volume,src="$VOLUME",dst=/state "$IMAGE" init
     ;;
   start)
+    # Convenience, not a new trust path: a gitignored repo-root .env seeds
+    # the process environment only when the operator has not already set
+    # the key. Explicit environment always wins; the broker still receives
+    # the key solely via process environment (never baked, committed, or
+    # worker-visible). Absent both, the guard below still fails closed.
+    if [ -z "${MUSE_API_KEY:-}" ] && [ -f ./.env ]; then
+      set -a
+      # shellcheck disable=SC1091
+      . ./.env
+      set +a
+    fi
     : "${MUSE_API_KEY:?Supply a fresh authorized credential; do not use archived keys}"
     docker volume inspect "$VOLUME" >/dev/null
     if docker container inspect canary-gate >/dev/null 2>&1; then

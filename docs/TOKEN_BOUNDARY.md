@@ -72,8 +72,10 @@ unset MUSE_API_KEY
 ```
 
 Never copy a credential from archived logs, issues, or shell history,
-and never place one in files, chat transcripts, or GitHub. A redacted
-variable template lives in `.env.example`.
+and never place one in chat transcripts, GitHub, or any committed file.
+The sole sanctioned file holder is a gitignored repo-root `.env`
+(template: `.env.example`), which `gate_service.sh start` loads into the
+process environment only when the variable is unset.
 
 Run a bounded job through the worker launcher:
 

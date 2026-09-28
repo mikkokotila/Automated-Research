@@ -139,8 +139,10 @@ Never import an export that fails either step.
 
 ## 10. Credentials: setup and rotation
 
-- Broker: `MUSE_API_KEY` via environment at `gate_service.sh start` time;
-  optional `SEMANTIC_SCHOLAR_API_KEY`. Never write keys to files in the repo.
+- Broker: `MUSE_API_KEY` via environment at `gate_service.sh start` time
+  (or a gitignored repo-root `.env`, auto-loaded only when the variable is
+  unset; explicit environment wins); optional `SEMANTIC_SCHOLAR_API_KEY`.
+  Never commit keys; `.env` is gitignored.
 - Worker tokens: minted per run from the broker (`mint-token`); revoke with
   `revoke-token --id <id>`.
 - Rotation: mint a new provider key, restart the broker with it, revoke old
