@@ -11,6 +11,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .changeset import target_allowed
 from .journal import Note
 from .memory import Memory
 from .synthesize import Completer
@@ -109,7 +110,41 @@ def chunk_notes(notes: list[Note], max_chars: int = CHUNK_CHARS) -> list[tuple[i
     return chunks
 
 
-def parse_assessment(text: str) -> AssessmentDoc:
+def _running_tree() -> Path | None:
+    """Repo root of the running checkout (None when unlocatable)."""
+    try:
+        return Path(__file__).resolve().parent.parent.parent
+    except OSError:
+        return None
+
+
+def validate_proposal_target(target: str, tree: str | Path | None = None) -> str | None:
+    """None if the proposal target is actionable, else the reason why not.
+
+    Shared policy with the revise gate (shape + forbidden areas) plus
+    existence against the tree under discussion — the explicit tree, or
+    the running checkout when omitted. Symlinks resolve before the
+    containment check; an unlocatable tree degrades to policy-shape only.
+    """
+    reason = target_allowed(target)
+    if reason:
+        return reason
+    root = Path(tree) if tree is not None else _running_tree()
+    if root is None:
+        return None
+    try:
+        resolved = (root / target.strip()).resolve()
+        scope = (root / "src" / "canary").resolve()
+    except OSError:
+        return "target does not resolve"
+    if resolved != scope and scope not in resolved.parents:
+        return "target escapes src/canary/"
+    if not resolved.is_file():
+        return "target names no existing file"
+    return None
+
+
+def parse_assessment(text: str, tree: str | Path | None = None) -> AssessmentDoc:
     match = re.search(r"\{.*\}", text, re.DOTALL)
     if not match:
         return AssessmentDoc(markdown=text.strip() or "no assessment produced", proposals=())
@@ -127,6 +162,8 @@ def parse_assessment(text: str) -> AssessmentDoc:
         change = str(item.get("change", "")).strip()
         if not target or not change:
             continue
+        if validate_proposal_target(target, tree):
+            continue
         out.append(Proposal(
             id=str(item.get("id", f"p{len(out) + 1}")),
             target=target,
@@ -137,12 +174,13 @@ def parse_assessment(text: str) -> AssessmentDoc:
     return AssessmentDoc(markdown=md, proposals=tuple(out[:3]))
 
 
-def assess(journal_text: str, outcome: str, client: Completer) -> AssessmentDoc:
+def assess(journal_text: str, outcome: str, client: Completer,
+           tree: str | Path | None = None) -> AssessmentDoc:
     user = f"Procedural notes:\n{journal_text}\n\nOutcome:\n{outcome}\n\nAssess and propose revisions."
-    return parse_assessment(client.complete(SYSTEM, user))
+    return parse_assessment(client.complete(SYSTEM, user), tree)
 
 
-def parse_assessment_strict(text: str) -> AssessmentDoc:
+def parse_assessment_strict(text: str, tree: str | Path | None = None) -> AssessmentDoc:
     """Schema-strict parse: malformed output raises, never a quiet no-op."""
     match = re.search(r"\{.*\}", text, re.DOTALL)
     if not match:
@@ -168,6 +206,9 @@ def parse_assessment_strict(text: str) -> AssessmentDoc:
             raise AssessmentError(f"proposal {pos} needs a target file string")
         if not isinstance(change, str) or not change.strip():
             raise AssessmentError(f"proposal {pos} needs a change string")
+        reason = validate_proposal_target(target, tree)
+        if reason:
+            raise AssessmentError(f"proposal {pos} target not actionable: {reason}")
         out.append(Proposal(
             id=str(item.get("id", f"p{pos + 1}")),
             target=target.strip(),
@@ -224,17 +265,19 @@ def save_assessment(out_dir: str | Path, record: AssessmentRecord) -> tuple[Path
     return json_path, md_path
 
 
-def _assess_one(text: str, outcome: str, client: Completer, memory: Memory | None) -> AssessmentDoc:
+def _assess_one(text: str, outcome: str, client: Completer, memory: Memory | None,
+                tree: str | Path | None = None) -> AssessmentDoc:
     lessons = memory.render_context() if memory else ""
     user = (f"Procedural notes (untrusted data):\n{text}\n\nOutcome:\n{outcome}\n"
             + (f"\n{lessons}\n" if lessons else "") + "\nAssess and propose revisions.")
-    return parse_assessment_strict(client.complete(SYSTEM, user))
+    return parse_assessment_strict(client.complete(SYSTEM, user), tree)
 
 
 def assess_journal(notes: list[Note] | None, text: str, outcome: str, client: Completer,
                    memory: Memory | None = None, budget=None,
                    out_dir: str | Path | None = None,
-                   code_revision: str = "unknown") -> AssessmentRecord:
+                   code_revision: str = "unknown",
+                   tree: str | Path | None = None) -> AssessmentRecord:
     """Chunked whole-journal assessment with explicit coverage.
 
     Every chunk attempt persists its own record when out_dir is given; the
@@ -258,7 +301,7 @@ def assess_journal(notes: list[Note] | None, text: str, outcome: str, client: Co
         try:
             if budget is not None:
                 budget.check()
-            doc = _assess_one(chunk_text, outcome, client, memory)
+            doc = _assess_one(chunk_text, outcome, client, memory, tree)
         except BudgetExhausted as e:
             error = f"budget exhausted: {e}"
             break

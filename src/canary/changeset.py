@@ -118,6 +118,39 @@ def _strip_prefix(token: str, prefix: str) -> str:
     return token
 
 
+FORBIDDEN_PREFIXES = ("tests/", ".github/", "boundary/", "scripts/", "recovery/",
+                        "validation/", "evalpack/")
+FORBIDDEN_NAMES = ("Dockerfile", ".dockerignore")
+FORBIDDEN_FILES = ("src/canary/revise.py", "src/canary/muse_client.py",
+                   "src/canary/changeset.py", "pyproject.toml",
+                   "docs/TRUST_BOUNDARY.md", "docs/TOKEN_BOUNDARY.md")
+
+
+def target_allowed(target: str) -> str | None:
+    """None if allowed, else the reason it is forbidden.
+
+    The durable promotion policy: tests, evaluation, launcher, broker,
+    credentials, workflows, lockfiles, recovery evidence, and the gate itself
+    are outside worker control. Only src/canary/ worker code may be patched.
+    Shared by the revise gate and assessment-target validation.
+    """
+    t = target.strip()
+    if not t or t.startswith("/") or ".." in Path(t).parts:
+        return "absolute or escaping path"
+    if t.startswith(FORBIDDEN_PREFIXES):
+        return "protected area (tests, workflows, launcher, broker, gate, evidence)"
+    name = Path(t).name
+    if name in FORBIDDEN_NAMES or t in FORBIDDEN_FILES:
+        return "protected file"
+    if name == ".env" or name.startswith(".env."):
+        return "credentials are immutable"
+    if t.endswith((".lock", ".pem", ".key")):
+        return "lockfiles and keys are immutable"
+    if not t.startswith("src/canary/"):
+        return "only src/canary/ may be modified"
+    return None
+
+
 def check_policy(ops: list[FileOp], target_allowed) -> None:
     """Every touched path against the external policy. First violation raises."""
     for op in ops:
