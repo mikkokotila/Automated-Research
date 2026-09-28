@@ -265,6 +265,33 @@ def test_guest_pressure_best_effort(monkeypatch):
     assert revmod.guest_pressure() == ""
 
 
+@pytest.mark.containment  # needs /proc: zombie identity on Linux
+def test_guest_pressure_names_zombie_comms():
+    import os
+    import subprocess
+    import time
+
+    if not os.path.isdir("/proc"):
+        pytest.skip("needs /proc")
+    proc = subprocess.Popen(["true"])
+    try:
+        end = time.monotonic() + 10
+        while time.monotonic() < end:
+            try:
+                with open(f"/proc/{proc.pid}/stat", encoding="utf-8") as fh:
+                    state = fh.read().split(") ", 1)[1].split()[0]
+            except OSError:
+                break
+            if state == "Z":
+                break
+            time.sleep(0.05)
+        reading = revmod.guest_pressure()
+        assert "zombies=" in reading and "zcomms=" in reading
+        assert "true:1" in reading
+    finally:
+        proc.wait()
+
+
 def test_checks_pass_logs_pressure_markers(tmp_path):
     journal = Journal()
     assert revmod.checks_pass(tmp_path, ["true"], journal) is True

@@ -177,13 +177,20 @@ def guest_pressure() -> str:
     except OSError:
         return ""
     zombies = 0
+    comms: dict[str, int] = {}
     for pid in pids:
         try:
             with open(f"/proc/{pid}/stat", encoding="utf-8") as fh:
-                if fh.read().split(") ", 1)[1].startswith("Z"):
-                    zombies += 1
-        except (OSError, IndexError):
+                comm, rest = fh.read().split(") ", 1)
+            if not rest.startswith("Z"):
+                continue
+            name = comm.split("(", 1)[1][:15]
+        except (OSError, IndexError, ValueError):
             continue
+        zombies += 1
+        comms[name] = comms.get(name, 0) + 1
+    ztop = ",".join(f"{name}:{count}"
+                    for name, count in sorted(comms.items())[:5]) or "-"
     ceiling = "?"
     for candidate in ("/sys/fs/cgroup/pids.max",
                       "/sys/fs/cgroup/pids/pids.max"):
@@ -200,7 +207,8 @@ def guest_pressure() -> str:
                 break
     except OSError:
         pass
-    return f" pids={len(pids)}/{ceiling} zombies={zombies} memavail_kb={mem_kb}"
+    return (f" pids={len(pids)}/{ceiling} zombies={zombies} "
+            f"zcomms={ztop} memavail_kb={mem_kb}")
 
 
 def checks_pass(repo: Path, check_cmd: list[str], journal: Journal | None = None,
