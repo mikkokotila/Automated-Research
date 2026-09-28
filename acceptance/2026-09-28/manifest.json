@@ -1,0 +1,115 @@
+{
+  "generated_at": "2026-09-28T17:43:55.138603+00:00",
+  "repo_rev": "fdabef6c29f7e41895a3c003f70838cd73acb48e",
+  "python": "3.12.12",
+  "verdicts": [
+    {
+      "scenario": "review-only",
+      "status": "pass",
+      "detail": "cited=1 grounded=1",
+      "duration_s": 1.0,
+      "artefacts": [
+        "scenarios/review-only/review.md",
+        "scenarios/review-only/provenance.json",
+        "scenarios/review-only/journal.jsonl"
+      ]
+    },
+    {
+      "scenario": "synthetic-csv",
+      "status": "pass",
+      "detail": "best=gradboost test=0.35 seed=2052984197",
+      "duration_s": 1.6,
+      "artefacts": [
+        "scenarios/synthetic-csv/analysis.md",
+        "scenarios/synthetic-csv/analysis.json",
+        "scenarios/synthetic-csv/journal.jsonl"
+      ]
+    },
+    {
+      "scenario": "cycle-research",
+      "status": "pass",
+      "detail": "2 iterations, converged, 5 calls",
+      "duration_s": 1.0,
+      "artefacts": [
+        "scenarios/cycle-research/synthesis.md",
+        "scenarios/cycle-research/run.json",
+        "scenarios/cycle-research/journal.jsonl"
+      ]
+    },
+    {
+      "scenario": "maintenance-refusal",
+      "status": "pass",
+      "detail": "refused before any work: refusing: revision needs a launcher-provided role (CANARY_GUEST=1 in a disposable worker, or CANARY_PUBLISHER=1 in the owner publish driver); refusing on this h",
+      "duration_s": 0.0,
+      "artefacts": [
+        "scenarios/maintenance-refusal/journal.jsonl"
+      ]
+    },
+    {
+      "scenario": "maintenance-logic",
+      "status": "pass",
+      "detail": "110 passed, 1 skipped in 40.04s",
+      "duration_s": 40.4,
+      "artefacts": [
+        "scenarios/maintenance-logic/pytest.log"
+      ]
+    },
+    {
+      "scenario": "crash-resume",
+      "status": "pass",
+      "detail": "crash at call 3, resumed to converged, 5 calls carried",
+      "duration_s": 1.1,
+      "artefacts": [
+        "scenarios/crash-resume/synthesis.md",
+        "scenarios/crash-resume/run.json",
+        "scenarios/crash-resume/journal.jsonl"
+      ]
+    },
+    {
+      "scenario": "budget-exhaustion",
+      "status": "pass",
+      "detail": "stopped honestly at 2/2 calls, q2? carried forward",
+      "duration_s": 1.0,
+      "artefacts": [
+        "scenarios/budget-exhaustion/synthesis.md",
+        "scenarios/budget-exhaustion/run.json",
+        "scenarios/budget-exhaustion/journal.jsonl"
+      ]
+    },
+    {
+      "scenario": "provider-restriction",
+      "status": "pass",
+      "detail": "run blocked honestly; keyless client refuses (CANARY_GATE_TOKEN required; direct provider access is disabled)",
+      "duration_s": 0.0,
+      "artefacts": [
+        "scenarios/provider-restriction/journal.jsonl",
+        "scenarios/provider-restriction/key_presence.json",
+        "scenarios/provider-restriction/checkpoints/checkpoint-0000.json"
+      ]
+    },
+    {
+      "scenario": "containment",
+      "status": "pass",
+      "detail": "47/47 boundary checks, no leftovers",
+      "duration_s": 38.0,
+      "artefacts": [
+        "scenarios/containment/container_verify.log"
+      ]
+    },
+    {
+      "scenario": "export-scan",
+      "status": "pass",
+      "detail": "15 files exported, manifest valid, scan clean",
+      "duration_s": 0.1,
+      "artefacts": [
+        "scenarios/export-scan/exported/manifest.canary.json",
+        "scenarios/export-scan/scan.log"
+      ]
+    }
+  ],
+  "counts": {
+    "pass": 10,
+    "fail": 0,
+    "skip": 0
+  }
+}

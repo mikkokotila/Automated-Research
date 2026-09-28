@@ -1,0 +1,55 @@
+{
+  "generated_at": "2026-09-28T17:42:32.427698+00:00",
+  "kind": "analysis",
+  "question": "what predicts t?",
+  "csv": "acceptance/2026-09-28/scenarios/synthetic-csv/input.csv",
+  "target": "t",
+  "model": "acceptance-scripted",
+  "task": "classification",
+  "analysis_kind": "predictive-association",
+  "split_seed": 2052984197,
+  "metric": "accuracy (macro-F1 0.335)",
+  "best": "gradboost",
+  "best_test": 0.35,
+  "baseline_test": 0.65,
+  "scores": [
+    {
+      "name": "dummy",
+      "cv_mean": 0.4833333333333333,
+      "cv_std": 0.13333333333333333,
+      "test": 0.65
+    },
+    {
+      "name": "logreg",
+      "cv_mean": 0.38333333333333336,
+      "cv_std": 0.08498365855987976,
+      "test": 0.5
+    },
+    {
+      "name": "gradboost",
+      "cv_mean": 0.4333333333333334,
+      "cv_std": 0.12247448713915893,
+      "test": 0.35
+    }
+  ],
+  "importances": [
+    {
+      "feature": "f2",
+      "value": 0.0
+    },
+    {
+      "feature": "f1",
+      "value": -0.16
+    }
+  ],
+  "warnings": [
+    "best model barely beats the dummy baseline \u2014 signal is weak",
+    "lead over baseline is within noise \u2014 result may be chance",
+    "small sample (n=80) \u2014 wide uncertainty"
+  ],
+  "n_rows": 80,
+  "n_features": 2,
+  "missing_cells": 0,
+  "preprocessing": "numeric(median+standardize): 2; categorical(mode+onehot): 0; task classification; split 60/20 seed 2052984197",
+  "data_notes": []
+}

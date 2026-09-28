@@ -51,7 +51,11 @@ from canary.redact import find_secrets, redact_text  # noqa: E402
 from canary.revise import ContainmentBlocked  # noqa: E402
 from canary.spec import RunBudget, RunSpec, StopReason  # noqa: E402
 
-CONTAINER_CHECKS = 43
+# Must match the boundary suite's check count exactly: the assert trips on
+# silent skips as well as failures. Last bumped for console_log_captured,
+# guest_marker_injected_by_launcher, guest_workspace_is_git_repo,
+# image_bakes_no_role_marker (tee/attestation work).
+CONTAINER_CHECKS = 47
 
 
 class Scripted:
@@ -342,6 +346,9 @@ def scenario_containment(out: Path) -> dict:
     if info.returncode != 0:
         return {"status": "skip", "detail": "docker daemon unreachable",
                 "artefacts": []}
+    before = set(subprocess.run(["docker", "ps", "-a", "--format", "{{.Names}}"],
+                                    cwd=ROOT, capture_output=True, text=True,
+                                    timeout=60).stdout.split())
     proc = subprocess.run(["bash", "scripts/container_verify.sh"], cwd=ROOT,
                           capture_output=True, text=True, timeout=600)
     (out / "container_verify.log").write_text(proc.stdout[-12000:] + proc.stderr[-2000:],
@@ -349,9 +356,12 @@ def scenario_containment(out: Path) -> dict:
     count = proc.stdout.count(": true")
     assert proc.returncode == 0 and count == CONTAINER_CHECKS, \
         f"boundary suite: rc={proc.returncode} true={count}/{CONTAINER_CHECKS}"
-    leftovers = subprocess.run(["docker", "ps", "-a", "--format", "{{.Names}}"],
-                               capture_output=True, text=True, timeout=60).stdout
-    assert "canary-" not in leftovers, f"disposable leftovers: {leftovers}"
+    after = set(subprocess.run(["docker", "ps", "-a", "--format", "{{.Names}}"],
+                               capture_output=True, text=True, timeout=60).stdout.split())
+    # Diff, not absolute emptiness: the broker and concurrent loop runs are
+    # legitimate canary-* containers; only the suite's own droppings fail.
+    new = sorted(n for n in after - before if "canary-" in n)
+    assert not new, f"disposable leftovers: {new}"
     return {"detail": f"{count}/{CONTAINER_CHECKS} boundary checks, no leftovers",
             "artefacts": ["container_verify.log"]}
 
