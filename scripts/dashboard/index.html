@@ -248,7 +248,7 @@ function rowHtml(r) {
     + `<td class="click" data-t="loop" title="loop iterations">${nloop} LOOP</td>`
     + `<td><button class="act" data-t="log">LOG</button></td>`
     + `<td><button class="act" data-act="rerun" data-key="${key}"`
-    + (r.launch ? "" : " disabled title='no recorded launch'") + ">RERUN</button></td>`
+    + (r.launch ? "" : " disabled title='no recorded launch'") + ">RERUN</button></td>";
     + `<td>${pauseBtn}</td></tr>`;
   if (isOpen(r.key, "brief")) h += briefHtml(r);
   if (isOpen(r.key, "impr")) h += improvementsHtml(r);
