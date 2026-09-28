@@ -5,9 +5,11 @@ devices, oversized payloads, collisions, and the reserved manifest name.
 Never executes, renders, or unpickles guest content. Writes a manifest
 with per-file checksums so a maintainer can verify before importing.
 """
+import argparse
 import hashlib
 import json
 from pathlib import Path, PurePosixPath
+import shutil
 import sys
 import tarfile
 
@@ -62,5 +64,38 @@ def export(stream, destination):
     return count
 
 
+def main(argv: list[str] | None = None) -> int:
+    """CLI: stream a worker tar from stdin into a NEW directory.
+
+    Argument errors exit 2 with no side effects. A failed export cleans
+    up the directory it created, so a bad invocation never litters the
+    tree (a stray dir once poisoned the worker-image build context).
+    """
+    ap = argparse.ArgumentParser(
+        prog="export_bundle.py",
+        description="Copy bounded regular files from a worker tar stream "
+                    "(stdin) into a NEW directory.")
+    ap.add_argument("destination", help="new directory to create for the export")
+    args = ap.parse_args(argv)
+    dest = Path(args.destination)
+    if dest.exists():
+        print(f"export_bundle: error: destination already exists: {dest}",
+              file=sys.stderr)
+        return 1
+    try:
+        count = export(sys.stdin.buffer, dest)
+    except FileExistsError:
+        # Another writer won the race: the dir is not ours; keep it.
+        print(f"export_bundle: error: destination already exists: {dest}",
+              file=sys.stderr)
+        return 1
+    except (ValueError, tarfile.TarError, OSError) as exc:
+        shutil.rmtree(dest, ignore_errors=True)  # only we could have made it
+        print(f"export_bundle: error: {exc}", file=sys.stderr)
+        return 1
+    print(f"Exported {count} files")
+    return 0
+
+
 if __name__ == "__main__":
-    print("Exported", export(sys.stdin.buffer, sys.argv[1]), "files")
+    raise SystemExit(main())
