@@ -41,9 +41,12 @@ def repo(tmp_path):
 class FakeGitHubAPI:
     """Stateful mock: records calls, scripted check progression."""
 
-    def __init__(self, checks_script=("success",)):
+    def __init__(self, checks_script=("success",), author="canary-bot", reviews=None):
         self.calls: list[tuple[str, str]] = []
         self.checks_script = list(checks_script)
+        self.author = author
+        self.reviews = ([{"state": "APPROVED", "user": {"login": "reviewer-two"}}]
+                        if reviews is None else reviews)
         self.bodies: list[dict] = []
         self.pr_merged = False
 
@@ -60,7 +63,11 @@ class FakeGitHubAPI:
                 "number": 9, "html_url": "https://gh/pull/9", "node_id": "PR_1",
                 "head": {"sha": "abc123"}})
         if req.url.path.endswith("/pulls/9") and req.method == "GET":
-            return httpx.Response(200, json={"merged": self.pr_merged, "state": "open", "head": {"sha": "abc123"}})
+            return httpx.Response(200, json={"merged": self.pr_merged, "state": "open",
+                                             "head": {"sha": "abc123"},
+                                             "user": {"login": self.author}})
+        if req.url.path.endswith("/reviews") and req.method == "GET":
+            return httpx.Response(200, json=self.reviews)
         if req.url.path.endswith("/check-runs"):
             verdict = self.checks_script[min(len([c for c in self.calls if c[1].endswith("/check-runs")]) - 1,
                                            len(self.checks_script) - 1)]
@@ -129,6 +136,39 @@ def test_wait_and_merge_rejects_red_checks():
     pr = gh.create_pr("T", "B", head="auto/x")
     with pytest.raises(RuntimeError, match="checks failed"):
         gh.wait_and_merge(pr, timeout_s=30, interval_s=0)
+
+
+def test_self_approval_does_not_merge():
+    api = FakeGitHubAPI(reviews=[{"state": "APPROVED",
+                                  "user": {"login": "canary-bot"}}])
+    gh = api.client()
+    pr = gh.create_pr("T", "B", head="auto/x")
+    with pytest.raises(RuntimeError, match="no independent approval"):
+        gh.wait_and_merge(pr, timeout_s=0.2, interval_s=0)
+    assert ("POST", "/repos/o/n/pulls/9/merge") not in api.calls
+
+
+def test_missing_approval_waits_then_reports_gap():
+    api = FakeGitHubAPI(reviews=[])
+    gh = api.client()
+    pr = gh.create_pr("T", "B", head="auto/x")
+    with pytest.raises(RuntimeError, match="no independent approval"):
+        gh.wait_and_merge(pr, timeout_s=0.2, interval_s=0)
+    assert ("POST", "/repos/o/n/pulls/9/merge") not in api.calls
+
+
+def test_independently_approved_shapes():
+    api = FakeGitHubAPI()
+    gh = api.client()
+    assert gh.independently_approved(9, "canary-bot") is True
+    assert gh.independently_approved(9, None) is False
+    assert gh.independently_approved(9, "") is False
+    api.reviews = [{"state": "CHANGES_REQUESTED", "user": {"login": "reviewer-two"}},
+                   {"state": "APPROVED", "user": {"login": "canary-bot"}},
+                   {"state": "COMMENTED", "user": {"login": "reviewer-two"}},
+                   "not-a-dict", {"state": "APPROVED"}, {"state": "APPROVED", "user": None},
+                   {"state": "APPROVED", "user": {"login": ""}}]
+    assert gh.independently_approved(9, "canary-bot") is False
 
 
 def test_enable_automerge_never_raises():
