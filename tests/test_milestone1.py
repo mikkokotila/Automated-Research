@@ -141,7 +141,8 @@ def test_retrieve_raises_when_all_fail():
 
     client = httpx.Client(transport=httpx.MockTransport(handler))
     with pytest.raises(RuntimeError, match="retrieval failed"):
-        retrieval.retrieve(ResearchSpec(question="q"), client)
+        # Keyword-bearing: arXiv must actually call (and fail) too.
+        retrieval.retrieve(ResearchSpec(question="timing evidence"), client)
 
 
 def test_semscolar_sends_api_key_when_set(monkeypatch):

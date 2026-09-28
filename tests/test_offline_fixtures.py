@@ -30,12 +30,20 @@ def test_recorded_sources_parse_and_dedupe_across_providers(recorded_sources):
     spec = ResearchSpec(question="fixture question", max_papers=5)
     s2 = retrieval.semscholar_search(spec, client)
     assert len(s2) == 1 and s2[0].abstract == "A recorded abstract."
+    ax = retrieval.arxiv_search(spec, client)
+    assert [p.ref for p in ax] == ["doi:10.9990/fixture-one", "arxiv:2601.00002"]
+    assert ax[0].evidence == "fulltext" and ax[0].extra["version"] == "2"
+    assert ax[1].abstract == "An arxiv abstract."
     papers = retrieval.retrieve(spec, client)
     assert any(p.abstract == "Fixture abstract" for p in papers)
-    # Shared DOI dedupes to one record; the DOI-less paper survives.
-    assert len(papers) == 2
+    assert any(p.abstract == "An arxiv abstract." for p in papers)
+    # Shared DOI dedupes to one record across all three providers;
+    # the two DOI-less papers survive.
+    assert len(papers) == 3
     assert [p.ref for p in papers].count("doi:10.9990/fixture-one") == 1
-    assert {r.url.path for r in seen} == {"/v1/sources/openalex", "/v1/sources/semanticscholar"}
+    assert {r.url.path for r in seen} == {"/v1/sources/openalex",
+                                           "/v1/sources/semanticscholar",
+                                           "/v1/sources/arxiv"}
 
 
 def test_recorded_client_rejects_unknown_hosts():

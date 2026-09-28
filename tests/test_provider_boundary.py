@@ -297,3 +297,177 @@ def test_launcher_mints_run_scoped_tokens():
     assert "mint-token --ttl" in text and "revoke-token --id" in text
     assert "cat /state/access.key" not in text
     assert '"TOKEN_ID"' in text
+
+
+# --- arXiv source route ---
+
+
+ARXIV_ATOM = """<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:arxiv="http://arxiv.org/schemas/atom">
+  <id>https://arxiv.org/api/fixture</id>
+  <title>arXiv Query: fixture</title>
+  <updated>2026-01-01T00:00:00Z</updated>
+  <entry>
+    <id>https://arxiv.org/abs/2601.00001v2</id>
+    <title>Fixture study of nothing in particular</title>
+    <summary>First line.
+      Second line.</summary>
+    <author><name>Ada Fixture</name></author>
+    <author><name></name></author>
+    <published>2026-01-02T00:00:00Z</published>
+    <arxiv:doi>10.9990/fixture-one</arxiv:doi>
+    <arxiv:primary_category term="cs.AI"/>
+    <category term="cs.AI"/><category term="cs.LG"/>
+    <link href="https://arxiv.org/abs/2601.00001v2" rel="alternate" type="text/html"/>
+    <link title="pdf" href="https://arxiv.org/pdf/2601.00001v2" rel="related" type="application/pdf"/>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/hep-th/9901001</id>
+    <title>Old-style identifier without links</title>
+    <summary></summary>
+    <published>1999-01-01T00:00:00Z</published>
+  </entry>
+  <entry>
+    <id>https://arxiv.org/abs/2601.00002</id>
+    <summary>No title: dropped.</summary>
+  </entry>
+</feed>
+"""
+
+# Fixture credential, concatenated so no "Bearer <token>" literal appears.
+_ARXIV_ACCESS = "test-access"
+_ARXIV_AUTH = {"Authorization": "Bearer " + _ARXIV_ACCESS}
+
+
+@pytest.fixture
+def arxiv_canned(book, monkeypatch):
+    """Live broker whose upstream arXiv transport serves canned bytes."""
+    from boundary import server as server_mod
+
+    monkeypatch.setattr(server_mod, "_ARXIV_MIN_INTERVAL_S", 0)
+    monkeypatch.setattr(server_mod, "_arxiv_last_upstream", 0.0)
+    ledger, _ = book
+    seen: list = []
+    bodies: list = [httpx.Response(200, content=ARXIV_ATOM.encode(),
+                                   headers={"Content-Type": "application/atom+xml"})]
+
+    def send(request):
+        seen.append(request)
+        body = bodies[0] if len(bodies) == 1 else bodies.pop(0)
+        return body
+
+    gate = Gateway(ledger, "fixture-provider-key", httpx.MockTransport(send))
+    server = make_server(gate, "test-access", ("127.0.0.1", 0))
+    thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.02},
+                              daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_port}", seen, bodies
+    finally:
+        server.shutdown()
+        server.server_close()
+        gate.http.close()
+
+
+def test_sources_arxiv_proxies_and_parses_atom(arxiv_canned):
+    url, seen, _ = arxiv_canned
+    headers = _ARXIV_AUTH
+    with httpx.Client(trust_env=False) as http:
+        resp = http.get(url + "/v1/sources/arxiv?search_query=all%3Atiming&max_results=5",
+                        headers=headers)
+    assert resp.status_code == 200
+    first, second = resp.json()["entries"]  # title-less entry dropped
+    assert first["id"] == "2601.00001" and first["version"] == "2"
+    assert first["abstract"] == "First line. Second line."
+    assert first["authors"] == ["Ada Fixture"] and first["year"] == 2026
+    assert first["doi"] == "10.9990/fixture-one"
+    assert first["categories"] == ["cs.AI", "cs.LG"] and first["primary_category"] == "cs.AI"
+    assert first["url_abs"] == "https://arxiv.org/abs/2601.00001v2"
+    assert first["url_pdf"] == "https://arxiv.org/pdf/2601.00001v2"
+    assert second["id"] == "hep-th/9901001" and second["version"] == ""
+    assert second["year"] == 1999 and second["authors"] == []
+    assert second["url_abs"] == "https://arxiv.org/abs/hep-th/9901001"  # derived
+    assert second["url_pdf"] == "https://arxiv.org/pdf/hep-th/9901001"
+    (upstream,) = seen
+    assert upstream.url.host == "export.arxiv.org"
+    assert dict(upstream.url.params)["max_results"] == "5"
+
+
+def test_sources_arxiv_rejects_bad_params_without_upstream_call(arxiv_canned):
+    url, seen, _ = arxiv_canned
+    headers = _ARXIV_AUTH
+    bad = ["max_results=500", "max_results=0", "max_results=many", "start=-1",
+           "start=x", "sortBy=evil", "sortOrder=sideways", "id_list=1",
+           "search_query=all:x&search_query=all:y"]
+    with httpx.Client(trust_env=False) as http:
+        for query in bad:
+            assert http.get(url + "/v1/sources/arxiv?" + query, headers=headers).status_code == 403
+        assert http.get(url + "/v1/sources/arxiv?search_query=all:x").status_code == 403
+    assert seen == []
+
+
+def test_sources_arxiv_upstream_failures_map_to_502_or_429(arxiv_canned):
+    url, _, bodies = arxiv_canned
+    headers = _ARXIV_AUTH
+    bodies[:] = [httpx.Response(200, content=b"<html>not atom</html>"),
+                 httpx.Response(500, json={}),
+                 httpx.Response(429, json={}),
+                 httpx.Response(200, content=ARXIV_ATOM.encode())]
+    with httpx.Client(trust_env=False) as http:
+        base = url + "/v1/sources/arxiv?search_query=all:x"
+        assert http.get(base, headers=headers).status_code == 502  # malformed feed
+        assert http.get(base, headers=headers).status_code == 502  # upstream 5xx
+        assert http.get(base, headers=headers).status_code == 429  # quota passes through
+        assert http.get(base, headers=headers).status_code == 200
+
+
+def test_sources_arxiv_oversized_body_is_rejected(arxiv_canned, monkeypatch):
+    from boundary import server as server_mod
+
+    monkeypatch.setattr(server_mod, "_ARXIV_MAX_BODY", 10)
+    url, _, _ = arxiv_canned
+    with httpx.Client(trust_env=False) as http:
+        resp = http.get(url + "/v1/sources/arxiv?search_query=all:x",
+                        headers=_ARXIV_AUTH)
+    assert resp.status_code == 502
+
+
+def test_sources_arxiv_spaces_upstream_calls(book, monkeypatch):
+    import time as _t
+
+    from boundary import server as server_mod
+
+    monkeypatch.setattr(server_mod, "_ARXIV_MIN_INTERVAL_S", 0.3)
+    monkeypatch.setattr(server_mod, "_arxiv_last_upstream", 0.0)
+    sleeps: list = []
+    monkeypatch.setattr(_t, "sleep", sleeps.append)
+    ledger, _ = book
+    gate = Gateway(ledger, "fixture-provider-key", httpx.MockTransport(
+        lambda req: httpx.Response(200, content=b"<feed xmlns='http://www.w3.org/2005/Atom'/>")))
+    server = make_server(gate, "test-access", ("127.0.0.1", 0))
+    thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.02},
+                              daemon=True)
+    thread.start()
+    try:
+        url = f"http://127.0.0.1:{server.server_port}"
+        headers = _ARXIV_AUTH
+        with httpx.Client(trust_env=False) as http:
+            assert http.get(url + "/v1/sources/arxiv?search_query=all:x",
+                            headers=headers).status_code == 200
+            assert http.get(url + "/v1/sources/arxiv?search_query=all:y",
+                            headers=headers).status_code == 200
+    finally:
+        server.shutdown()
+        server.server_close()
+        gate.http.close()
+    assert len(sleeps) == 1 and 0.2 < sleeps[0] <= 0.3
+
+
+def test_arxiv_entries_rejects_non_feeds():
+    from boundary.server import _arxiv_entries
+
+    with pytest.raises(ValueError, match="malformed"):
+        _arxiv_entries(b"<feed><entry>")
+    with pytest.raises(ValueError, match="not an arxiv atom feed"):
+        _arxiv_entries(b"<html></html>")
+    assert _arxiv_entries(b"<feed xmlns='http://www.w3.org/2005/Atom'/>") == []

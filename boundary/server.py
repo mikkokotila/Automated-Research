@@ -4,9 +4,13 @@ import hmac
 import json
 import os
 from pathlib import Path
+import re
 import secrets
+import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
+import xml.etree.ElementTree as ET
 import httpx
 from .gateway import Gateway
 from .ledger import Ledger
@@ -16,7 +20,92 @@ SOURCES = {
     "/v1/sources/openalex": ("https://api.openalex.org/works", {"search", "per-page", "mailto", "filter"}),
     "/v1/sources/semanticscholar": ("https://api.semanticscholar.org/graph/v1/paper/search",
                                       {"query", "limit", "fields", "year"}),
+    "/v1/sources/arxiv": ("https://export.arxiv.org/api/query",
+                           {"search_query", "start", "max_results", "sortBy", "sortOrder"}),
 }
+
+# arXiv asks for at most one request per 3 seconds; the broker enforces the
+# spacing so guests can never violate it no matter how many run at once.
+_ARXIV_MIN_INTERVAL_S = 3.0
+_ARXIV_MAX_RESULTS = 50
+_ARXIV_MAX_BODY = 2_000_000
+_ARXIV_SORT_BY = {"", "relevance", "lastUpdatedDate", "submittedDate"}
+_ARXIV_SORT_ORDER = {"", "ascending", "descending"}
+_arxiv_lock = threading.Lock()
+_arxiv_last_upstream = 0.0  # monotonic; guarded by _arxiv_lock
+
+_ATOM = "http://www.w3.org/2005/Atom"
+_ARXIV_NS = "http://arxiv.org/schemas/atom"
+_NS = {"a": _ATOM, "arxiv": _ARXIV_NS}
+_ARXIV_VERSIONED_ID = re.compile(r"(\d+\.\d+)v(\d+)$")
+
+
+def _collapse(text: str | None) -> str:
+    return " ".join((text or "").split())
+
+
+def _arxiv_entries(atom: bytes) -> list[dict]:
+    """Parse an arXiv Atom feed into JSON-safe entries.
+
+    Raises ValueError on malformed feeds; entries without a title or id are
+    dropped so one bad record never poisons the batch.
+    """
+    try:
+        root = ET.fromstring(atom)
+    except ET.ParseError as e:
+        raise ValueError(f"malformed arxiv feed: {e}")
+    if root.tag != f"{{{_ATOM}}}feed":
+        raise ValueError("not an arxiv atom feed")
+    out: list[dict] = []
+    for e in root.findall("a:entry", _NS):
+        title = _collapse(e.findtext(f"{{{_ATOM}}}title"))
+        if not title:
+            continue
+        ident = (e.findtext(f"{{{_ATOM}}}id") or "").strip()
+        bare = ident
+        for prefix in ("https://arxiv.org/abs/", "http://arxiv.org/abs/"):
+            if bare.startswith(prefix):
+                bare = bare[len(prefix):]
+                break
+        bare = bare.strip()
+        if not bare:
+            continue
+        m = _ARXIV_VERSIONED_ID.fullmatch(bare)
+        aid, version = (m.group(1), m.group(2)) if m else (bare, "")
+        authors = [_collapse(a.findtext(f"{{{_ATOM}}}name")) for a in e.findall("a:author", _NS)]
+        authors = [a for a in authors if a][:10]
+        published = (e.findtext(f"{{{_ATOM}}}published") or "")[:4]
+        year = int(published) if published.isdigit() else None
+        categories = [c.get("term", "") for c in e.findall("a:category", _NS)]
+        categories = [c for c in categories if c]
+        primary = e.find("arxiv:primary_category", _NS)
+        abs_url = pdf_url = ""
+        for link in e.findall("a:link", _NS):
+            href = (link.get("href") or "").strip()
+            if not href:
+                continue
+            if link.get("title") == "pdf":
+                pdf_url = href
+            elif link.get("rel") == "alternate" and not abs_url:
+                abs_url = href
+        if not abs_url:
+            abs_url = f"https://arxiv.org/abs/{bare}"
+        if not pdf_url:
+            pdf_url = f"https://arxiv.org/pdf/{bare}"
+        out.append({
+            "id": aid,
+            "version": version,
+            "title": title,
+            "abstract": _collapse(e.findtext(f"{{{_ATOM}}}summary")),
+            "authors": authors,
+            "year": year,
+            "categories": categories,
+            "primary_category": (primary.get("term", "") if primary is not None else ""),
+            "doi": (e.findtext(f"{{{_ARXIV_NS}}}doi") or "").strip(),
+            "url_abs": abs_url,
+            "url_pdf": pdf_url,
+        })
+    return out
 
 
 def strict_object(pairs):
@@ -63,6 +152,35 @@ def make_server(gateway, access_token, address=("0.0.0.0", 8787)):
             else:
                 self.reply(503, {"error": "boundary_unavailable", "message": "Request failed closed"})
 
+        def serve_arxiv(self, url, params):
+            """Fetch one arXiv page: validated, politely spaced, parsed to JSON."""
+            global _arxiv_last_upstream
+            try:
+                start = int(params.get("start", "0"))
+                max_results = int(params.get("max_results", "25"))
+            except (TypeError, ValueError):
+                raise PolicyBlocked("Source parameters not allowed")
+            if (start < 0 or not 1 <= max_results <= _ARXIV_MAX_RESULTS
+                    or params.get("sortBy", "") not in _ARXIV_SORT_BY
+                    or params.get("sortOrder", "") not in _ARXIV_SORT_ORDER):
+                raise PolicyBlocked("Source parameters not allowed")
+            with _arxiv_lock:
+                wait = _ARXIV_MIN_INTERVAL_S - (time.monotonic() - _arxiv_last_upstream)
+                if wait > 0:
+                    time.sleep(wait)
+                response = gateway.http.get(url, params=params, timeout=30)
+                _arxiv_last_upstream = time.monotonic()
+            if response.status_code != 200 or len(response.content) > _ARXIV_MAX_BODY:
+                self.reply(response.status_code if response.status_code in (400, 429) else 502,
+                           {"error": "source_unavailable"})
+                return
+            try:
+                entries = _arxiv_entries(response.content)
+            except ValueError:
+                self.reply(502, {"error": "source_unavailable"})
+                return
+            self.reply(200, {"entries": entries})
+
         def do_POST(self):
             try:
                 self.authorized()
@@ -94,6 +212,10 @@ def make_server(gateway, access_token, address=("0.0.0.0", 8787)):
                 params = parse_qs(path.query, keep_blank_values=True)
                 if not set(params) <= allowed or any(len(v) != 1 for v in params.values()):
                     raise PolicyBlocked("Source parameters not allowed")
+                flat = {k: v[0] for k, v in params.items()}
+                if path.path == "/v1/sources/arxiv":
+                    self.serve_arxiv(url, flat)
+                    return
                 headers = {}
                 if path.path.endswith("semanticscholar") and os.environ.get("SEMANTIC_SCHOLAR_API_KEY"):
                     headers["x-api-key"] = os.environ["SEMANTIC_SCHOLAR_API_KEY"]

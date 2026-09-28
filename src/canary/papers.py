@@ -16,7 +16,7 @@ class Paper:
     doi: str = ""
     url: str = ""
     citations: int = 0
-    source: str = ""  # "openalex" | "semanticscholar"
+    source: str = ""  # "openalex" | "semanticscholar" | "arxiv"
     score: float = 0.0
     evidence: str = ""  # "fulltext" | "abstract" | "none" ("" = unknown/legacy)
     oa_url: str = ""  # lawful open-access copy when the provider names one

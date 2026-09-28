@@ -92,6 +92,39 @@ RECORDED_SEMSCHOLAR = {
     ]
 }
 
+# Broker-parsed shape ({"entries": [...]}, never raw Atom): the arXiv record
+# shares the DOI so three-provider dedupe collapses it with the other two.
+RECORDED_ARXIV = {
+    "entries": [
+        {
+            "id": "2601.00001",
+            "version": "2",
+            "title": "Fixture study of nothing in particular",
+            "abstract": "",
+            "authors": ["Ada Fixture"],
+            "year": 2026,
+            "categories": ["cs.AI"],
+            "primary_category": "cs.AI",
+            "doi": "10.9990/fixture-one",
+            "url_abs": "https://arxiv.org/abs/2601.00001v2",
+            "url_pdf": "https://arxiv.org/pdf/2601.00001v2",
+        },
+        {
+            "id": "2601.00002",
+            "version": "",
+            "title": "Second arxiv fixture without a DOI",
+            "abstract": "An arxiv abstract.",
+            "authors": [],
+            "year": 2025,
+            "categories": [],
+            "primary_category": "",
+            "doi": "",
+            "url_abs": "https://arxiv.org/abs/2601.00002",
+            "url_pdf": "",
+        },
+    ]
+}
+
 
 def recorded_http_client(seen: list | None = None) -> httpx.Client:
     """MockTransport client serving the recorded source payloads by host."""
@@ -104,6 +137,8 @@ def recorded_http_client(seen: list | None = None) -> httpx.Client:
             return httpx.Response(200, json=RECORDED_OPENALEX)
         if path.endswith("/sources/semanticscholar"):
             return httpx.Response(200, json=RECORDED_SEMSCHOLAR)
+        if path.endswith("/sources/arxiv"):
+            return httpx.Response(200, json=RECORDED_ARXIV)
         return httpx.Response(404, json={})
 
     return httpx.Client(transport=httpx.MockTransport(handler))

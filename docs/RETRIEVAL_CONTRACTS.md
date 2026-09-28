@@ -41,10 +41,35 @@ made; unit tests and CI use fixtures only.
 - Unknown `fields` entries are not requested: `doi` was dropped from the field
   list after this verification.
 
+## arXiv
+
+- Docs read: `https://info.arxiv.org/help/api/` (query syntax, sorting,
+  paging), `https://info.arxiv.org/help/api/tou/` (terms of use).
+- Endpoint: `GET https://export.arxiv.org/api/query` with `search_query`
+  (prefix syntax: `all:`, `ti:`, `au:`, `cat:`), `start`, `max_results`,
+  `sortBy` (`relevance`, `lastUpdatedDate`, `submittedDate`), `sortOrder`.
+  Bare space-separated terms default to OR; we send explicit AND queries
+  built from the question's own keywords (see `arxiv_query`).
+- Auth: none. Keyless and quota-free; this is the source that carries a run
+  when the aggregators rate-limit.
+- Rate etiquette: at most one request per 3 seconds. The broker enforces the
+  spacing centrally (`serve_arxiv`); guests can never violate it.
+- Transport shape: the API returns Atom XML. The broker parses it and serves
+  `{"entries": [...]}` JSON with `id` (version stripped; `version` kept
+  separately), `title`, `abstract`, `authors`, `year`, `categories`,
+  `primary_category`, `doi` (when the record carries one), `url_abs`,
+  `url_pdf`. The guest parses that shape only — foreign shapes degrade to
+  zero papers, never a crash.
+- Consumed as `Paper(source="arxiv")`: `citations` is always 0 (arXiv
+  reports none; never fabricated), `evidence` is `fulltext` when a PDF link
+  is present, and `year_from` is applied client-side (unknown years kept).
+
 ## Remaining access blockers
 
 - No `OPENALEX_API_KEY` or `SEMANTIC_SCHOLAR_API_KEY` is provisioned; live use
-  runs on anonymous budgets (S2's shared pool may saturate).
+  runs on anonymous budgets (S2's shared pool may saturate; both aggregators
+  returned sustained 429s on 2026-09-28 and were demoted to degraded
+  coverage while arXiv carries retrieval).
 - The brokered path (`CANARY_GATE_URL` → `/v1/sources/...`) forwards retrieval
   through the request service; broker-side provider keys and forwarding are
   unverified and out of scope for this build.
