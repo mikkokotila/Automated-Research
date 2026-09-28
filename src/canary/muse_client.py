@@ -12,6 +12,9 @@ KEY_VARS = ("MUSE_API_KEY", "MODEL_API_KEY", "META_API_KEY")
 TIMEOUT_S = 330
 MAX_ATTEMPTS = 3
 BACKOFF_S = (2.0, 5.0)
+# Worker-owned ceiling for completion-budget escalation. The broker enforces
+# its own per-call cap; this mirror only stops the worker asking for more.
+MAX_OUTPUT_ESCALATION = 32768
 
 
 class RequestBlocked(RuntimeError):
@@ -50,8 +53,9 @@ class MuseClient:
         return DEFAULT_MODEL
 
     def complete(self, system: str, user: str, max_tokens: int = 8000) -> str:
-        payload = {"model": DEFAULT_MODEL, "system": system, "user": user, "max_tokens": max_tokens}
         for attempt in range(MAX_ATTEMPTS):
+            payload = {"model": DEFAULT_MODEL, "system": system, "user": user,
+                       "max_tokens": max_tokens}
             self.budget.reserve_call()  # Cancelled/BudgetExhausted propagate distinctly
             self.calls += 1
             op = self.recorder.start("complete") if self.recorder else None
@@ -91,6 +95,12 @@ class MuseClient:
             text = body.get("text", "").strip()
             if text:
                 return text
+            if body.get("finish_reason") == "length" and attempt < MAX_ATTEMPTS - 1:
+                # Reasoning burned the whole completion budget: escalate once
+                # per attempt instead of dying (live Issue #49). No sleep:
+                # this is under-provisioning, not rate pressure.
+                max_tokens = min(max_tokens * 2, MAX_OUTPUT_ESCALATION)
+                continue
             raise RuntimeError(f"Muse API returned empty content (finish={body.get('finish_reason', '?')}); "
                                f"completion limit={max_tokens}")
         raise RequestBlocked("Request attempts exhausted")

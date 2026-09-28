@@ -119,6 +119,45 @@ def test_empty_response_reaches_worker_as_explicit_error(book, monkeypatch):
         client.complete("s", "u")
 
 
+def _broker_body(text, finish, total=150):
+    return {"model": ALLOWED_MODEL,
+            "usage": {"prompt_tokens": 100, "completion_tokens": total - 100,
+                      "total_tokens": total},
+            "receipt": "r-test", "text": text, "finish_reason": finish}
+
+
+def test_length_escalation_recovers_with_doubled_budget(monkeypatch):
+    monkeypatch.setenv("CANARY_GATE_TOKEN", "fixture")
+    seen = []
+    script = [("  ", "length"), ("", "length"), ("recovered", "stop")]
+
+    def broker(request):
+        seen.append(json.loads(request.content)["max_tokens"])
+        text, finish = script.pop(0)
+        return httpx.Response(200, json=_broker_body(text, finish))
+
+    client = MuseClient(client=httpx.Client(transport=httpx.MockTransport(broker)))
+    assert client.complete("s", "u") == "recovered"
+    assert seen == [8000, 16000, 32000]  # escalates within the attempt bound
+    assert client.calls == 3  # every attempt reserves budget honestly
+    assert [r["finish_reason"] for r in client.receipts] == ["length", "length", "stop"]
+
+
+def test_persistent_length_exhaustion_fails_honestly(monkeypatch):
+    monkeypatch.setenv("CANARY_GATE_TOKEN", "fixture")
+    seen = []
+
+    def broker(request):
+        seen.append(json.loads(request.content)["max_tokens"])
+        return httpx.Response(200, json=_broker_body("", "length", total=9000))
+
+    client = MuseClient(client=httpx.Client(transport=httpx.MockTransport(broker)))
+    with pytest.raises(RuntimeError, match="empty content.*finish=length"):
+        client.complete("s", "u", max_tokens=20000)
+    assert seen == [20000, 32768, 32768]  # capped, then one same-budget retry
+    assert client.calls == 3
+
+
 def test_truncation_finish_preserved_to_worker_receipts(book, monkeypatch):
     gate, _ = service(book, reply(
         choices=[{"message": {"content": "cut…"}, "finish_reason": "length"}]))
