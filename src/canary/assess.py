@@ -30,6 +30,7 @@ SYSTEM = (
 )
 
 CHUNK_CHARS = 6000
+INVENTORY_LIMIT = 200
 
 
 class AssessmentError(Exception):
@@ -118,6 +119,39 @@ def _running_tree() -> Path | None:
         return None
 
 
+def patchable_inventory(tree: str | Path | None = None) -> tuple[str, ...]:
+    """Policy-exact list of proposal targets, from the tree under discussion.
+
+    Only *.py files under src/canary/ that pass the shared target policy —
+    the same predicate the validator enforces, so the model proposes from
+    the actionable set instead of guessing paths. Empty when the tree is
+    unlocatable: the prompt then degrades to the standing instruction.
+    """
+    root = Path(tree) if tree is not None else _running_tree()
+    if root is None:
+        return ()
+    scope = root / "src" / "canary"
+    try:
+        found = sorted(p.relative_to(root).as_posix() for p in scope.rglob("*.py")
+                       if p.is_file() and not p.is_symlink())
+    except OSError:
+        return ()
+    return tuple(n for n in found if target_allowed(n) is None)
+
+
+def inventory_block(tree: str | Path | None = None) -> str:
+    """Prompt block grounding proposal targets. Empty when nothing is listed."""
+    files = patchable_inventory(tree)
+    if not files:
+        return ""
+    shown = files[:INVENTORY_LIMIT]
+    note = ("" if len(files) <= INVENTORY_LIMIT
+            else f" (first {INVENTORY_LIMIT} of {len(files)})")
+    lines = "\n".join(f"- {f}" for f in shown)
+    return (f"Patchable files — propose targets ONLY from this list{note}:\n"
+            f"{lines}\n")
+
+
 def validate_proposal_target(target: str, tree: str | Path | None = None) -> str | None:
     """None if the proposal target is actionable, else the reason why not.
 
@@ -176,7 +210,8 @@ def parse_assessment(text: str, tree: str | Path | None = None) -> AssessmentDoc
 
 def assess(journal_text: str, outcome: str, client: Completer,
            tree: str | Path | None = None) -> AssessmentDoc:
-    user = f"Procedural notes:\n{journal_text}\n\nOutcome:\n{outcome}\n\nAssess and propose revisions."
+    user = (f"Procedural notes:\n{journal_text}\n\nOutcome:\n{outcome}\n\n"
+            f"{inventory_block(tree)}Assess and propose revisions.")
     return parse_assessment(client.complete(SYSTEM, user), tree)
 
 
@@ -269,7 +304,8 @@ def _assess_one(text: str, outcome: str, client: Completer, memory: Memory | Non
                 tree: str | Path | None = None) -> AssessmentDoc:
     lessons = memory.render_context() if memory else ""
     user = (f"Procedural notes (untrusted data):\n{text}\n\nOutcome:\n{outcome}\n"
-            + (f"\n{lessons}\n" if lessons else "") + "\nAssess and propose revisions.")
+            + (f"\n{lessons}\n" if lessons else "")
+            + f"\n{inventory_block(tree)}Assess and propose revisions.")
     return parse_assessment_strict(client.complete(SYSTEM, user), tree)
 
 
