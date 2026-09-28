@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import httpx
@@ -254,6 +255,9 @@ def cycle(spec: RunSpec, repo: str = ".", assess: bool = False, bandit=None) -> 
         stopped = getattr(res.stopped, "value", res.stopped)
         _post_assess(j, spec.out_dir, True,
                      f"{len(res.iterations)} iterations, stopped={stopped}", client)
+        # Post-assessment spends from the same budget after run_cycle
+        # snapshotted usage: refresh so run.json reconciles (Issue #56).
+        res = replace(res, usage=budget.usage_summary())
     path = report.write_cycle_bundle(spec.out_dir, spec.question, res, j, spec,
                                      outbox.get("revision"))
     if spec.maintenance and outbox.get("revision"):
