@@ -48,7 +48,8 @@ class Lifecycle:
         emit(self.journal, phase, event, detail)
 
     def finish_assessment(self, outcome: str, client: Completer,
-                          code_revision: str = "unknown") -> AssessmentRecord | None:
+                          code_revision: str = "unknown",
+                          tree: str | Path | None = None) -> AssessmentRecord | None:
         """Persist one post-completion assessment when enabled, else do nothing.
 
         Assessment failure never fails completed research: a malformed
@@ -64,7 +65,7 @@ class Lifecycle:
         try:
             record = assess_journal(notes, text, outcome, client, memory=memory,
                                     budget=self.budget, out_dir=self.assess_dir,
-                                    code_revision=code_revision)
+                                    code_revision=code_revision, tree=tree)
         except AssessmentError as e:
             emit(self.journal, "lifecycle", "assess-failed", str(e)[:200])
             return None

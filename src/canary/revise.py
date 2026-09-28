@@ -31,8 +31,9 @@ from pathlib import Path
 from .journal import Journal, emit
 from .muse_client import RequestBlocked
 from .assess import AssessmentError, Proposal, AssessmentDoc, assess, assess_journal
-from .changeset import (ChangesetError, check_policy, parse_unified_diff,
-                        verify_in_disposable, worktree_status_paths)
+from .changeset import (FORBIDDEN_FILES, FORBIDDEN_NAMES, FORBIDDEN_PREFIXES,
+                        ChangesetError, check_policy, parse_unified_diff,
+                        target_allowed, verify_in_disposable, worktree_status_paths)
 from .memory import Memory
 from . import promote as promotemod
 from .synthesize import Completer
@@ -62,12 +63,6 @@ DIFF_SYSTEM = (
     "the patch must apply with git apply and keep the test suite passing."
 )
 
-FORBIDDEN_PREFIXES = ("tests/", ".github/", "boundary/", "scripts/", "recovery/",
-                        "validation/", "evalpack/")
-FORBIDDEN_NAMES = ("Dockerfile", ".dockerignore")
-FORBIDDEN_FILES = ("src/canary/revise.py", "src/canary/muse_client.py",
-                   "src/canary/changeset.py", "pyproject.toml",
-                   "docs/TRUST_BOUNDARY.md", "docs/TOKEN_BOUNDARY.md")
 MAX_DIFF_FILES = 5
 MAX_DIFF_LINES = 300
 MAX_PROPOSALS_PER_ROUND = 3
@@ -95,30 +90,6 @@ class ReviseReport:
 
 def diff_targets(diff: str) -> list[str]:
     return re.findall(r"^\+\+\+ b/(.+)$", diff, re.MULTILINE)
-
-
-def target_allowed(target: str) -> str | None:
-    """None if allowed, else the reason it is forbidden.
-
-    The durable promotion policy: tests, evaluation, launcher, broker,
-    credentials, workflows, lockfiles, recovery evidence, and the gate itself
-    are outside worker control. Only src/canary/ worker code may be patched.
-    """
-    t = target.strip()
-    if not t or t.startswith("/") or ".." in Path(t).parts:
-        return "absolute or escaping path"
-    if t.startswith(FORBIDDEN_PREFIXES):
-        return "protected area (tests, workflows, launcher, broker, gate, evidence)"
-    name = Path(t).name
-    if name in FORBIDDEN_NAMES or t in FORBIDDEN_FILES:
-        return "protected file"
-    if name == ".env" or name.startswith(".env."):
-        return "credentials are immutable"
-    if t.endswith((".lock", ".pem", ".key")):
-        return "lockfiles and keys are immutable"
-    if not t.startswith("src/canary/"):
-        return "only src/canary/ may be modified"
-    return None
 
 
 def git(repo: Path, *args: str) -> str:
@@ -449,7 +420,7 @@ def revise_from_journal(
         try:
             record = assess_journal(notes, current_text, round_outcome, client,
                                     memory=memory, budget=budget, out_dir=adir,
-                                    code_revision=code_rev)
+                                    code_revision=code_rev, tree=repo)
         except AssessmentError as e:
             emit(journal, "revise", "assess-failed", str(e)[:200])
             break

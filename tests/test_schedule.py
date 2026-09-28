@@ -526,10 +526,13 @@ def test_lifecycle_assessment_disabled_is_noop(tmp_path):
 def test_lifecycle_assessment_persists_twins(tmp_path):
     journal = Journal()
     journal.note("review", "done", "ok")
+    tree = tmp_path / "tree"
+    (tree / "src" / "canary" / "foo.py").parent.mkdir(parents=True)
+    (tree / "src" / "canary" / "foo.py").write_text("# fixture\n")
     muse = ScriptedMuse()
     muse.queues["assess"] = [assess_reply(prop("p1"))]
     record = Lifecycle(journal, tmp_path / "out", assess_enabled=True).finish_assessment(
-        "done", muse)
+        "done", muse, tree=tree)
     assert record is not None and len(record.proposals) == 1
     assert (tmp_path / "out" / "assessments" / f"{record.id}.json").is_file()
     assert (tmp_path / "out" / "assessments" / f"{record.id}.md").is_file()

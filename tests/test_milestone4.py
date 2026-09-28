@@ -136,9 +136,13 @@ def test_journal_appends_durably(tmp_path):
 # --- assessment ---
 
 
-def test_parse_assessment_valid_and_capped():
+def test_parse_assessment_valid_and_capped(tmp_path):
+    tree = tmp_path / "tree"
+    (tree / "src" / "canary" / "a.py").parent.mkdir(parents=True)
+    (tree / "src" / "canary" / "a.py").write_text("# fixture\n")
     props = [{"id": f"p{i}", "target": "src/canary/a.py", "change": "c", "reason": "r"} for i in range(5)]
-    doc = refmod.parse_assessment(json.dumps({"assessment": "# R", "proposals": props}))
+    doc = refmod.parse_assessment(json.dumps({"assessment": "# R", "proposals": props}),
+                                  tree=tree)
     assert doc.markdown == "# R" and len(doc.proposals) == 3
 
 
