@@ -267,6 +267,26 @@ def _outcome_manifest(cand) -> dict:
     return {"base_rev": cand.base_rev, "diff_sha": cand.diff_sha, "files": files}
 
 
+def _record_ignore(repo: Path, assess_dir: str | Path | None) -> tuple[str, ...]:
+    """Top-level record dir to exclude from revision snapshots.
+
+    Run outputs (journal, checkpoints, candidates) live under out_dir,
+    which usually sits inside the repo under revision. Snapshots track
+    code, not run records: without the exclusion, the run's own writes
+    diverge the worktree and veto every later round (demo52b). Never
+    excludes src/ or tests/; assess dirs outside the repo need nothing.
+    """
+    if assess_dir is None:
+        return ()
+    try:
+        rel = Path(assess_dir).resolve().relative_to(Path(repo).resolve())
+    except (OSError, ValueError):
+        return ()
+    if not rel.parts or rel.parts[0] in ("src", "tests"):
+        return ()
+    return (rel.parts[0],)
+
+
 def apply_one(repo: Path, proposal: Proposal, diff: str, check_cmd: list[str], journal: Journal | None,
               assessment_id: str = "",
               assess_dir: str | Path | None = None,
@@ -280,12 +300,13 @@ def apply_one(repo: Path, proposal: Proposal, diff: str, check_cmd: list[str], j
     """
     repo = Path(repo)
     store = promotemod.Store(repo / "runs" / "promotions")
+    ignore = _record_ignore(repo, assess_dir)
     if store.latest_rev() is None:
         if not tree_clean(repo):
             return PatchOutcome(proposal.id, proposal.target, False, False,
                                 "worktree not clean; cannot anchor revision zero",
                                 assessment_id=assessment_id)
-        store.init_from_worktree(repo)
+        store.init_from_worktree(repo, ignore)
 
     def _record(status: str, reason: str, manifest: dict | None) -> None:
         if assess_dir is not None:
@@ -311,7 +332,7 @@ def apply_one(repo: Path, proposal: Proposal, diff: str, check_cmd: list[str], j
         return PatchOutcome(proposal.id, proposal.target, True, False, str(e),
                             cand.base_rev, manifest, assessment_id)
     emit(journal, "revise", "applied", f"{proposal.id}: rev {rev_id}")
-    sync_worktree_to_accepted(repo, store, journal)
+    sync_worktree_to_accepted(repo, store, journal, ignore)
     _record("kept", f"checks green, kept as {rev_id}", manifest)
     return PatchOutcome(proposal.id, proposal.target, True, True,
                         f"checks green, kept as {rev_id}",
@@ -319,14 +340,15 @@ def apply_one(repo: Path, proposal: Proposal, diff: str, check_cmd: list[str], j
 
 
 def sync_worktree_to_accepted(repo: Path, store: "promotemod.Store",
-                              journal: Journal | None = None) -> None:
+                              journal: Journal | None = None,
+                              ignore: tuple[str, ...] = ()) -> None:
     """Bring the live tree to the latest accepted snapshot. Halts on drift."""
     repo = Path(repo)
     rev_id = store.latest_rev()
     manifest = store.rev_manifest(rev_id) if rev_id else None
     if rev_id is None or manifest is None:
         raise RuntimeError("promotion store has no accepted revision to sync")
-    live = promotemod.hash_tree(repo)
+    live = promotemod.hash_tree(repo, ignore)
     want = manifest["files"]
     for path in sorted(set(live) ^ set(want)):
         target = repo / path
@@ -340,7 +362,7 @@ def sync_worktree_to_accepted(repo: Path, store: "promotemod.Store",
             target = repo / path
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(store.revs / rev_id / "tree" / path, target)
-    ok, divergent = promotemod.worktree_matches(store, repo)
+    ok, divergent = promotemod.worktree_matches(store, repo, ignore)
     if not ok:
         raise RuntimeError(f"worktree sync failed, divergent: {divergent}")
     emit(journal, "revise", "synced", f"worktree matches {rev_id}")
@@ -361,14 +383,15 @@ def revise_round(
     refuse_maintainer_credentials()
     require_revision_trust()
     store = promotemod.Store(repo / "runs" / "promotions")
+    ignore = _record_ignore(repo, assess_dir)
     if store.latest_rev() is None:
         if not tree_clean(repo):
             emit(journal, "revise", "aborted", "tree not clean")
             report.skipped = len(doc.proposals)
             return report
-        store.init_from_worktree(repo)
+        store.init_from_worktree(repo, ignore)
     else:
-        ok, divergent = promotemod.worktree_matches(store, repo)
+        ok, divergent = promotemod.worktree_matches(store, repo, ignore)
         if not ok:
             emit(journal, "revise", "aborted",
                  f"worktree differs from {store.latest_rev()}: {divergent}")

@@ -117,6 +117,57 @@ def test_second_round_starts_from_accepted_without_deadlock(repo):
     assert (repo / "src/canary/foo.py").read_text() == "X = 3\n"
 
 
+def test_run_outputs_do_not_veto_later_rounds(repo, tmp_path):
+    """The run's own out/ writes are records, not code drift (demo52b)."""
+    adir = repo / "out" / "assessments"
+
+    class DiffMuse:
+        model = "m"
+
+        def __init__(self, diffs):
+            self.diffs = list(diffs)
+
+        def complete(self, system, user, max_tokens=8000):
+            return self.diffs.pop(0)
+
+    journal = Journal()
+    rep1 = revmod.revise_round(repo, AssessmentDoc("R1", (prop("p1"),)),
+                               DiffMuse([DIFF_A]), journal, ["true"],
+                               assess_dir=adir)
+    assert rep1.kept == 1
+    # Mid-run output lands after the anchor, as a live run's would.
+    (repo / "out" / "journal.jsonl").write_text("{}\n", encoding="utf-8")
+    (repo / "out" / "checkpoints").mkdir(parents=True, exist_ok=True)
+    (repo / "out" / "checkpoints" / "c.json").write_text("{}\n", encoding="utf-8")
+    rep2 = revmod.revise_round(repo, AssessmentDoc("R2", (prop("p2"),)),
+                               DiffMuse([DIFF_B]), journal, ["true"],
+                               assess_dir=adir)
+    assert rep2.kept == 1
+    assert (repo / "src/canary/foo.py").read_text() == "X = 3\n"
+    assert (repo / "out" / "journal.jsonl").exists()  # records survive the sync
+    assert not [n for n in journal.notes if n.event == "aborted"]
+
+
+def test_record_ignore_never_excludes_code(repo, tmp_path):
+    assert revmod._record_ignore(repo, None) == ()
+    assert revmod._record_ignore(repo, tmp_path / "elsewhere") == ()
+    assert revmod._record_ignore(repo, repo / "out" / "assessments") == ("out",)
+    assert revmod._record_ignore(repo, repo / "src" / "canary") == ()
+    assert revmod._record_ignore(repo, repo) == ()
+
+
+def test_snapshot_ignore_is_symmetric(repo):
+    (repo / "out").mkdir()
+    (repo / "out" / "j.jsonl").write_text("{}\n", encoding="utf-8")
+    store = Store(repo / "runs" / "promotions")
+    store.init_from_worktree(repo, ("out",))
+    (repo / "out" / "c.json").write_text("{}\n", encoding="utf-8")
+    ok, _ = promotemod.worktree_matches(store, repo, ("out",))
+    assert ok
+    ok, divergent = promotemod.worktree_matches(store, repo)
+    assert not ok and divergent  # without the ignore, the drift still shows
+
+
 def test_round_record_roundtrips_for_publish(repo):
     doc = AssessmentDoc("R1", (prop("p1"),))
     store = Store(repo / "runs" / "promotions")
