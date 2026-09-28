@@ -520,6 +520,15 @@ class SelectorSession:
         self._emit = _emit
         self._counter = 0
         self.store: PolicyStore | None = None
+        if (config.mode == "learning" and config.policy_dir
+                and self.record_dir is not None):
+            policy_path = Path(config.policy_dir).resolve()
+            record_path = self.record_dir.resolve()
+            if policy_path != record_path and record_path not in policy_path.parents:
+                raise BanditError(
+                    f"learning policy_dir escapes the record dir ({policy_path} not under "
+                    f"{record_path}); learned updates would not export — point --bandit-dir "
+                    f"inside --out (e.g. $OUT/bandit), or run frozen against a staged prior")
         if config.mode in ("learning", "frozen"):
             try:
                 assert config.policy_dir is not None
