@@ -119,16 +119,15 @@ class Supervisor:
                 logfh.close()
             except OSError:
                 pass
-        # Record the finish BEFORE dropping ownership: reconcile finishes
-        # any unowned running row as interrupted, so popping first would let
-        # a concurrent poll misrecord a genuine finish as interrupted.
-        try:
-            row = runs.get(key, self.registry)
-            bundle = row.get("bundle", "") if row else ""
-            runs.register_finish(key, "done" if rc == 0 else "failed", bundle,
-                                 path=self.registry)
-        finally:
-            with self.lock:
+        # Finish and drop ownership atomically: reconcile interrupts any
+        # unowned running row, so the two must never be observed apart.
+        row = runs.get(key, self.registry)
+        bundle = row.get("bundle", "") if row else ""
+        with self.lock:
+            try:
+                runs.register_finish(key, "done" if rc == 0 else "failed",
+                                     bundle, path=self.registry)
+            finally:
                 self.owned.pop(key, None)
 
     # -- live state --
@@ -166,10 +165,16 @@ class Supervisor:
                 row["live"] = False
             with self.lock:
                 owned = row.get("key") in self.owned
-            if (row.get("status") in ("running", "paused") and not row["live"]
-                    and not owned):
-                finished = runs.register_finish(row["key"], "interrupted",
-                                                row.get("bundle", ""), path=self.registry)
+                stale = row.get("status") in ("running", "paused")
+                fresh = (runs.get(row["key"], self.registry)
+                         if stale and not row["live"] and not owned else None)
+                if (fresh is not None
+                        and fresh.get("status") in ("running", "paused")):
+                    finished = runs.register_finish(
+                        row["key"], "interrupted", row.get("bundle", ""),
+                        path=self.registry)
+                else:
+                    finished = None
                 if finished:
                     row.update(finished)
                     row["live"] = False

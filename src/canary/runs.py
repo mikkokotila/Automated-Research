@@ -65,19 +65,24 @@ def register_start(key: str, name: str, brief: str, kind: str = "?",
                    "iterations": [], "improvements": [], "tally": {}}, path)
 
 
+_NON_TERMINAL = (None, "unknown", "running", "paused", "")
+
+
 def register_finish(key: str, status: str = "done", bundle: str = "",
                     container: str = "", path: str | Path = REGISTRY) -> dict | None:
     rows = load(path)
     current = next((r for r in rows if r.get("key") == key), None)
     if current is None:
         return None
+    if current.get("status") not in _NON_TERMINAL:
+        return current  # terminal rows are immutable; late writers no-op
     target = Path(bundle or current.get("bundle", ""))
     if target.is_dir():
         parsed = parse_bundle(target)
         current.update({k: v for k, v in parsed.items()
                         if k != "bundle" and v not in (None, "?", {})})
         current["bundle"] = str(target)
-    if status != "done" or current.get("status") in (None, "unknown", "running", "", "done"):
+    if status != "done" or current.get("status") in _NON_TERMINAL:
         current["status"] = status  # failed/interrupted win; done defers to bundle
     current["ended_at"] = utcnow()
     if container:

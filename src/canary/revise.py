@@ -33,7 +33,8 @@ from .journal import Journal, emit
 from .muse_client import RequestBlocked
 from .assess import AssessmentError, Proposal, AssessmentDoc, assess, assess_journal
 from .changeset import (FORBIDDEN_FILES, FORBIDDEN_NAMES, FORBIDDEN_PREFIXES,
-                        ChangesetError, check_policy, parse_unified_diff,
+                        ChangesetError, check_policy, normalize_unified_diff,
+                        parse_unified_diff,
                         target_allowed, verify_in_disposable, worktree_status_paths)
 from .memory import Memory
 from . import promote as promotemod
@@ -234,23 +235,35 @@ def request_diff(proposal: Proposal, client: Completer, repo: Path | None = None
 def request_applicable_diff(proposal: Proposal, client: Completer, repo: Path,
                             context_record: dict | None = None,
                             journal: Journal | None = None,
-                            max_attempts: int = MAX_DIFF_ATTEMPTS) -> str:
+                            max_attempts: int = MAX_DIFF_ATTEMPTS,
+                            attempts_out: list | None = None) -> str:
     """Request a diff that parses, passes policy, and applies to the base.
 
     Malformed or non-applying diffs get a retry with the failure fed back;
     without this, most model diffs die expensively in full eval (demo52c:
     1 applicable in 5). Raises ChangesetError when no attempt applies —
-    the caller records a skip, never a silent drop.
+    the caller records a skip, never a silent drop. Every attempt lands in
+    attempts_out (raw bytes, normalized bytes, error) so failed shapes stay
+    diagnosable from the record instead of vanishing (keep1c).
     """
     feedback = ""
     for attempt in range(max(1, max_attempts)):
-        diff = request_diff(proposal, client, repo, context_record, feedback=feedback)
+        raw = request_diff(proposal, client, repo, context_record, feedback=feedback)
+        record = {"attempt": attempt + 1, "raw": raw, "normalized": "",
+                  "error": ""}
         try:
+            diff = normalize_unified_diff(raw)
+            record["normalized"] = diff
             ops = parse_unified_diff(diff)
             check_policy(ops, target_allowed)
             verify_in_disposable(repo, diff, ops)
+            if attempts_out is not None:
+                attempts_out.append(record)
             return diff
         except ChangesetError as e:
+            record["error"] = str(e)[:300]
+            if attempts_out is not None:
+                attempts_out.append(record)
             feedback = str(e)[:300]
             emit(journal, "revise", "diff-retry",
                  f"{proposal.id} attempt {attempt + 1}: {feedback}")
@@ -263,10 +276,13 @@ def _file_sha(path: Path) -> str:
 
 def save_candidate(assess_dir: str | Path, proposal: Proposal, diff: str,
                    manifest: dict | None, context_record: dict | None,
-                   assessment_id: str, status: str, reason: str) -> Path:
+                   assessment_id: str, status: str, reason: str,
+                   attempts: list | None = None) -> Path:
     """Provenance for one candidate: assessment, snapshot, benefit, raw diff.
 
     The raw diff is redacted before persistence; secrets never land in records.
+    Failed attempts persist alongside (redacted), so malformed model output
+    stays diagnosable instead of vanishing with only an error one-liner.
     """
     import json
 
@@ -274,12 +290,24 @@ def save_candidate(assess_dir: str | Path, proposal: Proposal, diff: str,
 
     out = Path(assess_dir) / "candidates"
     out.mkdir(parents=True, exist_ok=True)
+    kept_attempts = []
+    for entry in attempts or []:
+        raw_text, norm_text = (str(entry.get("raw", ""))[:20000],
+                               str(entry.get("normalized", ""))[:20000])
+        kept_attempts.append({
+            "attempt": entry.get("attempt"),
+            "error": entry.get("error", ""),
+            "normalized": bool(norm_text) and norm_text != raw_text,
+            "raw_diff": redact_text(raw_text),
+            "normalized_diff": redact_text(norm_text),
+        })
     payload = {
         "proposal_id": proposal.id, "target": proposal.target, "change": proposal.change,
         "reason": proposal.reason, "assessment_id": assessment_id, "status": status,
         "detail": reason, "manifest": manifest,
         "context": context_record or {},
         "raw_diff": redact_text(diff),
+        "attempts": kept_attempts,
     }
     path = out / f"{proposal.id}.json"
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
@@ -322,7 +350,8 @@ def _record_ignore(repo: Path, assess_dir: str | Path | None) -> tuple[str, ...]
 def apply_one(repo: Path, proposal: Proposal, diff: str, check_cmd: list[str], journal: Journal | None,
               assessment_id: str = "",
               assess_dir: str | Path | None = None,
-              context_record: dict | None = None) -> PatchOutcome:
+              context_record: dict | None = None,
+              attempts: list | None = None) -> PatchOutcome:
     """Evaluate transactionally, then sync the live tree to the new accepted rev.
 
     Validation, application, and testing happen in a disposable copy of the
@@ -343,7 +372,7 @@ def apply_one(repo: Path, proposal: Proposal, diff: str, check_cmd: list[str], j
     def _record(status: str, reason: str, manifest: dict | None) -> None:
         if assess_dir is not None:
             save_candidate(assess_dir, proposal, diff, manifest, context_record,
-                           assessment_id, status, reason)
+                           assessment_id, status, reason, attempts)
 
     try:
         cand = promotemod.evaluate(store, proposal, diff, check_cmd, assessment_id,
@@ -435,16 +464,17 @@ def revise_round(
         return report
     for proposal in doc.proposals[:MAX_PROPOSALS_PER_ROUND]:
         context_record: dict = {}
+        attempts: list = []
         try:
             diff = request_applicable_diff(proposal, client, repo, context_record,
-                                           journal)
+                                           journal, attempts_out=attempts)
         except RequestBlocked:
             raise
         except ChangesetError as e:
             reason = f"diff request failed: {e}"
             if assess_dir is not None:
                 save_candidate(assess_dir, proposal, "", None, context_record,
-                               assessment_id, "diff-failed", reason)
+                               assessment_id, "diff-failed", reason, attempts)
             report.outcomes.append(PatchOutcome(proposal.id, proposal.target, False, False, reason))
             report.skipped += 1
             continue
@@ -453,7 +483,7 @@ def revise_round(
             report.skipped += 1
             continue
         oc = apply_one(repo, proposal, diff, check_cmd, journal,
-                       assessment_id, assess_dir, context_record)
+                       assessment_id, assess_dir, context_record, attempts)
         report.outcomes.append(oc)
         if oc.kept:
             report.kept += 1
