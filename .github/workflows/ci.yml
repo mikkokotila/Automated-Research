@@ -77,3 +77,11 @@ jobs:
         with:
           name: containment-report
           path: containment-report.json
+  guard:
+    # External safety properties (Issue #63): runs from canary-guards, which
+    # PRs to this repo cannot reach. Pinned to a full SHA (no floating tags).
+    if: github.event_name == 'pull_request'
+    uses: mikkokotila/canary-guards/.github/workflows/guard.yml@b62838490030350152c4a7b7b46ee1f7d384f6fd
+    with:
+      repo: mikkokotila/Canary
+      ref: ${{ github.event.pull_request.head.sha }}
