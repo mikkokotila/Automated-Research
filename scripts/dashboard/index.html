@@ -145,6 +145,8 @@ a { color: var(--cyan); }
       <input id="f-brief" maxlength="2000" placeholder="what this run is for">
       <label>LAUNCH (must start with: bash scripts/container_run.sh ...)</label>
       <input id="f-argv" placeholder='cycle "seed?" --maintenance --repo /work --out /work/out'>
+      <label>ENV (advanced, optional — one KEY=value per line: CANARY_STAGE, CANARY_TIMEOUT_S, CANARY_WHEELS)</label>
+      <textarea id="f-env" rows="2" placeholder="CANARY_STAGE=dev"></textarea>
       <div><button class="act" id="f-go">LAUNCH</button></div>
     </div>
   </details>
@@ -492,10 +494,17 @@ document.getElementById("f-go").addEventListener("click", async () => {
   const rest = splitArgv(document.getElementById("f-argv").value.trim());
   if (!name) { status("err: name is required", "err"); return; }
   if (!rest.length) { status("err: launch command is required", "err"); return; }
+  const env = {};
+  for (const line of document.getElementById("f-env").value.split("\n")) {
+    const t = line.trim();
+    if (!t) continue;
+    const i = t.indexOf("=");
+    if (i > 0) env[t.slice(0, i).trim()] = t.slice(i + 1).trim();
+  }
   try {
     const d = await api("/api/runs", { method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, brief, argv: ["bash", "scripts/container_run.sh", ...rest] }) });
+      body: JSON.stringify({ name, brief, argv: ["bash", "scripts/container_run.sh", ...rest], env }) });
     status("ok: launched " + d.key, "ok");
     document.getElementById("launchbox").open = false;
     await loadRuns();
