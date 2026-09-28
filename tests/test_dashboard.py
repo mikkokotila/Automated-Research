@@ -1,6 +1,7 @@
 """Dashboard daemon: validation, supervision, API, and log merge."""
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import threading
@@ -87,6 +88,28 @@ def test_start_finishes_and_parses_bundle(server, monkeypatch):
     assert (server["root"] / "container-out" / f"{key}.launcher.log").exists()
 
 
+def test_wait_finishes_before_dropping_ownership(server, monkeypatch):
+    sup = dashboard.Supervisor(registry=server["registry"], root=server["root"])
+    runs.register_start("k1", "n", "b", path=server["registry"])
+    seen = {}
+    real_finish = runs.register_finish
+
+    def spy(key, *a, **k):
+        with sup.lock:
+            seen["owned"] = key in sup.owned
+        return real_finish(key, *a, **k)
+
+    monkeypatch.setattr(runs, "register_finish", spy)
+    proc = subprocess.Popen(["true"])
+    with sup.lock:
+        sup.owned["k1"] = proc
+    with open(os.devnull, "w") as logfh:
+        sup._wait("k1", proc, logfh)
+    assert seen["owned"] is True  # reconcile must see owned until finished
+    with sup.lock:
+        assert "k1" not in sup.owned
+
+
 def test_failed_launch_marks_failed(server, monkeypatch):
     monkeypatch.setattr(dashboard, "validate_launch", lambda argv: list(argv))
     argv = _stub_launcher(server["root"], rc=1)
@@ -94,6 +117,31 @@ def test_failed_launch_marks_failed(server, monkeypatch):
         "name": "bad", "brief": "b", "argv": argv})
     row = _wait_for(server["client"], r.json()["key"], "failed")
     assert row["status"] == "failed"
+
+
+def test_start_records_exact_argv(server, monkeypatch):
+    monkeypatch.setattr(dashboard, "validate_launch", lambda argv: list(argv))
+    argv = _stub_launcher(server["root"]) + ["seed with spaces?"]
+    r = server["client"].post("/api/runs", json={
+        "name": "argv probe", "brief": "b", "argv": argv})
+    assert r.status_code == 201
+    row = runs.get(r.json()["key"], server["registry"])
+    assert row["launch_argv"] == argv
+    assert row["launch"] == shlex.join(argv)
+
+
+def test_rerun_prefers_recorded_argv(server, monkeypatch):
+    monkeypatch.setattr(dashboard, "validate_launch", lambda argv: list(argv))
+    argv = _stub_launcher(server["root"]) + ["seed with spaces?"]
+    runs.register_start("orig", "n", "b", bundle="", container="",
+                        launch="LOSSY STRING", path=server["registry"],
+                        launch_argv=argv)
+    r = server["client"].post("/api/runs/orig/rerun", json={"name": "re"})
+    assert r.status_code == 201, r.text
+    key = r.json()["key"]
+    assert key != "orig"
+    row = _wait_for(server["client"], key, "converged")
+    assert row["launch_argv"] == argv  # spaces survived; lossy string ignored
 
 
 def test_start_rejects_bad_input(server):

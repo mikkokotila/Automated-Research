@@ -54,11 +54,13 @@ def get(key: str, path: str | Path = REGISTRY) -> dict | None:
 
 def register_start(key: str, name: str, brief: str, kind: str = "?",
                    bundle: str = "", container: str = "", launch: str = "",
-                   path: str | Path = REGISTRY) -> dict:
+                   path: str | Path = REGISTRY,
+                   launch_argv: list[str] | None = None) -> dict:
     return upsert({"key": key, "name": name, "brief": brief, "run_id": "?",
                    "kind": kind, "status": "running", "started_at": utcnow(),
                    "ended_at": None, "bundle": bundle, "container": container,
-                   "launch": launch, "seed": "?", "profile": "?",
+                   "launch": launch, "launch_argv": list(launch_argv or []),
+                   "seed": "?", "profile": "?",
                    "maintenance": False, "model": "?", "usage": {},
                    "iterations": [], "improvements": [], "tally": {}}, path)
 

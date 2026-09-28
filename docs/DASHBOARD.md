@@ -46,8 +46,10 @@ its budgets and resumes byte-identical on **Unpause**. Only live runs
 pause; anything else explains why it cannot.
 
 **Rerun** relaunches the run's recorded launch spec as a new named run
-(`<name> (rerun)`). It needs the recorded spec; adopted history without
-one says so instead of guessing.
+(`<name> (rerun)`). Starts record the exact argv array, so arguments with
+spaces round-trip; legacy rows with only a command string re-split it on
+a best-effort basis. Adopted history without any spec says so instead of
+guessing.
 
 ## Other views
 

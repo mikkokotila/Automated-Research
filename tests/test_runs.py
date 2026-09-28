@@ -1,5 +1,7 @@
 """Run registry: roundtrips and defensive bundle parsing."""
 import json
+import subprocess
+import sys
 
 import pytest
 
@@ -30,6 +32,38 @@ def _bundle(tmp_path, name="b1"):
     (b / "iterations" / "iter1.json").write_text(json.dumps(
         {"n": 1, "kind": "review", "question": "seed?"}))
     return b
+
+
+def test_register_start_stores_launch_argv(registry):
+    argv = ["bash", "scripts/container_run.sh", "cycle", "seed with spaces?"]
+    row = runs.register_start("k1", "n", "b", path=registry, launch_argv=argv)
+    assert row["launch_argv"] == argv
+    assert runs.get("k1", path=registry)["launch_argv"] == argv
+    row2 = runs.register_start("k2", "n", "b", path=registry)
+    assert row2["launch_argv"] == []  # old callers omit it
+
+
+def test_register_script_launch_argv(tmp_path, monkeypatch):
+    reg = tmp_path / "registry.json"
+    monkeypatch.setenv("CANARY_RUNS_REGISTRY", str(reg))
+    script = str(runs.ROOT / "scripts" / "register_run.py")
+    argv = ["bash", "scripts/container_run.sh", "cycle", "seed with spaces?"]
+    base = [sys.executable, script, "start", "--key", "s1", "--name", "n",
+            "--brief", "b", "--launch", "LOSSY"]
+    r = subprocess.run(base + ["--launch-argv", json.dumps(argv)],
+                       capture_output=True, text=True, timeout=30)
+    assert r.returncode == 0, r.stderr
+    assert runs.get("s1", path=reg)["launch_argv"] == argv
+    plain = [sys.executable, script, "start", "--key", "s0", "--name", "n",
+             "--brief", "b"]
+    r = subprocess.run(plain, capture_output=True, text=True, timeout=30)
+    assert r.returncode == 0  # no --launch-argv still works
+    assert runs.get("s0", path=reg)["launch_argv"] == []
+    bad = [sys.executable, script, "start", "--key", "s2", "--name", "n",
+           "--brief", "b", "--launch-argv", "{not json"]
+    r = subprocess.run(bad, capture_output=True, text=True, timeout=30)
+    assert r.returncode == 0
+    assert runs.get("s2", path=reg)["launch_argv"] == []  # invalid degrades
 
 
 def test_start_finish_roundtrip(registry):

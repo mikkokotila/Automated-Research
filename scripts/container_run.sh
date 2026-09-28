@@ -28,6 +28,8 @@ TIMEOUT_S="${CANARY_TIMEOUT_S:-1800}"
 RUN=(canary "$@")
 MODE="${1:-?}"
 ARGV_STR="$*"
+ARGV_JSON="$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' \
+  bash scripts/container_run.sh "$@" 2>/dev/null)" || ARGV_JSON=""
 if [ "${1:-}" = exec ]; then
   shift
   RUN=("$@")
@@ -134,7 +136,8 @@ RUN_BRIEF="${RUN_BRIEF:-canary $ARGV_STR}"
 RUN_KIND="${RUN_KIND:-$MODE}"
 python3 scripts/register_run.py start --key "$RUN_KEY" --name "$RUN_NAME" \
   --brief "$RUN_BRIEF" --kind "$RUN_KIND" --bundle "$OUT" --container "$NAME" \
-  --launch "bash scripts/container_run.sh $ARGV_STR" >/dev/null 2>&1 || true
+  --launch "bash scripts/container_run.sh $ARGV_STR" \
+  --launch-argv "$ARGV_JSON" >/dev/null 2>&1 || true
 docker run --name "$NAME" --network "$NETWORK" --user 10002:10002 \
   --cap-drop ALL --security-opt no-new-privileges --pids-limit 256 --memory 4g --cpus 2 \
   --stop-timeout 30 --read-only --tmpfs /tmp:rw,exec,size=512m --tmpfs /work:rw,size=2g,uid=10002,gid=10002 \

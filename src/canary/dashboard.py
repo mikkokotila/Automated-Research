@@ -105,7 +105,8 @@ class Supervisor:
         with self.lock:
             self.owned[key] = proc
         runs.register_start(key, name, brief, kind, str(bundle), "",
-                            " ".join(argv), path=self.registry)
+                            shlex.join(argv), path=self.registry,
+                            launch_argv=list(argv))
         threading.Thread(target=self._wait, args=(key, proc, logfh),
                          daemon=True).start()
         return {"key": key, "bundle": str(bundle)}
@@ -114,16 +115,21 @@ class Supervisor:
         try:
             rc = proc.wait()
         finally:
-            with self.lock:
-                self.owned.pop(key, None)
             try:
                 logfh.close()
             except OSError:
                 pass
-        row = runs.get(key, self.registry)
-        bundle = row.get("bundle", "") if row else ""
-        runs.register_finish(key, "done" if rc == 0 else "failed", bundle,
-                             path=self.registry)
+        # Record the finish BEFORE dropping ownership: reconcile finishes
+        # any unowned running row as interrupted, so popping first would let
+        # a concurrent poll misrecord a genuine finish as interrupted.
+        try:
+            row = runs.get(key, self.registry)
+            bundle = row.get("bundle", "") if row else ""
+            runs.register_finish(key, "done" if rc == 0 else "failed", bundle,
+                                 path=self.registry)
+        finally:
+            with self.lock:
+                self.owned.pop(key, None)
 
     # -- live state --
 
@@ -215,13 +221,17 @@ class Supervisor:
         row = runs.get(key, self.registry)
         if row is None:
             raise KeyError(key)
-        launch = row.get("launch", "")
-        if not launch:
-            raise RuntimeError("run has no recorded launch spec")
-        try:
-            argv = shlex.split(launch)
-        except ValueError as e:
-            raise RuntimeError(f"recorded launch is not parseable: {e}") from e
+        argv = row.get("launch_argv") or []
+        if not (isinstance(argv, list) and argv
+                and all(isinstance(a, str) for a in argv)):
+            launch = row.get("launch", "")
+            if not launch:
+                raise RuntimeError("run has no recorded launch spec")
+            try:
+                argv = shlex.split(launch)
+            except ValueError as e:
+                raise RuntimeError(
+                    f"recorded launch is not parseable: {e}") from e
         new_name = name or row.get("name", key) + " (rerun)"
         new_brief = brief or (row.get("brief", "") + f"\nRerun of {key}.")
         started = self.start(new_name, new_brief, argv)
