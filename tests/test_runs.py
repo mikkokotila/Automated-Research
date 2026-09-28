@@ -66,6 +66,18 @@ def test_register_script_launch_argv(tmp_path, monkeypatch):
     assert runs.get("s2", path=reg)["launch_argv"] == []  # invalid degrades
 
 
+def test_finish_never_clobbers_terminal_status(registry, tmp_path):
+    bundle = _bundle(tmp_path)  # manifest says converged
+    runs.register_start("k1", "n", "b", bundle=str(bundle), path=registry)
+    done = runs.register_finish("k1", "done", str(bundle), path=registry)
+    assert done["status"] == "converged"
+    end = done["ended_at"]
+    late = runs.register_finish("k1", "interrupted", str(bundle), path=registry)
+    assert late["status"] == "converged"  # stale poll must not clobber
+    assert late["ended_at"] == end
+    assert runs.register_finish("k1", "failed", path=registry)["status"] == "converged"
+
+
 def test_start_finish_roundtrip(registry):
     row = runs.register_start("k1", "name", "brief", "cycle", "b1", "c1",
                               "launch cmd", path=registry)

@@ -95,8 +95,8 @@ def test_wait_finishes_before_dropping_ownership(server, monkeypatch):
     real_finish = runs.register_finish
 
     def spy(key, *a, **k):
-        with sup.lock:
-            seen["owned"] = key in sup.owned
+        # No lock: _wait already holds it across the finish by design.
+        seen["owned"] = key in sup.owned
         return real_finish(key, *a, **k)
 
     monkeypatch.setattr(runs, "register_finish", spy)
