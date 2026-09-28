@@ -39,6 +39,17 @@ def fake_muse() -> FakeMuse:
     return FakeMuse()
 
 
+@pytest.fixture(autouse=True)
+def _scrub_role_markers(monkeypatch):
+    """Role markers are set explicitly per test, never inherited from ambient env.
+
+    The suite also runs in-guest as the revision eval gate, where the
+    launcher injects CANARY_GUEST=1; refusal tests must see a clean env.
+    """
+    monkeypatch.delenv("CANARY_GUEST", raising=False)
+    monkeypatch.delenv("CANARY_PUBLISHER", raising=False)
+
+
 # Synthetic recorded payloads: structurally faithful, no real papers.
 RECORDED_OPENALEX = {
     "results": [

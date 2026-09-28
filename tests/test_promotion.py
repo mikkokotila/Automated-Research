@@ -18,8 +18,8 @@ def repo(tmp_path, monkeypatch):
     r = tmp_path / "repo"
     (r / "src" / "canary").mkdir(parents=True)
     (r / "src" / "canary" / "foo.py").write_text("X = 1\n", encoding="utf-8")
-    for args in (["init", "-q"], ["config", "user.email", "t@t"], ["config", "user.name", "t"],
-                 ["add", "-A"], ["commit", "-qm", "init"]):
+    for args in (["init", "-q", "-b", "main"], ["config", "user.email", "t@t"],
+                 ["config", "user.name", "t"], ["add", "-A"], ["commit", "-qm", "init"]):
         subprocess.run(["git", *args], cwd=r, capture_output=True, check=True)
     return r
 
