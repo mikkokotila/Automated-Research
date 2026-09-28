@@ -291,6 +291,37 @@ def test_build_prompt_truncates_huge_lists(monkeypatch):
     assert len(prompt) <= 540 and prompt.endswith("[truncated for length]")
 
 
+def test_build_prompt_adds_coverage_warning_and_footer_instruction():
+    prompt = synthesize.build_prompt("q", [paper()], "degraded coverage: openalex failed")
+    assert "Coverage warning: degraded coverage: openalex failed" in prompt
+    assert "incomplete coverage" in prompt
+    assert "Coverage warning" not in synthesize.build_prompt("q", [paper()])
+
+
+def test_build_prompt_degraded_flag_without_detail():
+    prompt = synthesize.build_prompt("q", [paper()], degraded=True)
+    assert "some providers failed; sources are partial." in prompt
+
+
+def test_has_coverage_footer():
+    assert synthesize.has_coverage_footer("Review. Incomplete coverage of the evidence.")
+    assert not synthesize.has_coverage_footer("Review. Thorough and complete.")
+
+
+def test_synthesize_threads_coverage_warning_to_prompt():
+    seen = []
+
+    class Recorder:
+        model = "rec"
+
+        def complete(self, system, user, max_tokens=8000):
+            seen.append(user)
+            return "Fine [1]."
+
+    synthesize.synthesize("q", [paper()], Recorder(), "degraded coverage: x failed")
+    assert "Coverage warning: degraded coverage: x failed" in seen[0]
+
+
 # --- report ---
 
 
