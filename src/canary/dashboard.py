@@ -105,7 +105,8 @@ class Supervisor:
         with self.lock:
             self.owned[key] = proc
         runs.register_start(key, name, brief, kind, str(bundle), "",
-                            " ".join(argv), path=self.registry)
+                            shlex.join(argv), path=self.registry,
+                            launch_argv=list(argv))
         threading.Thread(target=self._wait, args=(key, proc, logfh),
                          daemon=True).start()
         return {"key": key, "bundle": str(bundle)}
@@ -215,13 +216,17 @@ class Supervisor:
         row = runs.get(key, self.registry)
         if row is None:
             raise KeyError(key)
-        launch = row.get("launch", "")
-        if not launch:
-            raise RuntimeError("run has no recorded launch spec")
-        try:
-            argv = shlex.split(launch)
-        except ValueError as e:
-            raise RuntimeError(f"recorded launch is not parseable: {e}") from e
+        argv = row.get("launch_argv") or []
+        if not (isinstance(argv, list) and argv
+                and all(isinstance(a, str) for a in argv)):
+            launch = row.get("launch", "")
+            if not launch:
+                raise RuntimeError("run has no recorded launch spec")
+            try:
+                argv = shlex.split(launch)
+            except ValueError as e:
+                raise RuntimeError(
+                    f"recorded launch is not parseable: {e}") from e
         new_name = name or row.get("name", key) + " (rerun)"
         new_brief = brief or (row.get("brief", "") + f"\nRerun of {key}.")
         started = self.start(new_name, new_brief, argv)

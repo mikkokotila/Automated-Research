@@ -21,6 +21,8 @@ def main(argv=None) -> int:
     s.add_argument("--bundle", default="")
     s.add_argument("--container", default="")
     s.add_argument("--launch", default="")
+    s.add_argument("--launch-argv", default="",
+                   help="JSON argv array; rerun prefers it over --launch")
     f = sub.add_parser("finish")
     f.add_argument("--key", required=True)
     f.add_argument("--status", default="done")
@@ -32,8 +34,16 @@ def main(argv=None) -> int:
     a.add_argument("--brief", default="")
     args = ap.parse_args(argv)
     if args.cmd == "start":
+        try:
+            argv = json.loads(args.launch_argv) if args.launch_argv else None
+        except (ValueError, TypeError):
+            argv = None
+        if not (isinstance(argv, list)
+                and all(isinstance(a, str) for a in argv)):
+            argv = None
         row = runs.register_start(args.key, args.name, args.brief, args.kind,
-                                  args.bundle, args.container, args.launch)
+                                  args.bundle, args.container, args.launch,
+                                  launch_argv=argv)
         print(json.dumps({"key": row["key"], "status": "running"}))
         return 0
     if args.cmd == "finish":
