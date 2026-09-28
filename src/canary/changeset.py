@@ -120,7 +120,10 @@ def normalize_unified_diff(diff: str) -> str:
     the model's semantic change; the counts are mechanical framing, so
     they are recomputed deterministically. Start lines are never moved:
     a hunk that still does not match the base fails verification as
-    before. Anything structurally invalid — bad body prefixes, empty
+    before. The text is also terminated with a newline: model output
+    routinely omits the final newline and git rejects the patch as
+    corrupt without it (keep1f p1: well-formed diff, rc=128, fixed by
+    one byte). Anything structurally invalid — bad body prefixes, empty
     hunks — raises ChangesetError instead of being guessed at.
     """
     trailing_nl = diff.endswith("\n")
@@ -167,7 +170,7 @@ def normalize_unified_diff(diff: str) -> str:
         out.extend(lines[i + 1:j])
         i = j
     fixed = "\n".join(out)
-    if trailing_nl and not fixed.endswith("\n"):
+    if fixed and not fixed.endswith("\n"):
         fixed += "\n"
     return fixed
 
