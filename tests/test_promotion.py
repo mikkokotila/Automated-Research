@@ -223,6 +223,18 @@ def test_unapplicable_diff_skips_after_bounded_retry(repo):
     assert (repo / "src/canary/foo.py").read_text() == "X = 1\n"
 
 
+def test_failed_diff_persists_candidate_record(repo, tmp_path):
+    import json
+
+    adir = tmp_path / "assess"
+    revmod.revise_round(repo, AssessmentDoc("R", (prop("p1"),)),
+                        RetryMuse([GARBAGE_DIFF, GARBAGE_DIFF]), Journal(),
+                        ["true"], assess_dir=adir)
+    saved = json.loads((adir / "candidates" / "p1.json").read_text(encoding="utf-8"))
+    assert saved["status"] == "diff-failed"
+    assert "no applicable diff" in saved["detail"]
+
+
 def test_round_record_roundtrips_for_publish(repo):
     doc = AssessmentDoc("R1", (prop("p1"),))
     store = Store(repo / "runs" / "promotions")

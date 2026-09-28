@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CANARY RUNS</title>
+<style>
+:root {
+  --bg: #0a0d0a;
+  --panel: #0e120e;
+  --line: #1e2b1e;
+  --ink: #cfe0cf;
+  --dim: #7c8f7c;
+  --faint: #4a5a4a;
+  --green: #4be38a;
+  --amber: #ffb000;
+  --red: #ff5f5f;
+  --cyan: #6fd3e0;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  margin: 0;
+  padding: 0 18px 60px;
+}
+header {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding: 14px 2px 10px;
+  border-bottom: 1px solid var(--line);
+}
+header h1 {
+  font-size: 15px;
+  letter-spacing: 3px;
+  margin: 0;
+  color: var(--green);
+  font-weight: 600;
+}
+header h1 .blk { color: var(--faint); }
+#dot { font-size: 11px; }
+#clock { margin-left: auto; color: var(--dim); font-size: 12px; }
+nav { display: flex; gap: 4px; padding: 10px 2px; }
+nav button {
+  background: none; border: none; color: var(--dim);
+  font: inherit; font-size: 12px; letter-spacing: 1px;
+  padding: 4px 10px; cursor: pointer;
+}
+nav button.on { color: var(--bg); background: var(--green); }
+nav button:hover:not(.on) { color: var(--ink); }
+table { width: 100%; border-collapse: collapse; }
+th {
+  text-align: left; font-weight: 400; font-size: 11px;
+  letter-spacing: 1px; color: var(--faint);
+  border-bottom: 1px solid var(--line);
+  padding: 6px 8px;
+}
+td { border-bottom: 1px solid var(--line); padding: 7px 8px; vertical-align: top; }
+tr.row:hover td { background: #10160f; }
+td.click { cursor: pointer; }
+td.click:hover { color: var(--green); }
+.titlecell { color: var(--ink); font-weight: 600; }
+.st-run { color: var(--green); }
+.st-pause { color: var(--amber); }
+.st-done { color: var(--dim); }
+.st-fail { color: var(--red); }
+.st-live { color: var(--green); font-size: 10px; }
+button.act {
+  background: none; border: 1px solid var(--faint); color: var(--dim);
+  font: inherit; font-size: 11px; padding: 2px 8px; cursor: pointer;
+  letter-spacing: 1px;
+}
+button.act:hover:not(:disabled) { border-color: var(--green); color: var(--green); }
+button.act:disabled { opacity: 0.35; cursor: default; }
+button.act.warn:hover:not(:disabled) { border-color: var(--amber); color: var(--amber); }
+tr.panel td { background: var(--panel); padding: 10px 12px; }
+.panel h4 {
+  margin: 0 0 6px; font-size: 11px; letter-spacing: 2px;
+  color: var(--faint); font-weight: 400;
+}
+.meta { display: grid; grid-template-columns: 130px 1fr; gap: 2px 12px; }
+.meta dt { color: var(--faint); }
+.meta dd { margin: 0; word-break: break-word; }
+.sub { font-size: 12px; }
+.sub td, .sub th { padding: 4px 8px; }
+pre.log {
+  background: #070a07; border: 1px solid var(--line);
+  padding: 10px; max-height: 420px; overflow: auto;
+  font-size: 12px; margin: 6px 0 0; white-space: pre-wrap;
+  word-break: break-word;
+}
+.logbar { display: flex; gap: 8px; align-items: center; margin-bottom: 2px; }
+.logbar select {
+  background: var(--bg); color: var(--ink); border: 1px solid var(--faint);
+  font: inherit; font-size: 11px; padding: 2px 4px;
+}
+.ev-journal .evh { color: var(--cyan); }
+.ev-ops .evh { color: var(--amber); }
+.ts { color: var(--faint); }
+details.launch { border: 1px solid var(--line); margin: 10px 0; }
+details.launch summary {
+  cursor: pointer; padding: 8px 12px; color: var(--dim);
+  letter-spacing: 2px; font-size: 12px;
+}
+details.launch summary:hover { color: var(--green); }
+.launchform { padding: 4px 12px 12px; display: grid; gap: 8px; }
+.launchform label { font-size: 11px; color: var(--faint); letter-spacing: 1px; }
+.launchform input {
+  background: var(--bg); border: 1px solid var(--faint); color: var(--ink);
+  font: inherit; font-size: 12px; padding: 6px 8px; width: 100%;
+}
+#statusline {
+  position: fixed; left: 0; right: 0; bottom: 0;
+  background: #070a07; border-top: 1px solid var(--line);
+  padding: 6px 18px; font-size: 12px; color: var(--dim);
+}
+#statusline .ok { color: var(--green); }
+#statusline .err { color: var(--red); }
+.totals td { border-bottom: none; color: var(--green); }
+a { color: var(--cyan); }
+.muted { color: var(--dim); }
+</style>
+</head>
+<body>
+<header>
+  <h1>CANARY <span class="blk">▚</span> RUNS</h1>
+  <span id="dot" class="st-done">●</span>
+  <span id="clock">--:--:--</span>
+</header>
+<nav id="tabs">
+  <button data-tab="runs" class="on">RUNS</button>
+  <button data-tab="usage">USAGE</button>
+  <button data-tab="findings">FINDINGS</button>
+  <button data-tab="experiments">EXPERIMENTS</button>
+</nav>
+<section id="view-runs">
+  <details class="launch" id="launchbox">
+    <summary>+ NEW RUN</summary>
+    <div class="launchform">
+      <label>NAME</label>
+      <input id="f-name" maxlength="120" placeholder="e.g. night loop — readmission seed">
+      <label>BRIEF</label>
+      <input id="f-brief" maxlength="2000" placeholder="what this run is for">
+      <label>LAUNCH (must start with: bash scripts/container_run.sh ...)</label>
+      <input id="f-argv" placeholder='cycle "seed?" --maintenance --repo /work --out /work/out'>
+      <div><button class="act" id="f-go">LAUNCH</button></div>
+    </div>
+  </details>
+  <table id="runs">
+    <thead><tr>
+      <th>TITLE</th><th>RUN ID</th><th>STARTED</th><th>ENDED</th><th>STATUS</th>
+      <th title="code changes proposed">Δ</th><th title="loop iterations">LOOP</th>
+      <th>LOG</th><th>RERUN</th><th>PAUSE</th>
+    </tr></thead>
+    <tbody></tbody>
+  </table>
+</section>
+<section id="view-usage" hidden>
+  <table id="usage"><thead><tr>
+    <th>RUN</th><th>STATUS</th><th>CALLS</th><th>TOKENS</th>
+  </tr></thead><tbody></tbody></table>
+</section>
+<section id="view-findings" hidden>
+  <div class="panel"><h4>OPEN ISSUES</h4><table id="issues" class="sub">
+    <thead><tr><th>#</th><th>TITLE</th><th>LABELS</th><th>UPDATED</th></tr></thead>
+    <tbody></tbody></table></div>
+  <div class="panel" style="margin-top:14px"><h4>OPEN PRS</h4><table id="prs" class="sub">
+    <thead><tr><th>#</th><th>TITLE</th><th>BRANCH</th><th>UPDATED</th></tr></thead>
+    <tbody></tbody></table></div>
+  <p id="findings-err" class="muted"></p>
+</section>
+<section id="view-experiments" hidden>
+  <div id="exps"></div>
+</section>
+<div id="statusline">&gt; <span id="statusmsg">ready</span></div>
+<script>
+"use strict";
+/* State */
+const S = { runs: [], tab: "runs", open: {}, logStream: {}, logTail: 500,
+            logData: {}, timer: null, daemonOk: false };
+
+/* Helpers: every interpolated value is escaped (rows carry model text). */
+function esc(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function fmtTime(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return isNaN(d) ? esc(iso) : d.toLocaleString();
+}
+function status(msg, cls) {
+  const el = document.getElementById("statusmsg");
+  el.textContent = msg;
+  el.className = cls || "";
+}
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || ("HTTP " + r.status));
+  S.daemonOk = true;
+  return data;
+}
+function stClass(status, live) {
+  if (live && status === "paused") return "st-pause";
+  if (live) return "st-run";
+  if (["done", "converged"].includes(status)) return "st-done";
+  if (["failed", "interrupted", "timeout"].includes(status)) return "st-fail";
+  return "st-done";
+}
+function stLabel(row) {
+  const live = row.live ? '<span class="st-live"> ●LIVE</span>' : "";
+  return esc(row.status || "?").toUpperCase() + live;
+}
+
+/* Runs table */
+function isOpen(key, panel) {
+  return (S.open[key] || []).includes(panel);
+}
+function toggle(key, panel) {
+  const cur = S.open[key] || [];
+  S.open[key] = cur.includes(panel) ? cur.filter(p => p !== panel) : [...cur, panel];
+  if (panel === "log" && S.open[key].includes("log")) refreshLog(key);
+  renderRuns();
+}
+function canPause(row) {
+  return row.live && row.status !== "paused";
+}
+function rowHtml(r) {
+  const key = esc(r.key);
+  const nimpr = (r.improvements || []).length;
+  const nloop = (r.iterations || []).length;
+  const paused = r.status === "paused" && r.live;
+  const pauseBtn = paused
+    ? `<button class="act warn" data-act="unpause" data-key="${key}">UNPAUSE</button>`
+    : `<button class="act warn" data-act="pause" data-key="${key}"`
+      + (canPause(r) ? "" : " disabled title='only live runs pause'") + ">PAUSE</button>";
+  let h = `<tr class="row" data-key="${key}">`
+    + `<td class="click titlecell" data-t="brief">${esc(r.name || r.key)}</td>`
+    + `<td class="muted">${esc(r.run_id || "?")}</td>`
+    + `<td>${fmtTime(r.started_at)}</td>`
+    + `<td>${fmtTime(r.ended_at)}</td>`
+    + `<td class="${stClass(r.status, r.live)}">${stLabel(r)}</td>`
+    + `<td class="click" data-t="impr" title="code changes">${nimpr} Δ</td>`
+    + `<td class="click" data-t="loop" title="loop iterations">${nloop} LOOP</td>`
+    + `<td><button class="act" data-t="log">LOG</button></td>`
+    + `<td><button class="act" data-act="rerun" data-key="${key}"`
+    + (r.launch ? "" : " disabled title='no recorded launch'") + ">RERUN</button></td>`
+    + `<td>${pauseBtn}</td></tr>`;
+  if (isOpen(r.key, "brief")) h += briefHtml(r);
+  if (isOpen(r.key, "impr")) h += improvementsHtml(r);
+  if (isOpen(r.key, "loop")) h += iterationsHtml(r);
+  if (isOpen(r.key, "log")) h += `<tr class="panel" data-key="${key}"><td colspan="10">`
+    + `<h4>RAW LOG — ${key}</h4><div id="log-${key}">loading…</div></td></tr>`;
+  return h;
+}
+function briefHtml(r) {
+  const u = r.usage || {}, t = r.tally || {};
+  return `<tr class="panel"><td colspan="10"><h4>BRIEF</h4>`
+    + `<p>${esc(r.brief || "(no brief recorded)")}</p>`
+    + `<dl class="meta">`
+    + `<dt>seed</dt><dd>${esc(r.seed || "?")}</dd>`
+    + `<dt>kind / profile</dt><dd>${esc(r.kind || "?")} / ${esc(r.profile || "?")}`
+    + (r.maintenance ? " / maintenance" : "") + `</dd>`
+    + `<dt>model</dt><dd>${esc(r.model || "?")}</dd>`
+    + `<dt>usage</dt><dd>${esc(u.model_calls || 0)} calls, ${esc(u.tokens || 0)} tokens</dd>`
+    + `<dt>patches</dt><dd>kept=${esc(t.kept || 0)} reverted=${esc(t.reverted || 0)}`
+    + ` skipped=${esc(t.skipped || 0)}</dd>`
+    + `<dt>container</dt><dd>${esc(r.container || "—")}</dd>`
+    + `<dt>bundle</dt><dd>${esc(r.bundle || "—")}</dd>`
+    + `<dt>launch</dt><dd>${esc(r.launch || "—")}</dd>`
+    + `</dl></td></tr>`;
+}
+function improvementsHtml(r) {
+  const rows = (r.improvements || []).map(p => {
+    const pr = p.pr_url && /^https?:\/\//.test(p.pr_url)
+      ? `<a href="${esc(p.pr_url)}" target="_blank" rel="noopener">PR</a>`
+        + (p.merged ? " merged" : " open")
+      : `<span class="muted">not filed</span>`;
+    return `<tr><td>${esc(p.id)}</td><td>${esc(p.target)}</td>`
+      + `<td>${esc(p.status)}</td><td>${esc(p.reason)}</td><td>${pr}</td></tr>`;
+  }).join("") || `<tr><td colspan="5" class="muted">no code changes proposed</td></tr>`;
+  return `<tr class="panel"><td colspan="10"><h4>IMPROVEMENTS — code changes</h4>`
+    + `<table class="sub"><thead><tr><th>ID</th><th>TARGET</th><th>STATUS</th>`
+    + `<th>REASON</th><th>PR</th></tr></thead><tbody>${rows}</tbody></table></td></tr>`;
+}
+function iterationsHtml(r) {
+  const rows = (r.iterations || []).map(i =>
+    `<tr><td>${esc(i.n)}</td><td>${esc(i.kind)}</td><td>${esc(i.status)}</td>`
+    + `<td>${esc(i.question)}</td></tr>`
+  ).join("") || `<tr><td colspan="4" class="muted">no loop iterations recorded</td></tr>`;
+  return `<tr class="panel"><td colspan="10"><h4>LOOP — reformulations in order</h4>`
+    + `<table class="sub"><thead><tr><th>#</th><th>KIND</th><th>STATUS</th>`
+    + `<th>QUESTION</th></tr></thead><tbody>${rows}</tbody></table></td></tr>`;
+}
+function renderRuns() {
+  const tb = document.querySelector("#runs tbody");
+  tb.innerHTML = S.runs.map(rowHtml).join("")
+    || `<tr><td colspan="10" class="muted">no runs registered</td></tr>`;
+  for (const key of Object.keys(S.open)) {
+    if ((S.open[key] || []).includes("log")) paintLog(key);
+  }
+}
+
+/* Raw log */
+async function refreshLog(key) {
+  try {
+    const stream = S.logStream[key] || "timeline";
+    const d = await api(`/api/runs/${encodeURIComponent(key)}/log?tail=${S.logTail}&stream=all`);
+    S.logData[key] = d;
+    paintLog(key, stream);
+  } catch (e) {
+    const el = document.getElementById("log-" + key);
+    if (el) el.innerHTML = `<span class="st-fail">log unavailable: ${esc(e.message)}</span>`;
+  }
+}
+function paintLog(key, stream) {
+  const el = document.getElementById("log-" + key);
+  const d = S.logData[key];
+  if (!el || !d) return;
+  stream = stream || S.logStream[key] || "timeline";
+  S.logStream[key] = stream;
+  const btn = s => `<button class="act" data-log="${esc(key)}|${s}"`
+    + (s === stream ? ' style="border-color:var(--green);color:var(--green)"' : "") + `>${s.toUpperCase()}</button>`;
+  let body = "";
+  if (stream === "timeline") {
+    body = (d.timeline || []).map(e =>
+      `<div class="ev-${esc(e.source)}"><span class="ts">${esc(e.t)} s${esc(e.seq)}</span> `
+      + `<span class="evh">[${esc(e.source)}:${esc(e.phase)}/${esc(e.event)}]</span> ${esc(e.detail)}</div>`
+    ).join("") || `<span class="muted">no events recorded</span>`;
+  } else if (stream === "console") {
+    const c = d.console || {};
+    body = c.present ? esc((c.lines || []).join("\n")) || `<span class="muted">(empty)</span>`
+      : `<span class="muted">${esc(c.note || "no console captured")}</span>`;
+  } else {
+    const l = d.launcher || {};
+    body = l.present ? esc((l.lines || []).join("\n")) || `<span class="muted">(empty)</span>`
+      : `<span class="muted">no launcher log (run was not started by the daemon)</span>`;
+  }
+  el.innerHTML = `<div class="logbar">${btn("timeline")}${btn("console")}${btn("launcher")}`
+    + `<select id="tail-${esc(key)}">`
+    + [100, 500, 2000].map(n => `<option value="${n}"${n === S.logTail ? " selected" : ""}>last ${n}</option>`).join("")
+    + `</select>${d.live ? '<span class="st-live">●LIVE — refreshing</span>' : ""}</div>`
+    + `<pre class="log">${body}</pre>`;
+  el.querySelector("select").addEventListener("change", ev => {
+    S.logTail = parseInt(ev.target.value, 10);
+    refreshLog(key);
+  });
+}
+
+/* Other views */
+function renderUsage(rows) {
+  let tc = 0, tt = 0;
+  const h = rows.map(r => {
+    tc += r.model_calls || 0; tt += r.tokens || 0;
+    return `<tr><td>${esc(r.name || r.key)}</td><td>${esc(r.status || "?")}</td>`
+      + `<td>${esc(r.model_calls || 0)}</td><td>${esc(r.tokens || 0)}</td></tr>`;
+  }).join("");
+  document.querySelector("#usage tbody").innerHTML = h
+    + `<tr class="totals"><td>TOTAL</td><td></td><td>${tc}</td><td>${tt}</td></tr>`;
+}
+function renderFindings(d) {
+  const issues = (d.issues || []).map(i =>
+    `<tr><td><a href="https://github.com/mikkokotila/Canary/issues/${i.number}" target="_blank" rel="noopener">#${i.number}</a></td>`
+    + `<td>${esc(i.title)}</td><td>${esc((i.labels || []).map(l => l.name).join(", "))}</td>`
+    + `<td>${fmtTime(i.updatedAt)}</td></tr>`).join("");
+  const prs = (d.prs || []).map(p =>
+    `<tr><td><a href="https://github.com/mikkokotila/Canary/pull/${p.number}" target="_blank" rel="noopener">#${p.number}</a></td>`
+    + `<td>${esc(p.title)}</td><td>${esc(p.headRefName || "")}</td>`
+    + `<td>${fmtTime(p.updatedAt)}</td></tr>`).join("");
+  document.querySelector("#issues tbody").innerHTML = issues
+    || `<tr><td colspan="4" class="muted">none open</td></tr>`;
+  document.querySelector("#prs tbody").innerHTML = prs
+    || `<tr><td colspan="4" class="muted">none open</td></tr>`;
+  document.getElementById("findings-err").textContent = d.error || "";
+}
+function renderExperiments(list) {
+  document.getElementById("exps").innerHTML = (list || []).map(x => {
+    const rows = (x.verdicts || []).map(v =>
+      `<tr><td>${esc(v.scenario)}</td>`
+      + `<td class="${v.status === "pass" ? "st-run" : "st-fail"}">${esc(v.status)}</td>`
+      + `<td>${esc(v.detail || "")}</td><td>${esc(v.duration_s ?? "")}</td></tr>`).join("");
+    const npass = (x.verdicts || []).filter(v => v.status === "pass").length;
+    return `<div class="panel"><h4>ACCEPTANCE ${esc(x.date)} — rev ${esc(x.repo_rev)} — `
+      + `${npass}/${(x.verdicts || []).length} pass</h4>`
+      + `<table class="sub"><thead><tr><th>SCENARIO</th><th>STATUS</th><th>DETAIL</th><th>S</th>`
+      + `</tr></thead><tbody>${rows}</tbody></table></div>`;
+  }).join("") || `<p class="muted">no acceptance runs recorded</p>`;
+}
+
+/* Actions */
+function splitArgv(line) {
+  const out = [];
+  let cur = "", q = null;
+  for (const ch of line) {
+    if (q) {
+      if (ch === q) q = null;
+      else cur += ch;
+    } else if (ch === '"' || ch === "'") {
+      q = ch;
+    } else if (/\s/.test(ch)) {
+      if (cur) { out.push(cur); cur = ""; }
+    } else {
+      cur += ch;
+    }
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+async function act(action, key, body) {
+  try {
+    const d = await api(`/api/runs/${encodeURIComponent(key)}/${action}`,
+      { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body || {}) });
+    status(`ok: ${action} ${key}` + (d.key && d.key !== key ? ` → ${d.key}` : ""), "ok");
+    await loadRuns();
+  } catch (e) {
+    status(`err: ${action} ${key}: ${e.message}`, "err");
+  }
+}
+
+/* Wiring */
+async function loadRuns() {
+  try {
+    const d = await api("/api/runs");
+    S.runs = d.runs || [];
+    document.getElementById("dot").className = "st-run";
+    renderRuns();
+  } catch (e) {
+    document.getElementById("dot").className = "st-fail";
+    status("err: daemon unreachable: " + e.message, "err");
+  }
+}
+async function loadTab() {
+  try {
+    if (S.tab === "usage") renderUsage((await api("/api/usage")).usage || []);
+    if (S.tab === "findings") renderFindings(await api("/api/findings"));
+    if (S.tab === "experiments") renderExperiments((await api("/api/experiments")).experiments || []);
+  } catch (e) {
+    status("err: " + e.message, "err");
+  }
+}
+function setTab(name) {
+  S.tab = name;
+  document.querySelectorAll("#tabs button").forEach(b =>
+    b.classList.toggle("on", b.dataset.tab === name));
+  for (const t of ["runs", "usage", "findings", "experiments"]) {
+    document.getElementById("view-" + t).hidden = t !== name;
+  }
+  if (name === "runs") loadRuns();
+  else loadTab();
+  armPoll();
+}
+function armPoll() {
+  if (S.timer) clearInterval(S.timer);
+  S.timer = setInterval(() => {
+    if (S.tab !== "runs") return;
+    loadRuns();
+    for (const key of Object.keys(S.open)) {
+      if (!(S.open[key] || []).includes("log")) continue;
+      const row = S.runs.find(r => r.key === key);
+      if (row && row.live) refreshLog(key);
+    }
+  }, 5000);
+}
+document.querySelector("#tabs").addEventListener("click", e => {
+  if (e.target.dataset.tab) setTab(e.target.dataset.tab);
+});
+document.querySelector("#runs").addEventListener("click", e => {
+  const t = e.target.closest("[data-t]");
+  if (t) {
+    const key = t.closest("tr").dataset.key;
+    toggle(key, t.dataset.t);
+    return;
+  }
+  const a = e.target.closest("[data-act]");
+  if (a && !a.disabled) act(a.dataset.act, a.dataset.key);
+});
+document.querySelector("#runs").addEventListener("click", e => {
+  const b = e.target.closest("[data-log]");
+  if (!b) return;
+  const [key, stream] = b.dataset.log.split("|");
+  S.logStream[key] = stream;
+  paintLog(key, stream);
+});
+document.getElementById("f-go").addEventListener("click", async () => {
+  const name = document.getElementById("f-name").value.trim();
+  const brief = document.getElementById("f-brief").value.trim();
+  const rest = splitArgv(document.getElementById("f-argv").value.trim());
+  if (!name) { status("err: name is required", "err"); return; }
+  if (!rest.length) { status("err: launch command is required", "err"); return; }
+  try {
+    const d = await api("/api/runs", { method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, brief, argv: ["bash", "scripts/container_run.sh", ...rest] }) });
+    status("ok: launched " + d.key, "ok");
+    document.getElementById("launchbox").open = false;
+    await loadRuns();
+  } catch (e) {
+    status("err: launch: " + e.message, "err");
+  }
+});
+setInterval(() => {
+  document.getElementById("clock").textContent = new Date().toLocaleTimeString();
+}, 1000);
+loadRuns();
+armPoll();
+</script>
+</body>
+</html>

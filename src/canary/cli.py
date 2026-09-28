@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shlex
 import sys
 from dataclasses import replace
@@ -13,6 +14,7 @@ import httpx
 
 from . import analysis, data as datamod, cycle as cyclemod, modeling, rank, report, retrieval, synthesize
 from .cycle import ResumeError
+from . import runs as runsmod
 from .revise import revise_from_journal
 from .journal import Journal, emit
 from .lifecycle import Lifecycle
@@ -161,6 +163,36 @@ def main(argv: list[str] | None = None) -> int:
     pb.add_argument("--repo", default=".", help="repo checkout holding the promotion store")
     pb.add_argument("--run-dir", required=True, help="bundle dir containing journal.jsonl")
     pb.add_argument("--round", default="latest", help="recorded round id to publish")
+    rn = sub.add_parser("runs", help="named runs: list, inspect, serve, control")
+    rnsub = rn.add_subparsers(dest="runs_cmd", required=True)
+    rnsub.add_parser("list", help="table of registered runs")
+    sh = rnsub.add_parser("show", help="full record for one run")
+    sh.add_argument("key", help="registry key")
+    lg = rnsub.add_parser("log", help="print a run's raw log")
+    lg.add_argument("key", help="registry key")
+    lg.add_argument("--tail", type=int, default=200)
+    lg.add_argument("--stream", default="all", choices=["all", "timeline", "console"])
+    sv = rnsub.add_parser("serve", help="serve the dashboard + control API (foreground)")
+    sv.add_argument("--port", type=int, default=None)
+    st = rnsub.add_parser("start", help="launch a named run via the daemon")
+    st.add_argument("--name", required=True)
+    st.add_argument("--brief", default="")
+    st.add_argument("--port", type=int, default=None)
+    st.add_argument("argv", nargs=argparse.REMAINDER,
+                    help="launcher args after -- (must start with the launcher)")
+    for verb in ("pause", "unpause"):
+        pv = rnsub.add_parser(verb, help=f"{verb} a live run's container")
+        pv.add_argument("key", help="registry key")
+        pv.add_argument("--port", type=int, default=None)
+    rr = rnsub.add_parser("rerun", help="relaunch a run's recorded spec as a new run")
+    rr.add_argument("key", help="registry key")
+    rr.add_argument("--name", default="")
+    rr.add_argument("--brief", default="")
+    rr.add_argument("--port", type=int, default=None)
+    ad = rnsub.add_parser("adopt", help="register an existing bundle dir")
+    ad.add_argument("--bundle", required=True)
+    ad.add_argument("--name", default="")
+    ad.add_argument("--brief", default="")
     args = ap.parse_args(argv)
     if args.cmd == "inspect":
         print(json.dumps(report.read_bundle(args.bundle), indent=2, default=str))
@@ -193,6 +225,8 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         print(url)
         return 0
+    if args.cmd == "runs":
+        return runs_cmd(args)
     try:
         spec = build_spec(args)
         bandit = build_bandit(args)
@@ -359,6 +393,112 @@ def publish_recorded(repo: str, run_dir: str, round_id: str = "latest") -> str:
     print(f"publish: issue={pub.issue_url or 'none'} pr={pub.pr_url or 'none'} "
           f"merged={pub.merged}")
     return pub.pr_url or pub.issue_url or ""
+
+
+def _runs_registry() -> str:
+    return os.environ.get("CANARY_RUNS_REGISTRY", str(runsmod.REGISTRY))
+
+
+def _runs_port(args) -> int:
+    if getattr(args, "port", None):
+        return args.port
+    try:
+        return int(os.environ.get("CANARY_RUNS_PORT", "8789"))
+    except ValueError:
+        return 8789
+
+
+def _runs_post(port: int, path: str, payload: dict):
+    try:
+        r = httpx.post(f"http://127.0.0.1:{port}{path}", json=payload, timeout=30.0)
+    except httpx.HTTPError:
+        return None, ("runsd is not serving on 127.0.0.1:"
+                      f"{port} — start it with: canary runs serve --port {port}")
+    if r.status_code >= 400:
+        try:
+            return None, r.json().get("error", f"HTTP {r.status_code}")
+        except ValueError:
+            return None, f"HTTP {r.status_code}"
+    return r.json(), ""
+
+
+def runs_cmd(args) -> int:
+    """Named-runs control surface (local reads + daemon actions)."""
+    from . import dashboard as dashboardmod
+
+    cmd = args.runs_cmd
+    if cmd == "serve":
+        dashboardmod.serve(_runs_port(args))
+        return 0
+    if cmd == "list":
+        rows = runsmod.load(_runs_registry())
+        print(f"{'KEY':28} {'STATUS':12} {'KIND':8} NAME")
+        for row in rows:
+            print(f"{row.get('key', '?'):28} {row.get('status', '?'):12} "
+                  f"{row.get('kind', '?'):8} {row.get('name', '')}")
+        return 0
+    if cmd == "show":
+        row = runsmod.get(args.key, _runs_registry())
+        if row is None:
+            print(f"canary: unknown run {args.key}", file=sys.stderr)
+            return 1
+        print(json.dumps(row, indent=1))
+        return 0
+    if cmd == "log":
+        row = runsmod.get(args.key, _runs_registry())
+        if row is None:
+            print(f"canary: unknown run {args.key}", file=sys.stderr)
+            return 1
+        bundle = row.get("bundle", "")
+        if args.stream in ("all", "timeline"):
+            for ev in dashboardmod.merged_timeline(bundle, args.tail):
+                print(f"{ev['t']} s{ev['seq']} [{ev['source']}:"
+                      f"{ev['phase']}/{ev['event']}] {ev['detail']}")
+        if args.stream in ("all", "console"):
+            console = dashboardmod.console_tail(bundle, args.tail)
+            if console["present"]:
+                print("--- console ---")
+                print("\n".join(console["lines"]))
+            else:
+                print(f"--- console: {console['note']}")
+        return 0
+    if cmd == "adopt":
+        if not Path(args.bundle).is_dir():
+            print(f"canary: not a directory: {args.bundle}", file=sys.stderr)
+            return 1
+        row = runsmod.adopt_bundle(args.bundle, args.name, args.brief,
+                                   _runs_registry())
+        print(f"adopted {row['key']}: {row['name']} [{row['status']}]")
+        return 0
+    port = _runs_port(args)
+    if cmd == "start":
+        argv = list(args.argv or [])
+        if argv and argv[0] == "--":
+            argv = argv[1:]
+        data, err = _runs_post(port, "/api/runs",
+                               {"name": args.name, "brief": args.brief, "argv": argv})
+        if err:
+            print(f"canary: error: {err}", file=sys.stderr)
+            return 1
+        print(f"launched {data['key']}")
+        return 0
+    if cmd in ("pause", "unpause"):
+        data, err = _runs_post(port, f"/api/runs/{args.key}/{cmd}", {})
+        if err:
+            print(f"canary: error: {err}", file=sys.stderr)
+            return 1
+        print(f"{args.key}: {data['status']}")
+        return 0
+    if cmd == "rerun":
+        data, err = _runs_post(port, f"/api/runs/{args.key}/rerun",
+                               {"name": args.name, "brief": args.brief})
+        if err:
+            print(f"canary: error: {err}", file=sys.stderr)
+            return 1
+        print(f"relaunched {args.key} as {data['key']}")
+        return 0
+    print(f"canary: unknown runs command {cmd}", file=sys.stderr)
+    return 2
 
 
 def analyze(spec: RunSpec, assess: bool = False) -> str:

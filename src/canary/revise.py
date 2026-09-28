@@ -440,6 +440,14 @@ def revise_round(
                                            journal)
         except RequestBlocked:
             raise
+        except ChangesetError as e:
+            reason = f"diff request failed: {e}"
+            if assess_dir is not None:
+                save_candidate(assess_dir, proposal, "", None, context_record,
+                               assessment_id, "diff-failed", reason)
+            report.outcomes.append(PatchOutcome(proposal.id, proposal.target, False, False, reason))
+            report.skipped += 1
+            continue
         except Exception as e:
             report.outcomes.append(PatchOutcome(proposal.id, proposal.target, False, False, f"diff request failed: {e}"))
             report.skipped += 1

@@ -5,6 +5,7 @@ __pycache__/
 out/
 container-out/
 containment-report.json
+runs/
 .DS_Store
 
 # Credentials and development caches

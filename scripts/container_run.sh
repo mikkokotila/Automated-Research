@@ -17,6 +17,8 @@
 #                     src is https://... (host curl, capped) or a host file (cp)
 #   ALLOW_DIRTY=1     operator override for the clean-tree requirement (logged)
 #   exec ...          run a raw guest command (operator fixture hook, contained)
+#   RUN_KEY           dashboard registry key (default: OUT basename)
+#   RUN_NAME/RUN_BRIEF name the run in the dashboard (default: key / argv echo)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 IMG="${IMG:-canary:local}"
@@ -24,6 +26,8 @@ NETWORK="${CANARY_NETWORK:-canary-private}"
 GATE="${CANARY_GATE_NAME:-canary-gate}"
 TIMEOUT_S="${CANARY_TIMEOUT_S:-1800}"
 RUN=(canary "$@")
+MODE="${1:-?}"
+ARGV_STR="$*"
 if [ "${1:-}" = exec ]; then
   shift
   RUN=("$@")
@@ -123,6 +127,14 @@ set +e
 # /tmp is exec (Docker tmpfs defaults to noexec): the revision eval gate runs
 # the test suite in-guest, and hermetic fixtures stage executable stubs there.
 BASE_REV="$(git rev-parse HEAD)"
+# Dashboard registry hooks (best-effort: they must never fail a run).
+RUN_KEY="${RUN_KEY:-$(basename "$OUT")}"
+RUN_NAME="${RUN_NAME:-$RUN_KEY}"
+RUN_BRIEF="${RUN_BRIEF:-canary $ARGV_STR}"
+RUN_KIND="${RUN_KIND:-$MODE}"
+python3 scripts/register_run.py start --key "$RUN_KEY" --name "$RUN_NAME" \
+  --brief "$RUN_BRIEF" --kind "$RUN_KIND" --bundle "$OUT" --container "$NAME" \
+  --launch "bash scripts/container_run.sh $ARGV_STR" >/dev/null 2>&1 || true
 docker run --name "$NAME" --network "$NETWORK" --user 10002:10002 \
   --cap-drop ALL --security-opt no-new-privileges --pids-limit 256 --memory 4g --cpus 2 \
   --stop-timeout 30 --read-only --tmpfs /tmp:rw,exec,size=512m --tmpfs /work:rw,size=2g,uid=10002,gid=10002 \
@@ -155,5 +167,8 @@ GATE="$GATE" TIMEOUT_S="$TIMEOUT_S" TIMED_OUT="$TIMED_OUT" RC="$RC" DIRTY="$DIRT
 HAVE_WHEELS="$HAVE_WHEELS" HAVE_INPUTS="$HAVE_INPUTS" STAGED="$STAGED" TOKEN_ID="$TOKEN_ID" \
 STARTED="$STARTED" FINISHED="$FINISHED" GIT_REV="$(git rev-parse HEAD)" \
 python3 -c 'import json, os; json.dump({k: os.environ[k] for k in ("NAME","IMG","IMAGE_ID","IMAGE_DIGEST","NETWORK","GATE","TIMEOUT_S","TIMED_OUT","RC","DIRTY","HAVE_WHEELS","HAVE_INPUTS","STAGED","TOKEN_ID","STARTED","FINISHED","GIT_REV")}, open(os.environ["RECEIPT"], "w"), indent=2)'
+if [ "$RC" = "0" ]; then FINAL_STATUS="done"; else FINAL_STATUS="failed"; fi
+python3 scripts/register_run.py finish --key "${RUN_KEY:-$(basename "$OUT")}" \
+  --status "$FINAL_STATUS" --bundle "$OUT" --container "$NAME" >/dev/null 2>&1 || true
 echo "exit=$RC out=$OUT receipt=$RECEIPT"
 exit "$RC"

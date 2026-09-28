@@ -15,4 +15,6 @@ git config --global user.email "canary-bot@users.noreply.github.com"
 git init -q -b guest
 git add -A
 git commit -qm "canary guest base ${CANARY_BASE_REV:-unknown}"
-exec "$@"
+# Timestamped console capture into the export dir (dashboard raw log).
+# The wrapper degrades to a plain exec when the log cannot be opened.
+exec python3 scripts/console_tee.py /work/out/console.log "$@"

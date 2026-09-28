@@ -1,0 +1,78 @@
+# Runs dashboard
+
+One table for every run: name it, watch it work, pause it, rerun it, read
+its raw log. Served locally by the runs daemon (`runsd`).
+
+## Quickstart
+
+```bash
+bash scripts/dashboard_service.sh start
+# open http://127.0.0.1:8789/ in a browser
+```
+
+The daemon persists across reboots (LaunchAgent). Stop it with
+`bash scripts/dashboard_service.sh stop`. Logs: `runs/runsd.out.log`,
+`runs/runsd.err.log`.
+
+## Naming runs
+
+Every run gets a name and a brief. Three ways, in order of preference:
+
+1. Dashboard UI: `+ NEW RUN` form (name, brief, launch args).
+2. `canary runs start --name "..." --brief "..." -- <launcher args>`.
+3. Direct launcher use: `RUN_NAME="..." RUN_BRIEF="..." OUT=... \
+   bash scripts/container_run.sh ...`.
+
+Without a name the launcher falls back to the output directory key.
+
+## Main table
+
+One row per run: title, run id, started, ended, status, improvements
+count, loop-iteration count, log, rerun, pause.
+
+- Click the **title** for the full brief plus seed, profile, model, usage,
+  patch tally, container, bundle, and launch command.
+- Click **Δ** for every code change proposed: target, eval status, reason,
+  and PR link once the publish bridge (#66) files it.
+- Click **LOOP** for the loop's reformulations in order with statuses.
+- **LOG** opens the raw log: the merged journal+ops timeline, the
+  timestamped console capture, and the launcher transcript. Live runs
+  refresh every few seconds.
+
+## Pause and rerun
+
+**Pause** freezes a live worker container (`docker pause`); the run holds
+its budgets and resumes byte-identical on **Unpause**. Only live runs
+pause; anything else explains why it cannot.
+
+**Rerun** relaunches the run's recorded launch spec as a new named run
+(`<name> (rerun)`). It needs the recorded spec; adopted history without
+one says so instead of guessing.
+
+## Other views
+
+- **Usage**: per-run model calls and tokens with totals.
+- **Findings**: currently open issues and PRs (via `gh`, cached a minute).
+- **Experiments**: acceptance verdict sets from `acceptance/` (Build 17
+  runbook evidence).
+
+## CLI mirror
+
+```bash
+canary runs list                    # registry table
+canary runs show <key>              # full record
+canary runs log <key> [--tail N]    # raw log to stdout
+canary runs adopt --bundle <dir>    # register an old bundle
+canary runs serve [--port P]        # run the daemon in the foreground
+```
+
+## Honest gaps
+
+- Reasoning traces are not exposed by the provider; the log shows every
+  recorded event, model-call boundary, and console line instead.
+- PR linkage per improvement waits on the publish bridge (#66); entries
+  read "not filed" until then.
+- The daemon binds loopback only and has no auth: it trusts the owner
+  machine. Do not forward its port.
+- Registry (`runs/registry.json`) is local and gitignored. Runs outlive
+  daemon restarts; listings reconcile phantom "running" rows.

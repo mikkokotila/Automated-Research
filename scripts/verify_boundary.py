@@ -2,6 +2,7 @@
 import argparse
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -306,13 +307,16 @@ def launcher_checks(image, network, gate):
         checks["guest_read_staged_input"] = "staged fixture page" in res1["page"]
         checks["guest_image_locked"] = all(res1["locked"].values())
 
-        # 2. independent workspaces: second run sees a fresh out-volume
+        # 2. independent workspaces: second run sees a fresh out-volume.
+        # Fresh means only the run's own console capture, never another
+        # run's files.
         out2 = tmp / "out2"
         r2 = launch(out2, ["exec", "python", "-c",
                            "from pathlib import Path; print(sorted(p.name for p in Path('/work/out').iterdir()))"])
         checks["workspaces_independent"] = (
-            r2.returncode == 0 and "[]" in r2.stdout
-            and {p.name for p in out2.iterdir()} <= {"manifest.canary.json"})
+            r2.returncode == 0 and "['console.log']" in r2.stdout
+            and {p.name for p in out2.iterdir()} <= {"manifest.canary.json",
+                                                    "console.log"})
         checks["run_tokens_scoped_per_run"] = (
             rec1["TOKEN_ID"] != "" and receipt(out2)["TOKEN_ID"] not in ("", rec1["TOKEN_ID"]))
 
@@ -393,8 +397,13 @@ def launcher_checks(image, network, gate):
         checks["guest_marker_injected_by_launcher"] = (
             rm.returncode == 0 and "MARKER=1" in rm.stdout)
         checks["guest_workspace_is_git_repo"] = (
-            rm.returncode == 0 and "\nguest\n" in rm.stdout
+            rm.returncode == 0 and " guest\n" in rm.stdout
             and "canary guest base" in rm.stdout)
+        console = outm / "console.log"
+        checks["console_log_captured"] = (
+            rm.returncode == 0 and console.exists()
+            and re.match(r"20\d\d-\d\d-\d\dT\d\d:\d\d", console.read_text()) is not None
+            and "MARKER=1" in console.read_text())
         try:
             call(["run", "--rm", "--network", "none", "--entrypoint", "sh",
                   image, "-c",
