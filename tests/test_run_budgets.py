@@ -24,7 +24,7 @@ def _spec(**kw):
 @pytest.mark.parametrize("kw", [
     {"question": "  "}, {"question": "x" * 2001}, {"version": 2},
     {"model": "other"}, {"csv": "a.csv"}, {"target": "t"},
-    {"max_papers": 0}, {"max_papers": 51}, {"year_from": 1800},
+    {"max_papers": 0}, {"max_papers": 401}, {"year_from": 1800},
     {"max_iterations": 0}, {"max_iterations": 6}, {"revise_rounds": -1},
     {"max_model_calls": 0}, {"max_model_calls": 10_001},
     {"max_tokens": 0}, {"max_tokens": 200_000_001},
