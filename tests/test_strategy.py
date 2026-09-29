@@ -535,6 +535,53 @@ def test_degraded_run_flags_missing_coverage_footer(tmp_path):
     assert not any(n.event == "coverage-footer-appended" for n in journal2.notes)
 
 
+def _precision_client(off_topic=(), on_topic=()):
+    import httpx
+
+    def handler(req):
+        if "openalex" in str(req.url):
+            return httpx.Response(200, json={"results": list(off_topic) + list(on_topic)})
+        return httpx.Response(200, json={"entries": []})
+
+    return httpx.Client(transport=httpx.MockTransport(handler))
+
+
+def test_precision_floor_drops_unengaged_citation_magnet(tmp_path):
+    off = {"id": "W9", "title": "Global widget engineering survey",
+           "doi": "https://doi.org/10.9/off", "publication_year": 2025,
+           "cited_by_count": 5000, "authorships": [], "primary_location": {},
+           "abstract_inverted_index": {"Widget": [0], "survey": [1]}}
+    on = {"id": "W1", "title": "Treatment delay raises cancer mortality",
+          "doi": "https://doi.org/10.1/on", "publication_year": 2020,
+          "cited_by_count": 2, "authorships": [], "primary_location": {},
+          "abstract_inverted_index": {"Delay": [0]}}
+    journal = Journal()
+    muse = ScriptedMuse()
+    muse.queues["review"] = [grounded_review("R")]
+    it = cyclemod.run_review("does treatment delay raise cancer mortality", 5,
+                             _precision_client((off,), (on,)), muse,
+                             journal=journal, record_dir=str(tmp_path))
+    assert it.provenance["papers"] == ["Treatment delay raises cancer mortality"]
+    assert any(n.event == "precision-filter" and "1/2 engage >= 3" in n.detail
+               for n in journal.notes)
+
+
+def test_precision_floor_falls_back_when_nothing_engages(tmp_path):
+    off = {"id": "W9", "title": "Global widget engineering survey",
+           "doi": "https://doi.org/10.9/off", "publication_year": 2025,
+           "cited_by_count": 5000, "authorships": [], "primary_location": {},
+           "abstract_inverted_index": {"Widget": [0]}}
+    journal = Journal()
+    muse = ScriptedMuse()
+    muse.queues["review"] = [grounded_review("R")]
+    it = cyclemod.run_review("does treatment delay raise cancer mortality", 5,
+                             _precision_client((off,), ()), muse,
+                             journal=journal, record_dir=str(tmp_path))
+    assert it.provenance["papers"] == ["Global widget engineering survey"]
+    assert any(n.event == "precision-filter" and "fallback" in n.detail
+               for n in journal.notes)
+
+
 def test_cycle_with_bandit_freezes_scope_and_cannot_promote(tmp_path):
     out = tmp_path / "run"
     spec = RunSpec(question="seed?", max_iterations=1, max_papers=5)
