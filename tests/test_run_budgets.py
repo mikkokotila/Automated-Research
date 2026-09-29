@@ -24,7 +24,7 @@ def _spec(**kw):
 @pytest.mark.parametrize("kw", [
     {"question": "  "}, {"question": "x" * 2001}, {"version": 2},
     {"model": "other"}, {"csv": "a.csv"}, {"target": "t"},
-    {"max_papers": 0}, {"max_papers": 401}, {"year_from": 1800},
+    {"max_papers": 0}, {"max_papers": 25_001}, {"year_from": 1800},
     {"max_iterations": 0}, {"max_iterations": 6}, {"revise_rounds": -1},
     {"max_reseeds": -1}, {"max_reseeds": 4},
     {"max_model_calls": 0}, {"max_model_calls": 10_001},
@@ -87,6 +87,58 @@ def test_tracker_rejects_bad_usage_and_cancel_first():
     budget.cancel()
     with pytest.raises(Cancelled):
         budget.check()
+
+
+def test_tracker_is_exact_under_concurrent_reserve():
+    import threading
+
+    budget = RunBudget(1000, 10 ** 9, 3600)
+    threads = [threading.Thread(target=lambda: [
+        (budget.reserve_call(), budget.note_usage(10, 5)) for _ in range(100)])
+        for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert budget.calls == 800 and budget.tokens == 800 * 15
+
+
+def test_concurrent_reserve_never_overspends_calls():
+    import threading
+
+    budget = RunBudget(100, 10 ** 9, 3600)
+    won: list[int] = []
+
+    def worker():
+        for _ in range(50):
+            try:
+                budget.reserve_call()
+            except BudgetExhausted:
+                pass
+            else:
+                won.append(1)
+
+    threads = [threading.Thread(target=worker) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert budget.calls == 100 and len(won) == 100
+
+
+def test_run_review_journals_phase_timings(tmp_path):
+    import re
+
+    muse = ScriptedMuse()
+    muse.queues["review"] = [grounded_review("R1")]
+    journal = Journal(tmp_path / "journal.jsonl", run_id="r1")
+    cyclemod.run_review("seed?", 5, mock_http(), muse, journal)
+    events = [json.loads(line) for line in
+              (tmp_path / "journal.jsonl").read_text().splitlines()]
+    by_event = {e["event"]: e["detail"] for e in events}
+    assert re.fullmatch(r"\d+ candidates in \d+\.\d+s", by_event["retrieved"])
+    assert re.fullmatch(r"\d+ papers, cited \d+, \d+ calls in \d+\.\d+s",
+                        by_event["synthesized"])
 
 
 # --- run integration ---

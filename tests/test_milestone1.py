@@ -373,6 +373,57 @@ def test_synthesize_scaled_rejects_empty_pool():
         synthesize.synthesize_scaled("q", [], Never())
 
 
+def test_synthesize_scaled_tree_reduces_many_batches(monkeypatch):
+    monkeypatch.setattr(synthesize, "MAX_PROMPT_CHARS", 2000)
+    papers = [paper(title=f"Study {i} on widgets",
+                    abstract=f"Abstract {i} widgets. " * 30)
+              for i in range(20)]
+
+    class Treed:
+        model = "rec"
+
+        def complete(self, system, user, max_tokens=8000):
+            if system == synthesize.REDUCE_SYSTEM:
+                return "Merged [1] [20]."
+            return f"Batch. [1].\n{_claims_block(('c1', 'Widgets studied.', 1, 'widgets'))}"
+
+    s = synthesize.synthesize_scaled("q widgets", papers, Treed())
+    assert s.validation["batches"] == 10
+    # 10 leaves + wave one (8+2 merge) + final merge
+    assert s.validation["model_calls"] == 13
+    assert s.text.startswith("Merged") and s.cited == (1, 20)
+    assert len(s.claims) == 10  # every leaf claim remapped, in batch order
+    assert [c.evidence[0].paper for c in s.claims] == [2 * i + 1 for i in range(10)]
+
+
+def test_synthesize_scaled_budgets_by_role(monkeypatch):
+    import collections
+
+    monkeypatch.setattr(synthesize, "MAX_PROMPT_CHARS", 2000)
+    papers = [paper(title=f"Study {i} on widgets",
+                    abstract=f"Abstract {i} widgets. " * 30)
+              for i in range(20)]
+    seen: list = []
+
+    class Metered:
+        model = "rec"
+
+        def complete(self, system, user, max_tokens=8000):
+            seen.append((system == synthesize.REDUCE_SYSTEM, max_tokens))
+            if system == synthesize.REDUCE_SYSTEM:
+                return "Merged [1]."
+            return "Batch. [1]."
+
+    synthesize.synthesize_scaled("q widgets", papers, Metered())
+    leaves = [b for reduce, b in seen if not reduce]
+    merges = [b for reduce, b in seen if reduce]
+    assert leaves == [synthesize.BATCH_MAX_TOKENS] * 10
+    # two intermediate merges plus one final merge, order-free
+    assert collections.Counter(merges) == collections.Counter(
+        [synthesize.REDUCE_MAX_TOKENS] * 2 + [synthesize.FINAL_MAX_TOKENS])
+    assert synthesize.BATCH_MAX_TOKENS < synthesize.FINAL_MAX_TOKENS
+
+
 def test_synthesize_records_grounding_coverage():
     class Cited:
         model = "rec"

@@ -484,6 +484,15 @@ def test_sources_openalex_rejects_guest_smuggled_key(openalex_canned, monkeypatc
     assert seen == []
 
 
+def test_sources_openalex_rejects_retired_mailto(openalex_canned):
+    url, seen = openalex_canned
+    with httpx.Client(trust_env=False) as http:
+        resp = http.get(url + "/v1/sources/openalex?search=x&mailto=a@b.c",
+                        headers=_ARXIV_AUTH)
+    assert resp.status_code == 403  # retired pool: key auth only
+    assert seen == []
+
+
 def test_sources_arxiv_proxies_and_parses_atom(arxiv_canned):
     import urllib.parse
 
@@ -587,6 +596,17 @@ def test_sources_arxiv_spaces_upstream_calls(book, monkeypatch):
         server.server_close()
         gate.http.close()
     assert len(sleeps) == 1 and 0.2 < sleeps[0] <= 0.3
+
+
+def test_arxiv_total_parses_opensearch_count():
+    from boundary.server import _arxiv_total
+
+    feed = ("<feed xmlns='http://www.w3.org/2005/Atom' "
+            "xmlns:opensearch='http://a9.com/-/spec/opensearch/1.1/'>"
+            "<opensearch:totalResults>1234</opensearch:totalResults></feed>")
+    assert _arxiv_total(feed.encode()) == 1234
+    assert _arxiv_total(b"<feed xmlns='http://www.w3.org/2005/Atom'/>") is None
+    assert _arxiv_total(b"not xml at all") is None
 
 
 def test_arxiv_entries_rejects_non_feeds():

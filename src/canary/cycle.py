@@ -7,6 +7,7 @@ import json
 import os
 import re
 import shutil
+import time
 import uuid
 from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
@@ -68,6 +69,13 @@ SYNTHESIS_SYSTEM = (
     "and the single most important next question. Under 400 words. Never invent "
     "numbers; cite iterations as (iter N)."
 )
+
+# Output budgets by role. Generation time grows with the cap, so short
+# structured replies (a pivot question, a follow-up list) get small caps;
+# only paper synthesis keeps the full budget.
+PROPOSE_MAX_TOKENS = 2000
+RESEED_MAX_TOKENS = 800
+FINALIZE_MAX_TOKENS = 4000
 
 
 class ResumeError(Exception):
@@ -247,7 +255,8 @@ def _references_uncited(f: Followup, cited: set[int]) -> bool:
 def propose(history: str, dataset_hint: str, client: Completer, seed: str = "",
             gaps: list[str] | None = None) -> list[Followup]:
     user = propose_prompt(history, dataset_hint, seed or history[:200], gaps or [])
-    return parse_followups(client.complete(FOLLOWUP_SYSTEM, user))
+    return parse_followups(
+        client.complete(FOLLOWUP_SYSTEM, user, max_tokens=PROPOSE_MAX_TOKENS))
 
 
 class NoEvidence(RuntimeError):
@@ -266,8 +275,10 @@ def run_review(question: str, max_papers: int, http: httpx.Client, muse: Complet
         if selector is not None else None
     spec = ResearchSpec(question=decision.query if decision else question,
                         max_papers=max_papers)
+    started = time.monotonic()
     papers, retrieval_report = retrieval.retrieve_with_report(spec, http)
-    emit(journal, "review", "retrieved", f"{len(papers)} candidates")
+    emit(journal, "review", "retrieved",
+         f"{len(papers)} candidates in {time.monotonic() - started:.1f}s")
     for name, outcome in retrieval_report["providers"].items():
         if outcome["outcome"] != "ok":
             emit(journal, "review", "provider-failed", f"{name}: {outcome['error']}")
@@ -302,10 +313,13 @@ def run_review(question: str, max_papers: int, http: httpx.Client, muse: Complet
         report.record_retrieval(record_dir, goal, ranked, retrieval_report)
     top = pool[:spec.max_papers]
     top, _ = fulltext.enrich(top, http, max_fulltext, journal)
+    started = time.monotonic()
     synth = synthesize.synthesize_scaled(goal, top, muse, warning)
     batches = synth.validation.get("batches", 1)
+    calls = synth.validation.get("model_calls", 1)
     emit(journal, "review", "synthesized",
-         f"{len(top)} papers, cited {len(synth.cited)}"
+         f"{len(top)} papers, cited {len(synth.cited)}, {calls} calls "
+         f"in {time.monotonic() - started:.1f}s"
          + (f", {batches} batches" if batches and batches > 1 else ""))
     if warning and not synthesize.has_coverage_footer(synth.text):
         emit(journal, "review", "coverage-footer-missing",
@@ -617,7 +631,8 @@ def run_cycle(
         new_q: str | None = None
         for attempt in range(2):  # malformed pivots get one retry
             try:
-                reply = muse.complete(RESEED_SYSTEM, prompt)
+                reply = muse.complete(RESEED_SYSTEM, prompt,
+                                        max_tokens=RESEED_MAX_TOKENS)
             except (RequestBlocked, BudgetExhausted, Cancelled):
                 raise
             except Exception as e:
@@ -667,7 +682,8 @@ def run_cycle(
                         try:
                             reply = muse.complete(
                                 FOLLOWUP_SYSTEM,
-                                propose_prompt(history, hint, question, evidence_gaps))
+                                propose_prompt(history, hint, question, evidence_gaps),
+                                max_tokens=PROPOSE_MAX_TOKENS)
                         except (RequestBlocked, BudgetExhausted, Cancelled):
                             raise
                         except Exception as e:
@@ -828,7 +844,8 @@ def run_cycle(
         unanswered = tuple(([failed_q] if failed_q else []) + [j.question for j in pending])
         history = "\n\n---\n\n".join(f"[iter {i.n}] {i.summary}" for i in iterations)
         tail = f"\n\nUnanswered (budget ran out, carry forward): {list(unanswered)}" if unanswered else ""
-        synthesis = muse.complete(SYNTHESIS_SYSTEM, f"Iterations:\n{history}{tail}")
+        synthesis = muse.complete(SYNTHESIS_SYSTEM, f"Iterations:\n{history}{tail}",
+                                        max_tokens=FINALIZE_MAX_TOKENS)
         if not synthesis.strip():
             stopped = StopReason.FAILED
             synthesis = ""

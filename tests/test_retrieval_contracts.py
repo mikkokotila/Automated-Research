@@ -515,3 +515,114 @@ def test_arxiv_carries_run_while_openalex_fails():
                                                  mock_client(handler))
     assert len(papers) == 1 and papers[0].source == "arxiv"
     assert rep["warning"].startswith("degraded coverage: openalex failed")
+
+
+# --- concurrent paging ---
+
+
+def test_openalex_pages_concurrently_on_advertised_total():
+    seen = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        params = dict(req.url.params)
+        page = int(params.get("page", "1"))
+        seen.append(page)
+        n = int(params.get("per-page", "50"))
+        return httpx.Response(200, json={
+            "meta": {"count": 120},
+            "results": [openalex_work(id=f"https://openalex.org/W{page}-{i}",
+                                      title=f"OA {page}-{i}") for i in range(n)]})
+
+    capture: dict = {}
+    papers = retrieval.openalex_search(ResearchSpec(question="timing evidence"),
+                                       mock_client(handler), limit=120,
+                                       capture=capture)
+    assert sorted(seen) == [1, 2, 3]  # arrival order varies; the set is exact
+    assert len(papers) == 120
+    # assembly stays in page order regardless of completion order
+    assert papers[0].title == "OA 1-0" and papers[50].title == "OA 2-0"
+    assert papers[100].title == "OA 3-0"
+    assert capture["pages"] == 3 and capture["truncated"] is None
+
+
+def test_openalex_keeps_prefix_when_a_later_page_fails():
+    def handler(req: httpx.Request) -> httpx.Response:
+        page = int(dict(req.url.params).get("page", "1"))
+        if page >= 3:
+            raise httpx.ConnectError("mid-pool outage")
+        n = int(dict(req.url.params).get("per-page", "50"))
+        return httpx.Response(200, json={
+            "meta": {"count": 500},
+            "results": [openalex_work(id=f"https://openalex.org/W{page}-{i}",
+                                      title=f"OA {page}-{i}") for i in range(n)]})
+
+    capture: dict = {}
+    papers = retrieval.openalex_search(ResearchSpec(question="timing evidence"),
+                                       mock_client(handler), limit=200,
+                                       capture=capture)
+    assert capture["outcome"] == "ok" and capture["truncated"] is not None
+    assert "ConnectError" in capture["truncated"]
+    assert 50 <= len(papers) < 200  # ordered prefix kept, never a gap
+    assert papers[0].title == "OA 1-0"
+
+
+def test_arxiv_pages_concurrently_on_advertised_total():
+    seen = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        params = dict(req.url.params)
+        start = int(params.get("start", "0"))
+        seen.append(start)
+        n = int(params.get("max_results", "50"))
+        return httpx.Response(200, json={
+            "total": 120,
+            "entries": [arxiv_entry(id=f"2601.{start + i:05d}",
+                                    title=f"T{start + i}") for i in range(n)]})
+
+    capture: dict = {}
+    papers = retrieval.arxiv_search(ResearchSpec(question="timing evidence"),
+                                    mock_client(handler), limit=120,
+                                    capture=capture)
+    assert sorted(seen) == [0, 50, 100]
+    assert len(papers) == 120
+    assert [p.title for p in papers[::50]] == ["T0", "T50", "T100"]
+    assert capture["pages"] == 3 and capture["truncated"] is None
+
+
+def test_arxiv_tops_up_when_year_filter_drops_pages():
+    seen = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        params = dict(req.url.params)
+        start = int(params.get("start", "0"))
+        seen.append(start)
+        n = int(params.get("max_results", "50"))
+        # even offsets are too old: every page keeps only half its entries
+        return httpx.Response(200, json={
+            "total": 400,
+            "entries": [arxiv_entry(id=f"2601.{start + i:05d}",
+                                    title=f"T{start + i}",
+                                    year=2020 if i % 2 else 2026)
+                        for i in range(n)]})
+
+    papers = retrieval.arxiv_search(
+        ResearchSpec(question="timing evidence", max_papers=100, year_from=2025),
+        mock_client(handler), limit=100)
+    assert len(papers) == 100  # top-up waves cover the filtered drops
+    assert all(p.year == 2026 for p in papers)
+    assert len(seen) > 2  # strictly more than the unfiltered page count
+
+
+def test_attempt_assembles_providers_openalex_first():
+    def handler(req: httpx.Request) -> httpx.Response:
+        url = str(req.url)
+        if "openalex" in url:
+            return httpx.Response(200, json={"results": [
+                openalex_work(id="https://openalex.org/W9", title="OA only")]})
+        return httpx.Response(200, json={"entries": [
+            arxiv_entry(id="2601.00009", title="AX only")]})
+
+    papers, rep = retrieval.retrieve_with_report(
+        ResearchSpec(question="timing evidence"), mock_client(handler))
+    assert [p.source for p in papers] == ["openalex", "arxiv"]
+    assert list(rep["providers"]) == ["openalex", "arxiv"]

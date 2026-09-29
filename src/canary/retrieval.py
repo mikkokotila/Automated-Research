@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import concurrent.futures
 import hashlib
 import os
 import re
@@ -139,10 +140,82 @@ def _as_int(value) -> int:
         return 0
 
 
-# Per-provider ceilings: pages of 50, at most 8 pages (400 papers). Hundreds-
-# paper runs page; small runs behave exactly as before (single page).
+# Per-provider ceilings: pages of 50, up to 500 pages (25k papers). Pages
+# after the first fetch concurrently when the provider reports a result
+# total; small runs behave exactly as before (single page, no workers).
 _PER_PAGE = 50
-_MAX_PAGES = 8
+_MAX_PAGES = 500
+# Concurrent page fetches per provider. OpenAlex absorbs this; arXiv's
+# broker courtesy spacing still serializes upstream, so its share stays slow.
+_PAGE_WORKERS = 8
+
+
+def _openalex_works(results: list, page_hash: str) -> list[Paper]:
+    """Parse one OpenAlex result page. Skips shapeless works, never raises."""
+    out: list[Paper] = []
+    for w in results:
+        if not isinstance(w, dict):
+            continue
+        ids = w.get("ids") or {}
+        doi = normalize_doi(w.get("doi") or ids.get("doi"))
+        title = _clean(w.get("title"))
+        if not title:
+            continue
+        authors = tuple(
+            _clean(((a or {}).get("author") or {}).get("display_name"))
+            for a in (w.get("authorships") or [])[:10]
+            if ((a or {}).get("author") or {}).get("display_name")
+        )
+        url = (doi and f"https://doi.org/{doi}") or _clean(w.get("id"))
+        abstract, complete = _openalex_abstract_with_gaps(w.get("abstract_inverted_index"))
+        best_oa = w.get("best_oa_location") or {}
+        oa_url = _clean(best_oa.get("pdf_url") or best_oa.get("landing_page_url") or "")
+        license = _clean(best_oa.get("license") or "")
+        identifiers = {"openalex": _clean(w.get("id"))}
+        for key in ("doi", "mag", "pmid", "pmcid"):
+            if ids.get(key):
+                identifiers[key] = _clean(ids.get(key))
+        out.append(
+            Paper(
+                ref=f"doi:{doi}" if doi else f"openalex:{w.get('id', '')}",
+                title=title,
+                abstract=abstract,
+                authors=authors,
+                year=w.get("publication_year"),
+                venue=_clean(((w.get("primary_location") or {}).get("source") or {}).get("display_name") or ""),
+                doi=doi,
+                url=url,
+                citations=_as_int(w.get("cited_by_count")),
+                source="openalex",
+                evidence=_evidence_tier(abstract, oa_url),
+                oa_url=oa_url,
+                license=license,
+                identifiers=identifiers,
+                extra={"abstract_complete": complete, "cache_hash": page_hash,
+                       "oa_status": _clean((w.get("open_access") or {}).get("oa_status") or "")},
+            )
+        )
+    return out
+
+
+def _openalex_results(body) -> tuple[list, int | None]:
+    """Result list plus advertised total (None when the shape hides it)."""
+    results = body.get("results", []) if isinstance(body, dict) else []
+    if not isinstance(results, list):
+        results = []
+    total: int | None = None
+    meta = body.get("meta") if isinstance(body, dict) else None
+    if isinstance(meta, dict) and isinstance(meta.get("count"), int):
+        total = meta["count"]
+    return results, total
+
+
+def _openalex_page(client: httpx.Client, base: dict, page: int,
+                   per_page: int) -> tuple[bytes, list, int | None]:
+    params = dict(base, page=str(page), **{"per-page": str(per_page)})
+    resp = _get(client, OPENALEX_URL, params)
+    results, total = _openalex_results(resp.json())
+    return resp.content, results, total
 
 
 def openalex_search(spec: ResearchSpec, client: httpx.Client, limit: int = 25,
@@ -154,72 +227,71 @@ def openalex_search(spec: ResearchSpec, client: httpx.Client, limit: int = 25,
     if spec.year_from:
         base["filter"] = f"from_publication_date:{spec.year_from}-01-01"
     started = time.monotonic()
-    bodies: list[bytes] = []
-    pages = 0
-    out: list[Paper] = []
     want = min(max(limit, 1), _PER_PAGE * _MAX_PAGES)
-    while len(out) < want and pages < _MAX_PAGES:
-        params = dict(base, page=str(pages + 1),
-                      **{"per-page": str(min(_PER_PAGE, want - len(out)))})
-        resp = _get(client, OPENALEX_URL, params)
-        bodies.append(resp.content)
-        pages += 1
-        body = resp.json()
-        results = body.get("results", []) if isinstance(body, dict) else []
-        if not results:
-            break
-        page_hash = "sha256:" + hashlib.sha256(bodies[-1]).hexdigest()
-        for w in results:
-            if not isinstance(w, dict):
-                continue
-            ids = w.get("ids") or {}
-            doi = normalize_doi(w.get("doi") or ids.get("doi"))
-            title = _clean(w.get("title"))
-            if not title:
-                continue
-            authors = tuple(
-                _clean(((a or {}).get("author") or {}).get("display_name"))
-                for a in (w.get("authorships") or [])[:10]
-                if ((a or {}).get("author") or {}).get("display_name")
-            )
-            url = (doi and f"https://doi.org/{doi}") or _clean(w.get("id"))
-            abstract, complete = _openalex_abstract_with_gaps(w.get("abstract_inverted_index"))
-            best_oa = w.get("best_oa_location") or {}
-            oa_url = _clean(best_oa.get("pdf_url") or best_oa.get("landing_page_url") or "")
-            license = _clean(best_oa.get("license") or "")
-            identifiers = {"openalex": _clean(w.get("id"))}
-            for key in ("doi", "mag", "pmid", "pmcid"):
-                if ids.get(key):
-                    identifiers[key] = _clean(ids.get(key))
-            out.append(
-                Paper(
-                    ref=f"doi:{doi}" if doi else f"openalex:{w.get('id', '')}",
-                    title=title,
-                    abstract=abstract,
-                    authors=authors,
-                    year=w.get("publication_year"),
-                    venue=_clean(((w.get("primary_location") or {}).get("source") or {}).get("display_name") or ""),
-                    doi=doi,
-                    url=url,
-                    citations=_as_int(w.get("cited_by_count")),
-                    source="openalex",
-                    evidence=_evidence_tier(abstract, oa_url),
-                    oa_url=oa_url,
-                    license=license,
-                    identifiers=identifiers,
-                    extra={"abstract_complete": complete, "cache_hash": page_hash,
-                           "oa_status": _clean((w.get("open_access") or {}).get("oa_status") or "")},
-                )
-            )
+    # Page 1 stays sequential: a first-page failure fails the provider
+    # (existing degraded-coverage semantics), and a short page ends small
+    # pools without spawning workers.
+    raw, results, total = _openalex_page(
+        client, base, 1, min(_PER_PAGE, want))
+    fetched: list[tuple[int, bytes, list]] = [(1, raw, results)]
+    truncated: str | None = None
+    if results and len(results) >= min(_PER_PAGE, want) and len(results) < want:
+        if total is not None and total > len(results):
+            last = min((min(total, want) + _PER_PAGE - 1) // _PER_PAGE,
+                       _MAX_PAGES)
+            with concurrent.futures.ThreadPoolExecutor(
+                    max_workers=max(1, min(_PAGE_WORKERS, last - 1))) as ex:
+                futs = {ex.submit(_openalex_page, client, base, p, _PER_PAGE): p
+                        for p in range(2, last + 1)}
+                done: dict[int, tuple[bytes, list]] = {}
+                for fut in concurrent.futures.as_completed(futs):
+                    try:
+                        fraw, fresults, _ = fut.result()
+                    except (httpx.HTTPError, ValueError) as e:
+                        truncated = f"{type(e).__name__}: {e}"[:200]
+                        for f in futs:
+                            f.cancel()
+                        break
+                    done[futs[fut]] = (fraw, fresults)
+            for p in range(2, last + 1):
+                if p not in done:
+                    break  # failure or cancel: keep the ordered prefix
+                fraw, fresults = done[p]
+                fetched.append((p, fraw, fresults))
+                if len(fresults) < _PER_PAGE:
+                    break  # stale count: a short page still ends the pool
+        else:
+            # No advertised total: legacy sequential paging, same requests.
+            page = 2
+            have = len(results)
+            while have < want and page <= _MAX_PAGES:
+                asked = min(_PER_PAGE, want - have)
+                try:
+                    fraw, fresults, _ = _openalex_page(client, base, page, asked)
+                except (httpx.HTTPError, ValueError) as e:
+                    truncated = f"{type(e).__name__}: {e}"[:200]
+                    break
+                fetched.append((page, fraw, fresults))
+                have += len(fresults)
+                page += 1
+                if len(fresults) < asked:
+                    break  # short page: no more results
+    bodies = [raw for _, raw, _ in fetched]
+    out: list[Paper] = []
+    for _, fraw, fresults in fetched:
+        page_hash = "sha256:" + hashlib.sha256(fraw).hexdigest()
+        for p in _openalex_works(fresults, page_hash):
+            out.append(p)
             if len(out) >= want:
                 break
-        if len(results) < int(params["per-page"]):
-            break  # short page: no more results
+        if len(out) >= want:
+            break
     latency_ms = round((time.monotonic() - started) * 1000, 1)
     cache_hash = "sha256:" + hashlib.sha256(b"".join(bodies)).hexdigest()
     if capture is not None:
         capture.update({"outcome": "ok", "papers": len(out), "latency_ms": latency_ms,
-                        "cache_hash": cache_hash, "pages": pages})
+                        "cache_hash": cache_hash, "pages": len(fetched),
+                        "truncated": truncated})
     return out
 
 
@@ -237,6 +309,115 @@ def arxiv_query(question: str, max_terms: int = 6) -> str:
     # call, which beats querying stopwords that match the whole archive.
     terms = keywords(question)[:max_terms]
     return " AND ".join(f"all:{t}" for t in terms)
+
+
+def _arxiv_papers(entries: list, page_hash: str,
+                  year_from: int | None) -> list[Paper]:
+    """Parse one arXiv entry page; year filter applies here, unknown kept."""
+    out: list[Paper] = []
+    for e in entries:
+        if not isinstance(e, dict):
+            continue
+        title = _clean(e.get("title"))
+        aid = _clean(e.get("id"))
+        if not title or not aid:
+            continue
+        year = e.get("year")
+        year = year if isinstance(year, int) else None
+        if year_from and year is not None and year < year_from:
+            continue
+        authors = e.get("authors") or []
+        if not isinstance(authors, list):
+            authors = []
+        authors = tuple(a for a in (_clean(a) for a in authors[:10]) if a)
+        categories = e.get("categories") or []
+        if not isinstance(categories, list):
+            categories = []
+        categories = [_clean(c) for c in categories if _clean(c)]
+        doi = normalize_doi(e.get("doi"))
+        url = _clean(e.get("url_abs")) or (f"https://doi.org/{doi}" if doi else "")
+        oa_url = _clean(e.get("url_pdf"))
+        abstract = _clean(e.get("abstract"))
+        out.append(
+            Paper(
+                ref=f"doi:{doi}" if doi else f"arxiv:{aid}",
+                title=title,
+                abstract=abstract,
+                authors=authors,
+                year=year,
+                venue="arXiv",
+                doi=doi,
+                url=url,
+                citations=0,  # arXiv reports no citation counts; never fabricate one
+                source="arxiv",
+                evidence=_evidence_tier(abstract, oa_url),
+                oa_url=oa_url,
+                license="",
+                identifiers={"arxiv": aid},
+                extra={"version": _clean(e.get("version")), "categories": categories,
+                       "primary_category": _clean(e.get("primary_category")),
+                       "cache_hash": page_hash},
+            )
+        )
+    return out
+
+
+def _arxiv_page(client: httpx.Client, query: str, start: int,
+                n: int) -> tuple[bytes, list, int | None]:
+    """One arXiv page: raw body, entries, advertised total (None if hidden).
+
+    Foreign shapes (other providers' payloads, direct Atom XML) yield no
+    entries rather than a crash: source confusion degrades, never poisons.
+    """
+    params = {
+        "search_query": query,
+        "start": str(start),
+        "max_results": str(n),
+        "sortBy": "relevance",
+        "sortOrder": "descending",
+    }
+    resp = _get(client, ARXIV_URL, params)
+    try:
+        body = resp.json()
+    except ValueError:
+        body = None  # direct Atom XML or any non-JSON body: no papers
+    entries = body.get("entries", []) if isinstance(body, dict) else []
+    if not isinstance(entries, list):
+        entries = []
+    total: int | None = None
+    if isinstance(body, dict) and isinstance(body.get("total"), int):
+        total = body["total"]
+    return resp.content, entries, total
+
+
+def _arxiv_sequential(client: httpx.Client, query: str, want: int,
+                      year_from: int | None, out: list[Paper],
+                      fetched: list[tuple[int, bytes, list]],
+                      round_base: int) -> str | None:
+    """Legacy page-at-a-time paging for feeds without a total. Same requests."""
+    consumed = sum(len(entries) for _, _, entries in fetched[round_base:])
+    pages = len(fetched)
+    truncated: str | None = None
+    while len(out) < want and pages < _MAX_PAGES:
+        asked = min(_PER_PAGE, want - len(out))
+        try:
+            raw, entries, _ = _arxiv_page(client, query, consumed, asked)
+        except (httpx.HTTPError, ValueError) as e:
+            truncated = f"{type(e).__name__}: {e}"[:200]
+            break
+        fetched.append((consumed, raw, entries))
+        pages += 1
+        if not entries:
+            break
+        consumed += len(entries)
+        page_hash = "sha256:" + hashlib.sha256(raw).hexdigest()
+        for p in _arxiv_papers(entries, page_hash, year_from):
+            out.append(p)
+            if len(out) >= want:
+                break
+        if len(entries) < asked:
+            break  # short page: no more results
+    return truncated
 
 
 def arxiv_search(spec: ResearchSpec, client: httpx.Client, limit: int = 25,
@@ -266,94 +447,86 @@ def arxiv_search(spec: ResearchSpec, client: httpx.Client, limit: int = 25,
         if relaxed != query:
             queries.append(relaxed)
     started = time.monotonic()
-    bodies: list[bytes] = []
-    pages = 0
+    fetched: list[tuple[int, bytes, list]] = []
     relaxed_used = False
+    truncated: str | None = None
     out: list[Paper] = []
     want = min(max(limit, 1), _PER_PAGE * _MAX_PAGES)
     for qi, query in enumerate(queries):
         if qi > 0:
             relaxed_used = True
-        consumed = 0  # results seen (kept or year-filtered); the start offset
+        round_fetched = len(fetched)
         round_papers = len(out)
-        while len(out) < want and pages < _MAX_PAGES:
-            params = {
-                "search_query": query,
-                "start": str(consumed),
-                "max_results": str(min(_PER_PAGE, want - len(out))),
-                "sortBy": "relevance",
-                "sortOrder": "descending",
-            }
-            resp = _get(client, ARXIV_URL, params)
-            bodies.append(resp.content)
-            pages += 1
-            try:
-                body = resp.json()
-            except ValueError:
-                body = None  # direct Atom XML or any non-JSON body: no papers
-            entries = body.get("entries", []) if isinstance(body, dict) else []
-            if not isinstance(entries, list):
-                entries = []
-            if not entries:
-                break
-            consumed += len(entries)
-            page_hash = "sha256:" + hashlib.sha256(bodies[-1]).hexdigest()
-            for e in entries:
-                if not isinstance(e, dict):
-                    continue
-                title = _clean(e.get("title"))
-                aid = _clean(e.get("id"))
-                if not title or not aid:
-                    continue
-                year = e.get("year")
-                year = year if isinstance(year, int) else None
-                if spec.year_from and year is not None and year < spec.year_from:
-                    continue
-                authors = e.get("authors") or []
-                if not isinstance(authors, list):
-                    authors = []
-                authors = tuple(a for a in (_clean(a) for a in authors[:10]) if a)
-                categories = e.get("categories") or []
-                if not isinstance(categories, list):
-                    categories = []
-                categories = [_clean(c) for c in categories if _clean(c)]
-                doi = normalize_doi(e.get("doi"))
-                url = _clean(e.get("url_abs")) or (f"https://doi.org/{doi}" if doi else "")
-                oa_url = _clean(e.get("url_pdf"))
-                abstract = _clean(e.get("abstract"))
-                out.append(
-                    Paper(
-                        ref=f"doi:{doi}" if doi else f"arxiv:{aid}",
-                        title=title,
-                        abstract=abstract,
-                        authors=authors,
-                        year=year,
-                        venue="arXiv",
-                        doi=doi,
-                        url=url,
-                        citations=0,  # arXiv reports no citation counts; never fabricate one
-                        source="arxiv",
-                        evidence=_evidence_tier(abstract, oa_url),
-                        oa_url=oa_url,
-                        license="",
-                        identifiers={"arxiv": aid},
-                        extra={"version": _clean(e.get("version")), "categories": categories,
-                               "primary_category": _clean(e.get("primary_category")),
-                               "cache_hash": page_hash},
-                    )
-                )
-                if len(out) >= want:
-                    break
-            if len(entries) < int(params["max_results"]):
-                break  # short page: no more results
+        # First page stays sequential: it learns the total and a short page
+        # ends small pools without spawning workers. Its failure fails the
+        # provider, as before.
+        raw, entries, total = _arxiv_page(client, query, 0, min(_PER_PAGE, want))
+        fetched.append((0, raw, entries))
+        page_hash = "sha256:" + hashlib.sha256(raw).hexdigest()
+        out.extend(_arxiv_papers(entries, page_hash, spec.year_from))
+        if entries and len(entries) >= min(_PER_PAGE, want) and len(out) < want:
+            if total is not None and total > len(entries):
+                consumed = len(entries)
+                short_stop = False
+                while (len(out) < want and not short_stop
+                       and consumed < total and len(fetched) < _MAX_PAGES):
+                    # Top up for year-filtered drops: assume the drop count
+                    # repeats, then re-evaluate next wave. No drops observed
+                    # means exactly the remaining pages.
+                    kept = len(out) - round_papers
+                    need = min(_PAGE_WORKERS,
+                               (want - kept + (consumed - kept)
+                                + _PER_PAGE - 1) // _PER_PAGE,
+                               (total - consumed + _PER_PAGE - 1) // _PER_PAGE,
+                               _MAX_PAGES - len(fetched))
+                    starts = [consumed + i * _PER_PAGE for i in range(need)]
+                    with concurrent.futures.ThreadPoolExecutor(
+                            max_workers=max(1, len(starts))) as ex:
+                        futs = {ex.submit(_arxiv_page, client, query, s, _PER_PAGE): s
+                                for s in starts}
+                        done: dict[int, tuple[bytes, list]] = {}
+                        for fut in concurrent.futures.as_completed(futs):
+                            try:
+                                fraw, fentries, _ = fut.result()
+                            except (httpx.HTTPError, ValueError) as e:
+                                truncated = f"{type(e).__name__}: {e}"[:200]
+                                for f in futs:
+                                    f.cancel()
+                                break
+                            done[futs[fut]] = (fraw, fentries)
+                    advanced = False
+                    for s in starts:
+                        if s not in done:
+                            break  # failure: keep the ordered prefix
+                        fraw, fentries = done[s]
+                        fetched.append((s, fraw, fentries))
+                        consumed += len(fentries)
+                        advanced = True
+                        page_hash = "sha256:" + hashlib.sha256(fraw).hexdigest()
+                        out.extend(_arxiv_papers(fentries, page_hash, spec.year_from))
+                        if len(fentries) < _PER_PAGE:
+                            short_stop = True  # stale total: pool ends early
+                            break
+                    if not advanced:
+                        break
+                    # Year filtering may have dropped kept papers below want
+                    # while results remain: the loop tops up while consumed
+                    # stays under the advertised total.
+            else:
+                # No advertised total: legacy sequential paging, same requests.
+                t = _arxiv_sequential(client, query, want, spec.year_from,
+                                      out, fetched, round_fetched)
+                truncated = truncated or t
         if len(out) > round_papers:
             break  # this query produced; never dilute with the relaxed one
+    out = out[:want]  # top-up waves may over-fill; the pool stays capped
     latency_ms = round((time.monotonic() - started) * 1000, 1)
+    bodies = [raw for _, raw, _ in fetched]
     cache_hash = "sha256:" + hashlib.sha256(b"".join(bodies)).hexdigest()
     if capture is not None:
         capture.update({"outcome": "ok", "papers": len(out), "latency_ms": latency_ms,
-                        "cache_hash": cache_hash, "pages": pages,
-                        "query_relaxed": relaxed_used})
+                        "cache_hash": cache_hash, "pages": len(fetched),
+                        "query_relaxed": relaxed_used, "truncated": truncated})
     return out
 
 
@@ -393,22 +566,34 @@ def refined_query(question: str) -> str:
 
 
 def _attempt(spec: ResearchSpec, client: httpx.Client) -> tuple[list[Paper], dict]:
-    providers: dict[str, dict] = {}
-    papers: list[Paper] = []
     # Each provider covers the full pool: small runs keep the legacy 25/page,
-    # hundreds-paper runs page up to the per-provider ceiling (400).
+    # large runs page up to the per-provider ceiling. Providers fetch
+    # concurrently; results still assemble openalex-first, deterministically.
     per_provider = min(_PER_PAGE * _MAX_PAGES, max(25, spec.max_papers))
-    for name, fn in (("openalex", openalex_search), ("arxiv", arxiv_search)):
+
+    def run(name_fn) -> tuple[str, list[Paper], dict]:
+        name, fn = name_fn
         capture: dict = {"outcome": "error", "papers": 0, "latency_ms": 0.0,
                          "cache_hash": None, "error": None}
         started = time.monotonic()
         try:
-            papers.extend(fn(spec, client, per_provider, capture))
-            providers[name] = capture  # fn filled outcome/latency/hash on success
+            papers = fn(spec, client, per_provider, capture)
+            return name, papers, capture  # fn filled outcome/latency/hash
         except (httpx.HTTPError, ValueError) as e:
             capture["latency_ms"] = round((time.monotonic() - started) * 1000, 1)
             capture["error"] = f"{type(e).__name__}: {e}"[:300]
-            providers[name] = capture
+            return name, [], capture
+
+    order = (("openalex", openalex_search), ("arxiv", arxiv_search))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(order)) as ex:
+        done = {name: (papers, cap)
+                for name, papers, cap in ex.map(run, order)}
+    providers: dict[str, dict] = {}
+    papers: list[Paper] = []
+    for name, _ in order:
+        got, cap = done[name]
+        papers.extend(got)
+        providers[name] = cap
     return papers, providers
 
 
