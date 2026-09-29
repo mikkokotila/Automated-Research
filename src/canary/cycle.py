@@ -253,8 +253,11 @@ def run_review(question: str, max_papers: int, http: httpx.Client, muse: Complet
     if record_dir is not None:
         report.record_retrieval(record_dir, goal, ranked, retrieval_report)
     top = pool[:spec.max_papers]
-    synth = synthesize.synthesize(goal, top, muse, warning)
-    emit(journal, "review", "synthesized", f"{len(top)} papers, cited {len(synth.cited)}")
+    synth = synthesize.synthesize_scaled(goal, top, muse, warning)
+    batches = synth.validation.get("batches", 1)
+    emit(journal, "review", "synthesized",
+         f"{len(top)} papers, cited {len(synth.cited)}"
+         + (f", {batches} batches" if batches and batches > 1 else ""))
     if warning and not synthesize.has_coverage_footer(synth.text):
         emit(journal, "review", "coverage-footer-missing",
              "model omitted the incomplete-coverage footer")
