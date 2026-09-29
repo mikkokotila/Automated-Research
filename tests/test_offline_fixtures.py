@@ -28,8 +28,6 @@ def test_fake_muse_satisfies_synthesize_protocol(fake_muse):
 def test_recorded_sources_parse_and_dedupe_across_providers(recorded_sources):
     client, seen = recorded_sources
     spec = ResearchSpec(question="fixture question", max_papers=5)
-    s2 = retrieval.semscholar_search(spec, client)
-    assert len(s2) == 1 and s2[0].abstract == "A recorded abstract."
     ax = retrieval.arxiv_search(spec, client)
     assert [p.ref for p in ax] == ["doi:10.9990/fixture-one", "arxiv:2601.00002"]
     assert ax[0].evidence == "fulltext" and ax[0].extra["version"] == "2"
@@ -37,12 +35,11 @@ def test_recorded_sources_parse_and_dedupe_across_providers(recorded_sources):
     papers = retrieval.retrieve(spec, client)
     assert any(p.abstract == "Fixture abstract" for p in papers)
     assert any(p.abstract == "An arxiv abstract." for p in papers)
-    # Shared DOI dedupes to one record across all three providers;
+    # Shared DOI dedupes to one record across both providers;
     # the two DOI-less papers survive.
     assert len(papers) == 3
     assert [p.ref for p in papers].count("doi:10.9990/fixture-one") == 1
     assert {r.url.path for r in seen} == {"/v1/sources/openalex",
-                                           "/v1/sources/semanticscholar",
                                            "/v1/sources/arxiv"}
 
 

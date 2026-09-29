@@ -21,8 +21,6 @@ from .policy import ALLOWED_MODEL, MAX_BODY_BYTES, BoundaryError, PolicyBlocked
 
 SOURCES = {
     "/v1/sources/openalex": ("https://api.openalex.org/works", {"search", "per-page", "mailto", "filter"}),
-    "/v1/sources/semanticscholar": ("https://api.semanticscholar.org/graph/v1/paper/search",
-                                      {"query", "limit", "fields", "year"}),
     "/v1/sources/arxiv": ("https://export.arxiv.org/api/query",
                            {"search_query", "start", "max_results", "sortBy", "sortOrder"}),
 }
@@ -244,11 +242,8 @@ def make_server(gateway, access_token, address=("0.0.0.0", 8787)):
                 if path.path == "/v1/sources/arxiv":
                     self.serve_arxiv(url, flat)
                     return
-                headers = {}
-                if path.path.endswith("semanticscholar") and os.environ.get("SEMANTIC_SCHOLAR_API_KEY"):
-                    headers["x-api-key"] = os.environ["SEMANTIC_SCHOLAR_API_KEY"]
                 response = gateway.http.get(url, params={k:v[0] for k,v in params.items()},
-                                            headers=headers, timeout=30)
+                                            timeout=30)
                 if response.status_code != 200:
                     self.reply(response.status_code if response.status_code in (400,429) else 502,
                                {"error": "source_unavailable"})

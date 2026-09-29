@@ -103,18 +103,13 @@ def test_retrieve_dedupes_by_doi_across_sources():
                     }
                 ]
             },
-            "semanticscholar": {
-                "data": [
+            "arxiv": {
+                "entries": [
                     {
-                        "paperId": "S1",
+                        "id": "2601.1",
                         "title": "Same study",
                         "doi": "10.1/dup",
                         "abstract": "richer abstract",
-                        "authors": [],
-                        "year": 2022,
-                        "venue": "",
-                        "url": "",
-                        "citationCount": 3,
                     }
                 ]
             },
@@ -129,7 +124,7 @@ def test_retrieve_degrades_when_one_source_fails():
     def handler(req: httpx.Request) -> httpx.Response:
         if "openalex" in str(req.url):
             raise httpx.ConnectError("down")
-        return httpx.Response(200, json={"data": []})
+        return httpx.Response(200, json={"entries": []})
 
     client = httpx.Client(transport=httpx.MockTransport(handler))
     assert retrieval.retrieve(ResearchSpec(question="q"), client) == []
@@ -143,23 +138,6 @@ def test_retrieve_raises_when_all_fail():
     with pytest.raises(RuntimeError, match="retrieval failed"):
         # Keyword-bearing: arXiv must actually call (and fail) too.
         retrieval.retrieve(ResearchSpec(question="timing evidence"), client)
-
-
-def test_semscolar_sends_api_key_when_set(monkeypatch):
-    seen = {}
-
-    def handler(req: httpx.Request) -> httpx.Response:
-        seen.update(req.headers)
-        return httpx.Response(200, json={"data": []})
-
-    monkeypatch.setenv("SEMANTIC_SCHOLAR_API_KEY", "s2key")
-    # Direct-provider headers only: a brokered route replaces them. Scrub the
-    # ambient gate env (present when the suite runs in-guest as the eval gate).
-    monkeypatch.delenv("CANARY_GATE_URL", raising=False)
-    monkeypatch.delenv("CANARY_GATE_TOKEN", raising=False)
-    client = httpx.Client(transport=httpx.MockTransport(handler))
-    retrieval.semscholar_search(ResearchSpec(question="q"), client)
-    assert seen.get("x-api-key") == "s2key"
 
 
 def test_search_text_strips_query_breakers():

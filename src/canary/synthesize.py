@@ -38,13 +38,15 @@ def has_coverage_footer(text: str) -> bool:
     return COVERAGE_FOOTER_MARKER in text.lower()
 
 
-COVERAGE_FOOTER = "Note: incomplete coverage - Semantic Scholar failed; sources are limited."
+COVERAGE_FOOTER = "Note: incomplete coverage - some providers failed; sources are partial."
 
 
 def ensure_coverage_footer(text: str, degraded: bool = False, degraded_sources: bool = False, degraded_coverage: bool = False, coverage_warning: str | bool | None = None, **kwargs: bool) -> str:
     """Append standard footer when degraded coverage omitted it."""
     flag = degraded or degraded_sources or degraded_coverage or bool(coverage_warning) or any(bool(v) for v in kwargs.values())
     if flag and not has_coverage_footer(text):
+        if isinstance(coverage_warning, str) and coverage_warning.strip():
+            return text.rstrip() + "\n\nNote: incomplete coverage - " + coverage_warning.strip()[:200]
         return text.rstrip() + "\n\n" + COVERAGE_FOOTER
     return text
 

@@ -510,13 +510,9 @@ def test_degraded_run_flags_missing_coverage_footer(tmp_path):
         url = str(request.url)
         if "openalex" in url:
             raise httpx.ConnectError("down")
-        if "arxiv" in url:
-            return httpx.Response(200, json={"entries": []})
-        return httpx.Response(200, json={"data": [{
-            "paperId": "S1", "title": "Study on X", "abstract": "X",
-            "authors": [{"name": "A. Uthor"}], "year": 2023, "venue": "J X",
-            "url": "", "citationCount": 5, "externalIds": {"DOI": "10.1/x"},
-            "openAccessPdf": None, "publicationTypes": []}]})
+        return httpx.Response(200, json={"entries": [{
+            "id": "2601.1", "title": "Study on X", "abstract": "X",
+            "authors": ["A. Uthor"], "year": 2023, "doi": "10.1/x"}]})
 
     def run(review_text):
         journal = Journal()

@@ -355,8 +355,6 @@ def test_cycle_does_not_turn_budget_refusal_into_convergence():
         def complete(self,*args,**kwargs):
             raise RequestBlocked("token_budget_exhausted")
     def sources(request):
-        if "semanticscholar" in str(request.url):
-            return httpx.Response(200,json={"data":[]})
         return httpx.Response(200,json={"results":[{"id":"x","title":"fixture"}]})
     with pytest.raises(RequestBlocked,match="token_budget_exhausted"):
         run_cycle("q",None,None,2,1,Blocked(),http=httpx.Client(transport=httpx.MockTransport(sources)))

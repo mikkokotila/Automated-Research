@@ -1,4 +1,4 @@
-"""Retrieval from OpenAlex, Semantic Scholar, and arXiv, merged and deduped."""
+"""Retrieval from OpenAlex and arXiv, merged and deduped."""
 
 from __future__ import annotations
 
@@ -13,13 +13,11 @@ from .papers import Paper
 from .spec import ResearchSpec
 
 OPENALEX_URL = "https://api.openalex.org/works"
-SEMANTIC_SCHOLAR_URL = "https://api.semanticscholar.org/graph/v1/paper/search"
 ARXIV_URL = "https://export.arxiv.org/api/query"
 # Brokered path: guests resolve each provider URL to a broker route. arXiv is
 # keyless and quota-free, so it carries the run when aggregators rate-limit.
 _GATE_SOURCES = {
     OPENALEX_URL: "openalex",
-    SEMANTIC_SCHOLAR_URL: "semanticscholar",
     ARXIV_URL: "arxiv",
 }
 # OpenAlex retired the mailto polite pool; auth is a free API key (see
@@ -206,76 +204,6 @@ def openalex_search(spec: ResearchSpec, client: httpx.Client, limit: int = 25,
     return out
 
 
-S2_FIELDS = ("title,abstract,authors,year,venue,url,citationCount,externalIds,"
-             "openAccessPdf,publicationTypes")
-
-
-def semscholar_search(spec: ResearchSpec, client: httpx.Client, limit: int = 25,
-                      capture: dict | None = None) -> list[Paper]:
-    params = {
-        "query": search_text(spec.question),
-        "limit": str(min(limit, 50)),
-        "fields": S2_FIELDS,
-    }
-    if spec.year_from:
-        params["year"] = f"{spec.year_from}-"
-    headers = {}
-    if os.environ.get("SEMANTIC_SCHOLAR_API_KEY"):
-        headers["x-api-key"] = os.environ["SEMANTIC_SCHOLAR_API_KEY"]
-    started = time.monotonic()
-    resp = _get(client, SEMANTIC_SCHOLAR_URL, params, headers)
-    latency_ms = round((time.monotonic() - started) * 1000, 1)
-    body = resp.json()
-    cache_hash = "sha256:" + hashlib.sha256(resp.content).hexdigest()
-    out: list[Paper] = []
-    for p in body.get("data", []) if isinstance(body, dict) else []:
-        if not isinstance(p, dict):
-            continue
-        title = _clean(p.get("title"))
-        if not title:
-            continue
-        external = p.get("externalIds") or {}
-        if not isinstance(external, dict):
-            external = {}
-        # The graph API exposes DOI under externalIds, not as a top-level field;
-        # a top-level value is honored only as a forward-compatible fallback.
-        doi = normalize_doi(external.get("DOI") or external.get("doi") or p.get("doi"))
-        authors = tuple(_clean((a or {}).get("name")) for a in (p.get("authors") or [])[:10]
-                        if (a or {}).get("name"))
-        url = _clean(p.get("url") or (f"https://doi.org/{doi}" if doi else "")) or ""
-        oa = p.get("openAccessPdf") or {}
-        oa_url = _clean(oa.get("url") or "")
-        abstract = _clean(p.get("abstract"))
-        identifiers = {"s2": _clean(p.get("paperId"))}
-        for key, value in external.items():
-            if value:
-                identifiers[str(key).lower()] = _clean(value)
-        out.append(
-            Paper(
-                ref=f"doi:{doi}" if doi else f"s2:{p.get('paperId', '')}",
-                title=title,
-                abstract=abstract,
-                authors=authors,
-                year=p.get("year"),
-                venue=_clean(p.get("venue") or ""),
-                doi=doi,
-                url=url,
-                citations=_as_int(p.get("citationCount")),
-                source="semanticscholar",
-                evidence=_evidence_tier(abstract, oa_url),
-                oa_url=oa_url,
-                license=_clean(oa.get("license") or ""),
-                identifiers=identifiers,
-                extra={"publication_types": p.get("publicationTypes") or [],
-                       "cache_hash": cache_hash},
-            )
-        )
-    if capture is not None:
-        capture.update({"outcome": "ok", "papers": len(out), "latency_ms": latency_ms,
-                        "cache_hash": cache_hash})
-    return out
-
-
 def arxiv_query(question: str, max_terms: int = 6) -> str:
     """Distinctive keywords as a conjunctive arXiv query.
 
@@ -414,8 +342,7 @@ def refined_query(question: str) -> str:
 def _attempt(spec: ResearchSpec, client: httpx.Client) -> tuple[list[Paper], dict]:
     providers: dict[str, dict] = {}
     papers: list[Paper] = []
-    for name, fn in (("openalex", openalex_search), ("semanticscholar", semscholar_search),
-                     ("arxiv", arxiv_search)):
+    for name, fn in (("openalex", openalex_search), ("arxiv", arxiv_search)):
         capture: dict = {"outcome": "error", "papers": 0, "latency_ms": 0.0,
                          "cache_hash": None, "error": None}
         started = time.monotonic()

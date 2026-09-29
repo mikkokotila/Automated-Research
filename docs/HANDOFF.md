@@ -8,7 +8,7 @@ The pre-migration snapshot includes all previously uncommitted source, tests, sc
 
 ## Current behavior
 
-The package retrieves literature from OpenAlex and Semantic Scholar, ranks sources, asks the configured Muse service for a cited review, optionally fits and evaluates tabular models, and proposes follow-up questions. It records procedural notes and can assess those notes, propose code patches, test them, and keep or revert them.
+The package retrieves literature from OpenAlex and arXiv, ranks sources, asks the configured Muse service for a cited review, optionally fits and evaluates tabular models, and proposes follow-up questions. It records procedural notes and can assess those notes, propose code patches, test them, and keep or revert them.
 
 The newer pre-migration work also includes a container launcher and a GitHub publishing integration. Maintenance can create issues and pull requests when configured with a GitHub credential. This migration preserves that behavior but does not authorize live execution or certify its design. The offline contract checks use a local bare Git repository and mocked GitHub responses; no real publishing workflow was executed.
 
