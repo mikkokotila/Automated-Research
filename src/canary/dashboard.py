@@ -15,7 +15,9 @@ import json
 import os
 import re
 import shlex
+import shutil
 import subprocess
+import tempfile
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -173,9 +175,16 @@ class Supervisor:
                          if stale and not row["live"] and not owned else None)
                 if (fresh is not None
                         and fresh.get("status") in ("running", "paused")):
+                    bundle = row.get("bundle", "")
+                    # Guest-exited-but-exported rows carry bundle truth
+                    # (run.json is sealed at cycle end); only genuinely
+                    # bundle-less rows are interruptions. The launcher's
+                    # own finish lands seconds later and no-ops either way.
+                    status = ("done"
+                              if (Path(str(bundle)) / "run.json").exists()
+                              else "interrupted")
                     finished = runs.register_finish(
-                        row["key"], "interrupted", row.get("bundle", ""),
-                        path=self.registry)
+                        row["key"], status, bundle, path=self.registry)
                 else:
                     finished = None
                 if finished:
@@ -275,6 +284,38 @@ def _load_json_file(path: Path, default):
 
 def _journal_detail(ev: dict) -> str:
     return str(ev.get("detail", ev.get("Detail", "")))
+
+
+def live_snapshot(container: str, dest: Path, timeout: int = 20) -> bool:
+    """Copy a live worker's /work/out into dest. Host-side read, best-effort.
+
+    Same trust level as pause/unpause: the daemon already controls the
+    container's lifecycle. Any failure (exited mid-copy, docker hiccup)
+    returns False and the caller falls back to the host bundle.
+    """
+    try:
+        r = _docker("cp", f"{container}:/work/out/.", str(dest),
+                    timeout=timeout)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return r.returncode == 0 and (dest / "run.json").exists()
+
+
+def research_for_row(row: dict, supervisor: "Supervisor") -> tuple[dict, bool]:
+    """Research record for a registry row, live-snapping running workers."""
+    bundle = row.get("bundle", "")
+    if (Path(str(bundle)) / "run.json").exists():
+        return research_bundle(bundle), False
+    container = row.get("container") or ""
+    if (row.get("status") in ("running", "paused") and container
+            and supervisor.inspect(container)["live"]):
+        tmpdir = Path(tempfile.mkdtemp(prefix="canary-research-"))
+        try:
+            if live_snapshot(container, tmpdir):
+                return research_bundle(tmpdir), True
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+    return research_bundle(bundle), False
 
 
 def research_bundle(bundle: str | Path) -> dict:
@@ -518,9 +559,9 @@ class Handler(BaseHTTPRequestHandler):
                 if row is None:
                     self._send(404, {"error": f"unknown run {key}"})
                 else:
-                    self._send(200, {"key": key,
-                                     "research": research_bundle(
-                                         row.get("bundle", ""))})
+                    research, live = research_for_row(row, self.supervisor)
+                    self._send(200, {"key": key, "live": live,
+                                     "research": research})
             elif parsed.path.startswith("/api/runs/"):
                 key = parsed.path[len("/api/runs/"):]
                 row = next((r for r in self.supervisor.reconcile()
