@@ -92,6 +92,14 @@ def test_provider_429_surfaces_retry_after_without_halt(book):
     ledger.reserve(1)  # service still admits
 
 
+def test_provider_transport_failure_carries_30s_hint(book):
+    gate, _ = service(book, httpx.ConnectError("down"))
+    with pytest.raises(ProviderFailure) as exc:
+        gate.complete(payload())
+    assert exc.value.retry_after == 30
+    assert "transport" in str(exc.value)
+
+
 def test_provider_5xx_and_bad_backoff_header_have_no_hint(book):
     ledger, _ = book
     for status, headers, expected in ((500, {}, None), (429, {"retry-after": "soon"}, None),
@@ -233,6 +241,28 @@ def test_worker_honors_server_backoff_only_when_retryable(monkeypatch):
     with pytest.raises(RequestBlocked):
         client.complete("s", "u")
     assert sleeps == [3, 2.0]  # non-retryable: no sleep, no retry
+
+
+def test_worker_rides_hinted_outage_across_four_attempts(monkeypatch):
+    monkeypatch.setenv("CANARY_GATE_TOKEN", "fixture")
+    sleeps = []
+    monkeypatch.setattr("canary.muse_client.time.sleep", sleeps.append)
+    script = [httpx.Response(502, json={"error": "provider_request_failed",
+                                        "message": "Provider transport failed",
+                                        "retry_after": 30})] * 3 + [
+        httpx.Response(200, json={**reply(), "text": "recovered", "receipt": "r9"})]
+
+    def broker(request):
+        return script.pop(0)
+
+    client = MuseClient(client=httpx.Client(transport=httpx.MockTransport(broker)))
+    assert client.complete("s", "u") == "recovered"
+    assert sleeps == [30, 30, 30]
+    script = [httpx.Response(502, json={"error": "provider_request_failed",
+                                        "message": "x"})] * 4
+    with pytest.raises(RequestBlocked):
+        client.complete("s", "u")
+    assert sleeps == [30, 30, 30, 2.0, 5.0, 15.0]  # no hint: fixed schedule
 
 
 def test_run_token_auth_over_http(book):
