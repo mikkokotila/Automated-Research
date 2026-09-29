@@ -1,6 +1,7 @@
 """Dashboard daemon: validation, supervision, API, and log merge."""
 import json
 import os
+from pathlib import Path
 import shlex
 import shutil
 import subprocess
@@ -219,6 +220,22 @@ def test_reconcile_finishes_phantom_running(server):
     assert rows[0]["live"] is False
 
 
+def test_reconcile_prefers_bundle_truth_over_interrupted(server, tmp_path):
+    bundle = tmp_path / "b2"
+    bundle.mkdir()
+    (bundle / "run.json").write_text(json.dumps(
+        {"seed": "s?", "stopped": "failed", "model": "m", "usage": {}}))
+    (bundle / "manifest.json").write_text(json.dumps(
+        {"run_id": "r1", "kind": "cycle", "status": "",
+         "started_at": "t", "finished_at": "t2",
+         "spec": {"question": "s?"}}))
+    runs.register_start("b2", "n", "b", bundle=str(bundle),
+                        container="canary-nope", path=server["registry"])
+    rows = server["client"].get("/api/runs").json()["runs"]
+    assert rows[0]["status"] == "failed"  # bundle truth, not interrupted
+    assert rows[0]["run_id"] == "r1"
+
+
 def test_rerun_requires_recorded_launch(server):
     runs.register_start("k1", "n", "b", path=server["registry"])
     r = server["client"].post("/api/runs/k1/rerun")
@@ -357,3 +374,46 @@ def test_research_endpoint_missing_bundle_is_empty_not_500(server):
     r = server["client"].get("/api/runs/k9/research")
     assert r.status_code == 200
     assert server["client"].get("/api/runs/nope/research").status_code == 404
+
+
+def _live_container(monkeypatch, cp_ok=True):
+    """Fake docker: container inspect says live; cp optionally stages files."""
+
+    def fake(*args, timeout=30):
+        class R:
+            pass
+        r = R()
+        if args[0] == "inspect":
+            r.returncode, r.stdout = 0, "true false\n"
+            return r
+        assert args[0] == "cp"
+        if cp_ok:
+            dest = Path(args[2])
+            (dest / "run.json").write_text(json.dumps(
+                {"seed": "live?", "stopped": "?", "model": "m"}))
+            (dest / "journal.jsonl").write_text(
+                '{"seq": 1, "ts": "t", "phase": "review",'
+                ' "event": "retrieved", "Detail": "5 candidates"}\n')
+        r.returncode, r.stdout, r.stderr = (0, "", "") if cp_ok else (1, "", "nope")
+        return r
+
+    monkeypatch.setattr(dashboard, "_docker", fake)
+
+
+def test_research_live_snapshots_running_container(server, monkeypatch):
+    runs.register_start("live1", "n", "b", bundle="/nonexistent",
+                        container="c1", path=server["registry"])
+    _live_container(monkeypatch, cp_ok=True)
+    d = server["client"].get("/api/runs/live1/research").json()
+    assert d["live"] is True
+    assert d["research"]["seed"] == "live?"
+    assert d["research"]["decisions"][0]["detail"] == "5 candidates"
+
+
+def test_research_live_snapshot_failure_falls_back(server, monkeypatch):
+    runs.register_start("live2", "n", "b", bundle="/nonexistent",
+                        container="c2", path=server["registry"])
+    _live_container(monkeypatch, cp_ok=False)
+    d = server["client"].get("/api/runs/live2/research").json()
+    assert d["live"] is False
+    assert d["research"]["seed"] == "?"

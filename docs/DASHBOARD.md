@@ -38,7 +38,8 @@ count, loop-iteration count, research, log, rerun, pause.
   and PR link once the publish bridge (#66) files it.
 - Click **LOOP** for the loop's reformulations in order with statuses.
 - **RESEARCH** opens the full research record (`/api/runs/<key>/research`,
-  cached per panel, RELOAD refetches): **SYNTHESIS** (headline answer,
+  cached per panel, RELOAD refetches; live runs snapshot the worker's
+  partial bundle and refresh every few seconds): **SYNTHESIS** (headline answer,
   limits, carry-forward questions), **PAPERS** (every retrieved ref with
   title, year, source, abstract, open-access link — capped at 200 with
   counts), **CLAIMS** (per-iteration questions, grounded claims with

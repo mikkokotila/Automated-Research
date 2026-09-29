@@ -217,7 +217,7 @@ details.paper summary:hover { color: var(--green); }
 /* State */
 const S = { runs: [], tab: "runs", open: {}, logStream: {}, logTail: 500,
             logData: {}, researchData: {}, researchTab: {}, researchLoading: {},
-            timer: null, daemonOk: false };
+            researchLive: {}, timer: null, daemonOk: false };
 
 /* Helpers: every interpolated value is escaped (rows carry model text). */
 function esc(s) {
@@ -404,6 +404,7 @@ async function refreshResearch(key) {
   try {
     const d = await api(`/api/runs/${encodeURIComponent(key)}/research`);
     S.researchData[key] = d.research || {};
+    S.researchLive[key] = !!d.live;
     paintResearch(key);
   } catch (e) {
     const el = document.getElementById("research-" + key);
@@ -513,7 +514,8 @@ function paintResearch(key, tab) {
   const bodies = { synthesis: researchSynthesis, papers: researchPapers,
                    claims: researchClaims, decisions: researchDecisions };
   el.innerHTML = `<div class="logbar">${btn("synthesis")}${btn("papers")}${btn("claims")}${btn("decisions")}`
-    + `<button class="act" data-rs-reload="${esc(key)}">RELOAD</button></div>`
+    + `<button class="act" data-rs-reload="${esc(key)}">RELOAD</button>`
+    + (S.researchLive[key] ? '<span class="st-live">●LIVE — partial, refreshing</span>' : "") + `</div>`
     + `<div><p class="q">${esc(d.seed || "?")}</p>${(bodies[tab] || researchSynthesis)(d)}</div>`;
 }
 
@@ -626,9 +628,10 @@ function armPoll() {
     if (S.tab !== "runs") return;
     loadRuns();
     for (const key of Object.keys(S.open)) {
-      if (!(S.open[key] || []).includes("log")) continue;
       const row = S.runs.find(r => r.key === key);
-      if (row && row.live) refreshLog(key);
+      if (!row || !row.live) continue;
+      if ((S.open[key] || []).includes("log")) refreshLog(key);
+      if ((S.open[key] || []).includes("research")) refreshResearch(key);
     }
   }, 5000);
 }
