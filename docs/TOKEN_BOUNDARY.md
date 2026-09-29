@@ -89,7 +89,7 @@ If the previously reported provider-account restriction persists, it remains a l
 
 ## Network and publishing changes
 
-To make model selection enforceable for a writable worker, direct internet access is intentionally removed. The service mediates only the exact OpenAlex and Semantic Scholar search endpoints plus the single approved completion route. It is not a generic HTTP proxy. Additional public-web tools require reviewed, mediated routes. This narrows the earlier unrestricted-internet design.
+To make model selection enforceable for a writable worker, direct internet access is intentionally removed. The service mediates only the exact OpenAlex and arXiv search endpoints plus the single approved completion route. It is not a generic HTTP proxy. Additional public-web tools require reviewed, mediated routes. This narrows the earlier unrestricted-internet design.
 
 Raw GitHub credentials are no longer passed to workers, so their optional publishing helper stays inactive. Publishing must be performed by a separately authorized controller, not by handing repository credentials to generated code. Existing publishing unit tests remain mocked/local.
 

@@ -65,7 +65,7 @@ changes the launcher, not the trust split.
 | Read | Baked repo copy, `/work`, `/tmp`, broker replies | Ledger volume, provider + literature replies | Repo, images, out-volumes |
 | Write | tmpfs `/tmp` (512M), `/work` (2G), out-volume | Ledger volume only | New export dirs, Docker state |
 | Execute | Guest processes, pids ≤ 256 | `serve` entrypoint only | Launcher scripts, never guest shell |
-| Contact | `canary-gate:8787` on internal net only | `api.meta.ai`, OpenAlex, Semantic Scholar | Docker daemon, registries |
+| Contact | `canary-gate:8787` on internal net only | `api.meta.ai`, OpenAlex, arXiv | Docker daemon, registries |
 
 Worker hard limits (externally enforced, guest cannot raise): `--user
 10002:10002`, `--cap-drop ALL`, `no-new-privileges`, `--read-only`,
@@ -79,7 +79,7 @@ flowchart LR
     OP -->|MUSE_API_KEY via env<br/>never a file| G[broker gate<br/>trusted, 10001]
     W -->|token-auth HTTP<br/>internal net only| G
     G -->|model-locked + metered| P[api.meta.ai]
-    G -->|two literature routes| L[OpenAlex / Semantic Scholar]
+    G -->|two literature routes| L[OpenAlex / arXiv]
     W -->|tar of out-volume| X[exporter<br/>host-side, bounded files]
     X -->|new dir only| H[(host outputs)]
     W -.->|no route| I[public internet<br/>denied]

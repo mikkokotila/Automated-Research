@@ -20,14 +20,6 @@ def openalex_work(**kw):
     return work
 
 
-def s2_paper(**kw):
-    paper = {"paperId": "S1", "title": "T", "abstract": None, "authors": [],
-             "year": None, "venue": None, "url": None, "citationCount": 0,
-             "externalIds": {}, "openAccessPdf": None, "publicationTypes": []}
-    paper.update(kw)
-    return paper
-
-
 # --- DOI normalization ---
 
 
@@ -44,22 +36,6 @@ def s2_paper(**kw):
 ])
 def test_normalize_doi_variants(raw, expected):
     assert retrieval.normalize_doi(raw) == expected
-
-
-def test_s2_reads_doi_from_external_ids():
-    client = mock_client(lambda req: httpx.Response(200, json={
-        "data": [s2_paper(paperId="S9", externalIds={"DOI": "10.9/AbC", "ArXiv": "1234.5"})]}))
-    (p,) = retrieval.semscholar_search(ResearchSpec(question="q"), client)
-    assert p.doi == "10.9/abc"
-    assert p.ref == "doi:10.9/abc"
-    assert p.identifiers["arxiv"] == "1234.5"
-
-
-def test_s2_top_level_doi_is_only_a_fallback():
-    client = mock_client(lambda req: httpx.Response(200, json={
-        "data": [dict(s2_paper(paperId="S9"), doi="10.9/top")]}))
-    (p,) = retrieval.semscholar_search(ResearchSpec(question="q"), client)
-    assert p.doi == "10.9/top"
 
 
 def test_openalex_reads_ids_doi_fallback_and_api_key(monkeypatch):
@@ -101,11 +77,11 @@ def test_unicode_and_null_fields_survive():
                               publication_year=None, cited_by_count="7",
                               abstract_inverted_index={"Café": [0], "β-cell": [1]}),
                 "not-a-dict", {"title": ""}]})
-        return httpx.Response(200, json={"data": [
-            s2_paper(title="Zürich über alles", authors=[None, {"name": "Aß"}],
-                     year=None, venue=None, citationCount=None, abstract=None)]})
+        return httpx.Response(200, json={"entries": [
+            arxiv_entry(title="Zürich über alles", authors=["Aß"], year=None)]})
 
-    papers = retrieval.retrieve(ResearchSpec(question="café"), mock_client(handler))
+    papers = retrieval.retrieve(ResearchSpec(question="café treatment effects"),
+                                mock_client(handler))
     assert {p.title for p in papers} == {"Café — naïve β-cell étude?", "Zürich über alles"}
     assert papers[0].citations == 7 and papers[1].authors == ("Aß",)
 
@@ -131,10 +107,11 @@ def test_dedupe_merges_case_variant_dois_and_keeps_richer_abstract():
         if "openalex" in str(req.url):
             return httpx.Response(200, json={"results": [
                 openalex_work(doi="HTTPS://DOI.ORG/10.3/SAME", abstract_inverted_index=None)]})
-        return httpx.Response(200, json={"data": [
-            s2_paper(title="T", externalIds={"DOI": "10.3/same"}, abstract="richer")]})
+        return httpx.Response(200, json={"entries": [
+            arxiv_entry(title="T", doi="10.3/same", abstract="richer")]})
 
-    papers, rep = retrieval.retrieve_with_report(ResearchSpec(question="q"), mock_client(handler))
+    papers, rep = retrieval.retrieve_with_report(ResearchSpec(question="case variant dois"),
+                                                 mock_client(handler))
     assert len(papers) == 1 and papers[0].abstract == "richer"
     assert rep["dedupe"] == {"candidates": 2, "kept": 1, "merged": 1}
 
@@ -180,9 +157,10 @@ def test_single_provider_failure_degrades_with_honest_warning():
     def handler(req: httpx.Request) -> httpx.Response:
         if "openalex" in str(req.url):
             raise httpx.ConnectError("down")
-        return httpx.Response(200, json={"data": [s2_paper(abstract="a")]})
+        return httpx.Response(200, json={"entries": [arxiv_entry(abstract="a")]})
 
-    papers, rep = retrieval.retrieve_with_report(ResearchSpec(question="q"), mock_client(handler))
+    papers, rep = retrieval.retrieve_with_report(ResearchSpec(question="timing evidence"),
+                                                 mock_client(handler))
     assert len(papers) == 1
     assert rep["providers"]["openalex"]["outcome"] == "error"
     assert "down" in rep["providers"]["openalex"]["error"]
@@ -204,9 +182,9 @@ def test_empty_results_refine_once_with_recorded_simplification():
         seen.append(str(req.url))
         if "openalex" in str(req.url):
             return httpx.Response(200, json={"results": []})
-        if len([u for u in seen if "semanticscholar" in u]) == 1:
-            return httpx.Response(200, json={"data": []})
-        return httpx.Response(200, json={"data": [s2_paper(abstract="found")]})  # refined hit
+        if len([u for u in seen if "arxiv" in u]) == 1:
+            return httpx.Response(200, json={"entries": []})
+        return httpx.Response(200, json={"entries": [arxiv_entry(abstract="found")]})  # refined hit
 
     papers, rep = retrieval.retrieve_with_report(
         ResearchSpec(question="does treatment delay raise cancer mortality?"), mock_client(handler))
@@ -217,7 +195,7 @@ def test_empty_results_refine_once_with_recorded_simplification():
 
     assert set(change["to"].split()) <= set(_re.findall(r"[a-z0-9]+", change["from"].lower()))
     assert rep["queries"] == [change["from"], change["to"]]
-    assert sum("semanticscholar" in u for u in seen) == 2  # exactly one retry round
+    assert sum("arxiv" in u for u in seen) == 2  # exactly one retry round
 
 
 # --- evidence tiers ---
@@ -235,7 +213,7 @@ def test_evidence_tiers_and_licenses():
                               abstract_inverted_index={"Just": [0]}),
                 openalex_work(id="https://openalex.org/W3", title="No evidence"),
             ]})
-        return httpx.Response(200, json={"data": []})
+        return httpx.Response(200, json={"entries": []})
 
     papers = retrieval.retrieve(ResearchSpec(question="q"), mock_client(handler))
     by_title = {p.title: p for p in papers}
@@ -266,7 +244,7 @@ def off_topic_fixtures():
               citations=900, source="openalex"),
         Paper(ref="doi:10.2/global", title="Global cancer statistics",
               abstract="Worldwide estimates of cases and deaths by site and region.",
-              citations=5000, source="semanticscholar"),
+              citations=5000, source="arxiv"),
     ]
 
 
@@ -386,7 +364,7 @@ def test_arxiv_year_from_filters_client_side_keeping_unknown_years():
 
 
 def test_arxiv_ignores_foreign_and_non_json_shapes():
-    for body in ({"data": [s2_paper()]}, {"results": [openalex_work()]},
+    for body in ({"data": [{"title": "T"}]}, {"results": [openalex_work()]},
                  ["not-a-dict"], {"entries": "not-a-list"},
                  {"entries": ["x", {"title": ""}, {"title": "T", "id": ""}, None]}):
         client = mock_client(lambda req, body=body: httpx.Response(200, json=body))
@@ -409,7 +387,7 @@ def test_arxiv_without_terms_skips_the_call():
     assert capture == {"outcome": "ok", "papers": 0, "latency_ms": 0.0, "cache_hash": None}
 
 
-def test_arxiv_carries_run_while_aggregators_fail():
+def test_arxiv_carries_run_while_openalex_fails():
     def handler(req: httpx.Request) -> httpx.Response:
         if "arxiv" in str(req.url):
             return httpx.Response(200, json={"entries": [
@@ -419,4 +397,4 @@ def test_arxiv_carries_run_while_aggregators_fail():
     papers, rep = retrieval.retrieve_with_report(ResearchSpec(question="timing evidence"),
                                                  mock_client(handler))
     assert len(papers) == 1 and papers[0].source == "arxiv"
-    assert rep["warning"].startswith("degraded coverage: openalex, semanticscholar failed")
+    assert rep["warning"].startswith("degraded coverage: openalex failed")

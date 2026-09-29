@@ -22,24 +22,12 @@ made; unit tests and CI use fixtures only.
   `best_oa_location.{pdf_url,landing_page_url,license}`.
 - Removed fields we never used: `host_venue`, `grants`, `has_ngrams` filter.
 
-## Semantic Scholar (Academic Graph API)
+## Semantic Scholar (REMOVED 2026-09-29)
 
-- Docs read: `https://api.semanticscholar.org/api-docs/graph` (interactive;
-  parameter details cross-checked against the official product page and
-  consistent client references), `https://www.semanticscholar.org/product/api`.
-- Endpoint: `GET https://api.semanticscholar.org/graph/v1/paper/search` with
-  `query`, `limit` (max 100; we cap at 50), `fields`, and optional `year`
-  (`YYYY-` or `YYYY-YYYY`).
-- Auth: optional `x-api-key` header (`SEMANTIC_SCHOLAR_API_KEY`). Unauthenticated
-  callers share one global pool (~100 requests / 5 min); saturation is driven
-  by third-party traffic and self-pacing does not clear it.
-- Response fields consumed: `data[].paperId`, `title`, `abstract`,
-  `authors[].name`, `year`, `venue`, `url`, `citationCount`,
-  `externalIds.{DOI,ArXiv,MAG,PubMed,...}`, `openAccessPdf.{url,license}`,
-  `publicationTypes`. **There is no top-level `doi` field** — DOI is read from
-  `externalIds.DOI` (a top-level value is honored only as a fallback).
-- Unknown `fields` entries are not requested: `doi` was dropped from the field
-  list after this verification.
+Dropped per owner directive after sustained keyless 429s on 2026-09-28/29
+(the unauthenticated global pool saturates on third-party traffic and
+self-pacing does not clear it). Worker and broker code removed; retrieval
+runs on OpenAlex + arXiv only.
 
 ## arXiv
 
@@ -71,10 +59,10 @@ made; unit tests and CI use fixtures only.
 
 ## Remaining access blockers
 
-- No `OPENALEX_API_KEY` or `SEMANTIC_SCHOLAR_API_KEY` is provisioned; live use
-  runs on anonymous budgets (S2's shared pool may saturate; both aggregators
-  returned sustained 429s on 2026-09-28 and were demoted to degraded
-  coverage while arXiv carries retrieval).
+- No `OPENALEX_API_KEY` is provisioned; live use runs on the anonymous
+  budget (sustained 429s on 2026-09-28 demoted it to degraded coverage
+  while arXiv carries retrieval). Provisioning a free key is the cheapest
+  reliability upgrade available.
 - The brokered path (`CANARY_GATE_URL` → `/v1/sources/...`) forwards retrieval
   through the request service; broker-side provider keys and forwarding are
   unverified and out of scope for this build.

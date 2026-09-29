@@ -52,8 +52,6 @@ def fixture_clients(out):
     os.environ["CANARY_GATE_URL"] = "http://fixture"
     muse = MuseClient(client=httpx.Client(transport=httpx.MockTransport(relay)))
     def literature(request):
-        if "semanticscholar" in str(request.url):
-            return httpx.Response(200, json={"data":[]})
         return httpx.Response(200, json={"results":[{"id":"FIXTURE-1",
             "title":"Urban canopy and reflective roofs: synthetic timing fixture",
             "publication_year":2025, "cited_by_count":0, "authorships":[],

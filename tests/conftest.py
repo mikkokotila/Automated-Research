@@ -76,24 +76,8 @@ RECORDED_OPENALEX = {
     ]
 }
 
-RECORDED_SEMSCHOLAR = {
-    "data": [
-        {
-            "paperId": "s2fixture1",
-            "title": "Semantic fixture on recorded responses",
-            "abstract": "A recorded abstract.",
-            "authors": [{"name": "Bob Fixture"}],
-            "year": 2025,
-            "venue": "Fixture Conf",
-            "doi": "10.9990/fixture-one",
-            "url": "",
-            "citationCount": 3,
-        }
-    ]
-}
-
 # Broker-parsed shape ({"entries": [...]}, never raw Atom): the arXiv record
-# shares the DOI so three-provider dedupe collapses it with the other two.
+# shares the DOI so two-provider dedupe collapses it with OpenAlex.
 RECORDED_ARXIV = {
     "entries": [
         {
@@ -135,8 +119,6 @@ def recorded_http_client(seen: list | None = None) -> httpx.Client:
         path = request.url.path
         if path.endswith("/sources/openalex"):
             return httpx.Response(200, json=RECORDED_OPENALEX)
-        if path.endswith("/sources/semanticscholar"):
-            return httpx.Response(200, json=RECORDED_SEMSCHOLAR)
         if path.endswith("/sources/arxiv"):
             return httpx.Response(200, json=RECORDED_ARXIV)
         return httpx.Response(404, json={})
