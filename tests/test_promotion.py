@@ -177,6 +177,17 @@ def test_eval_tree_is_fresh_git_repo(repo):
     assert cand.test.get("exit") == 0
 
 
+def test_evaluate_defaults_to_shared_check_cmd_and_persists_log(repo, tmp_path):
+    store = Store(repo / "runs" / "promotions")
+    store.init_from_worktree(repo)
+    cand = promotemod.evaluate(store, prop("p1"), DIFF_A, None, "a1")
+    assert cand.test["cmd"] == list(promotemod.CHECK_CMD) == ["pytest", "-q"]
+    assert cand.test["log"].endswith(".log")
+    import os
+
+    assert os.path.exists(cand.test["log"])
+
+
 GARBAGE_DIFF = "this is not a diff"
 NAPPLY_DIFF = ("--- a/src/canary/foo.py\n+++ b/src/canary/foo.py\n"
                "@@ -1 +1 @@\n-X = 999\n+X = 2\n")

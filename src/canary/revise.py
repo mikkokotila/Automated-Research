@@ -536,7 +536,7 @@ def revise_round(
     assessment_id: str = "",
 ) -> ReviseReport:
     repo = Path(repo)
-    check_cmd = check_cmd or ["pytest", "-q"]
+    check_cmd = check_cmd or list(promotemod.CHECK_CMD)
     report = ReviseReport()
     refuse_maintainer_credentials()
     require_revision_trust()
