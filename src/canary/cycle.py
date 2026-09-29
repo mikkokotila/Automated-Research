@@ -247,6 +247,9 @@ def run_review(question: str, max_papers: int, http: httpx.Client, muse: Complet
     if warning and not synthesize.has_coverage_footer(synth.text):
         emit(journal, "review", "coverage-footer-missing",
              "model omitted the incomplete-coverage footer")
+    elif synth.validation.get("footer_appended"):
+        emit(journal, "review", "coverage-footer-appended",
+             "model omitted the footer; guard appended it")
     for marker in synth.validation.get("dangling_citations", []):
         emit(journal, "review", "dangling-citation", f"[{marker}] points at no paper")
     for problem in synth.validation.get("rejected", []):

@@ -230,7 +230,9 @@ def synthesize(question: str, papers: list[Paper], client: Completer,
     text = client.complete(SYSTEM, build_prompt(question, papers, coverage_warning))
     if not text.strip():
         raise RuntimeError("Muse API returned an empty synthesis")
-    text = ensure_coverage_footer(text, coverage_warning=coverage_warning)
+    guarded = ensure_coverage_footer(text, coverage_warning=coverage_warning)
+    footer_appended = guarded != text
+    text = guarded
     cited = cited_indices(text, len(papers))
     dangling = dangling_citations(text, len(papers))
     raw, block_error = parse_claims_block(text)
@@ -242,9 +244,11 @@ def synthesize(question: str, papers: list[Paper], client: Completer,
             "dangling_citations": list(dangling),
             "rejected": [block_error] if block_error else [],
             "unresolved": ["no claims declared; citation markers only"],
+            "footer_appended": footer_appended,
         }
         return Synthesis(text=text, cited=cited, model=client.model, validation=validation)
     claims, validation = validate_claims(raw, papers)
     validation["dangling_citations"] = list(dangling)
+    validation["footer_appended"] = footer_appended
     return Synthesis(text=text, cited=cited, model=client.model, claims=claims,
                      validation=validation)
