@@ -387,6 +387,85 @@ def test_arxiv_without_terms_skips_the_call():
     assert capture == {"outcome": "ok", "papers": 0, "latency_ms": 0.0, "cache_hash": None}
 
 
+# --- pagination ---
+
+
+def test_openalex_pages_to_limit_then_stops():
+    seen = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        params = dict(req.url.params)
+        seen.append((params.get("page"), params.get("per-page")))
+        n = int(params.get("per-page", "50"))
+        return httpx.Response(200, json={"results": [
+            openalex_work(id=f"https://openalex.org/W{i}") for i in range(n)]})
+
+    papers = retrieval.openalex_search(ResearchSpec(question="timing evidence"),
+                                       mock_client(handler), limit=120)
+    assert [s[0] for s in seen] == ["1", "2", "3"]
+    assert [s[1] for s in seen] == ["50", "50", "20"]
+    assert len(papers) == 120
+
+
+def test_openalex_stops_on_short_page():
+    calls = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        n = 50 if len(calls) == 1 else 10
+        return httpx.Response(200, json={"results": [
+            openalex_work(id=f"https://openalex.org/W{len(calls)}-{i}") for i in range(n)]})
+
+    capture: dict = {}
+    papers = retrieval.openalex_search(ResearchSpec(question="timing evidence"),
+                                       mock_client(handler), limit=200,
+                                       capture=capture)
+    assert len(calls) == 2 and len(papers) == 60
+    assert capture["pages"] == 2
+
+
+def test_arxiv_pages_with_start_offsets():
+    seen = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        params = dict(req.url.params)
+        seen.append((params.get("start"), params.get("max_results")))
+        n = int(params.get("max_results", "50"))
+        start = int(params.get("start", "0"))
+        return httpx.Response(200, json={"entries": [
+            arxiv_entry(id=f"2601.{start + i:05d}", title=f"T{start + i}")
+            for i in range(n)]})
+
+    papers = retrieval.arxiv_search(ResearchSpec(question="timing evidence"),
+                                    mock_client(handler), limit=120)
+    assert [s[0] for s in seen] == ["0", "50", "100"]
+    assert len(papers) == 120
+
+
+def test_attempt_scales_per_provider_with_max_papers():
+    calls = {"openalex": 0, "arxiv": 0}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        url = str(req.url)
+        if "openalex" in url:
+            calls["openalex"] += 1
+            k = calls["openalex"]
+            return httpx.Response(200, json={"results": [
+                openalex_work(id=f"https://openalex.org/W{k}-{i}", title=f"OA {k}-{i}")
+                for i in range(50)]})
+        calls["arxiv"] += 1
+        k = calls["arxiv"]
+        return httpx.Response(200, json={"entries": [
+            arxiv_entry(id=f"2601.{k}{i:04d}", title=f"T{k}-{i}") for i in range(50)]})
+
+    papers, rep = retrieval.retrieve_with_report(
+        ResearchSpec(question="timing evidence", max_papers=100),
+        mock_client(handler))
+    assert calls == {"openalex": 2, "arxiv": 2}  # limit 100 -> two full pages each
+    assert rep["providers"]["openalex"]["papers"] == 100
+    assert len(papers) == 200
+
+
 def test_arxiv_carries_run_while_openalex_fails():
     def handler(req: httpx.Request) -> httpx.Response:
         if "arxiv" in str(req.url):

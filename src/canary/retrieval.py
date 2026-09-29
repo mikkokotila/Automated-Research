@@ -139,68 +139,87 @@ def _as_int(value) -> int:
         return 0
 
 
+# Per-provider ceilings: pages of 50, at most 8 pages (400 papers). Hundreds-
+# paper runs page; small runs behave exactly as before (single page).
+_PER_PAGE = 50
+_MAX_PAGES = 8
+
+
 def openalex_search(spec: ResearchSpec, client: httpx.Client, limit: int = 25,
                     capture: dict | None = None) -> list[Paper]:
-    params: dict[str, str] = {
-        "search": search_text(spec.question),
-        "per-page": str(min(limit, 50)),
-    }
+    base: dict[str, str] = {"search": search_text(spec.question)}
     api_key = os.environ.get("OPENALEX_API_KEY", "")
     if api_key:
-        params["api_key"] = api_key
+        base["api_key"] = api_key
     if spec.year_from:
-        params["filter"] = f"from_publication_date:{spec.year_from}-01-01"
+        base["filter"] = f"from_publication_date:{spec.year_from}-01-01"
     started = time.monotonic()
-    resp = _get(client, OPENALEX_URL, params)
-    latency_ms = round((time.monotonic() - started) * 1000, 1)
-    body = resp.json()
-    cache_hash = "sha256:" + hashlib.sha256(resp.content).hexdigest()
+    bodies: list[bytes] = []
+    pages = 0
     out: list[Paper] = []
-    for w in body.get("results", []) if isinstance(body, dict) else []:
-        if not isinstance(w, dict):
-            continue
-        ids = w.get("ids") or {}
-        doi = normalize_doi(w.get("doi") or ids.get("doi"))
-        title = _clean(w.get("title"))
-        if not title:
-            continue
-        authors = tuple(
-            _clean(((a or {}).get("author") or {}).get("display_name"))
-            for a in (w.get("authorships") or [])[:10]
-            if ((a or {}).get("author") or {}).get("display_name")
-        )
-        url = (doi and f"https://doi.org/{doi}") or _clean(w.get("id"))
-        abstract, complete = _openalex_abstract_with_gaps(w.get("abstract_inverted_index"))
-        best_oa = w.get("best_oa_location") or {}
-        oa_url = _clean(best_oa.get("pdf_url") or best_oa.get("landing_page_url") or "")
-        license = _clean(best_oa.get("license") or "")
-        identifiers = {"openalex": _clean(w.get("id"))}
-        for key in ("doi", "mag", "pmid", "pmcid"):
-            if ids.get(key):
-                identifiers[key] = _clean(ids.get(key))
-        out.append(
-            Paper(
-                ref=f"doi:{doi}" if doi else f"openalex:{w.get('id', '')}",
-                title=title,
-                abstract=abstract,
-                authors=authors,
-                year=w.get("publication_year"),
-                venue=_clean(((w.get("primary_location") or {}).get("source") or {}).get("display_name") or ""),
-                doi=doi,
-                url=url,
-                citations=_as_int(w.get("cited_by_count")),
-                source="openalex",
-                evidence=_evidence_tier(abstract, oa_url),
-                oa_url=oa_url,
-                license=license,
-                identifiers=identifiers,
-                extra={"abstract_complete": complete, "cache_hash": cache_hash,
-                       "oa_status": _clean((w.get("open_access") or {}).get("oa_status") or "")},
+    want = min(max(limit, 1), _PER_PAGE * _MAX_PAGES)
+    while len(out) < want and pages < _MAX_PAGES:
+        params = dict(base, page=str(pages + 1),
+                      **{"per-page": str(min(_PER_PAGE, want - len(out)))})
+        resp = _get(client, OPENALEX_URL, params)
+        bodies.append(resp.content)
+        pages += 1
+        body = resp.json()
+        results = body.get("results", []) if isinstance(body, dict) else []
+        if not results:
+            break
+        page_hash = "sha256:" + hashlib.sha256(bodies[-1]).hexdigest()
+        for w in results:
+            if not isinstance(w, dict):
+                continue
+            ids = w.get("ids") or {}
+            doi = normalize_doi(w.get("doi") or ids.get("doi"))
+            title = _clean(w.get("title"))
+            if not title:
+                continue
+            authors = tuple(
+                _clean(((a or {}).get("author") or {}).get("display_name"))
+                for a in (w.get("authorships") or [])[:10]
+                if ((a or {}).get("author") or {}).get("display_name")
             )
-        )
+            url = (doi and f"https://doi.org/{doi}") or _clean(w.get("id"))
+            abstract, complete = _openalex_abstract_with_gaps(w.get("abstract_inverted_index"))
+            best_oa = w.get("best_oa_location") or {}
+            oa_url = _clean(best_oa.get("pdf_url") or best_oa.get("landing_page_url") or "")
+            license = _clean(best_oa.get("license") or "")
+            identifiers = {"openalex": _clean(w.get("id"))}
+            for key in ("doi", "mag", "pmid", "pmcid"):
+                if ids.get(key):
+                    identifiers[key] = _clean(ids.get(key))
+            out.append(
+                Paper(
+                    ref=f"doi:{doi}" if doi else f"openalex:{w.get('id', '')}",
+                    title=title,
+                    abstract=abstract,
+                    authors=authors,
+                    year=w.get("publication_year"),
+                    venue=_clean(((w.get("primary_location") or {}).get("source") or {}).get("display_name") or ""),
+                    doi=doi,
+                    url=url,
+                    citations=_as_int(w.get("cited_by_count")),
+                    source="openalex",
+                    evidence=_evidence_tier(abstract, oa_url),
+                    oa_url=oa_url,
+                    license=license,
+                    identifiers=identifiers,
+                    extra={"abstract_complete": complete, "cache_hash": page_hash,
+                           "oa_status": _clean((w.get("open_access") or {}).get("oa_status") or "")},
+                )
+            )
+            if len(out) >= want:
+                break
+        if len(results) < int(params["per-page"]):
+            break  # short page: no more results
+    latency_ms = round((time.monotonic() - started) * 1000, 1)
+    cache_hash = "sha256:" + hashlib.sha256(b"".join(bodies)).hexdigest()
     if capture is not None:
         capture.update({"outcome": "ok", "papers": len(out), "latency_ms": latency_ms,
-                        "cache_hash": cache_hash})
+                        "cache_hash": cache_hash, "pages": pages})
     return out
 
 
@@ -235,72 +254,87 @@ def arxiv_search(spec: ResearchSpec, client: httpx.Client, limit: int = 25,
             capture.update({"outcome": "ok", "papers": 0, "latency_ms": 0.0,
                             "cache_hash": None})
         return []
-    params = {
-        "search_query": query,
-        "start": "0",
-        "max_results": str(min(max(limit, 1), 50)),
-        "sortBy": "relevance",
-        "sortOrder": "descending",
-    }
     started = time.monotonic()
-    resp = _get(client, ARXIV_URL, params)
-    latency_ms = round((time.monotonic() - started) * 1000, 1)
-    try:
-        body = resp.json()
-    except ValueError:
-        body = None  # direct Atom XML or any non-JSON body: no papers
-    cache_hash = "sha256:" + hashlib.sha256(resp.content).hexdigest()
+    bodies: list[bytes] = []
+    pages = 0
+    consumed = 0  # results seen (kept or year-filtered); the start offset
     out: list[Paper] = []
-    entries = body.get("entries", []) if isinstance(body, dict) else []
-    if not isinstance(entries, list):
-        entries = []
-    for e in entries:
-        if not isinstance(e, dict):
-            continue
-        title = _clean(e.get("title"))
-        aid = _clean(e.get("id"))
-        if not title or not aid:
-            continue
-        year = e.get("year")
-        year = year if isinstance(year, int) else None
-        if spec.year_from and year is not None and year < spec.year_from:
-            continue
-        authors = e.get("authors") or []
-        if not isinstance(authors, list):
-            authors = []
-        authors = tuple(a for a in (_clean(a) for a in authors[:10]) if a)
-        categories = e.get("categories") or []
-        if not isinstance(categories, list):
-            categories = []
-        categories = [_clean(c) for c in categories if _clean(c)]
-        doi = normalize_doi(e.get("doi"))
-        url = _clean(e.get("url_abs")) or (f"https://doi.org/{doi}" if doi else "")
-        oa_url = _clean(e.get("url_pdf"))
-        abstract = _clean(e.get("abstract"))
-        out.append(
-            Paper(
-                ref=f"doi:{doi}" if doi else f"arxiv:{aid}",
-                title=title,
-                abstract=abstract,
-                authors=authors,
-                year=year,
-                venue="arXiv",
-                doi=doi,
-                url=url,
-                citations=0,  # arXiv reports no citation counts; never fabricate one
-                source="arxiv",
-                evidence=_evidence_tier(abstract, oa_url),
-                oa_url=oa_url,
-                license="",
-                identifiers={"arxiv": aid},
-                extra={"version": _clean(e.get("version")), "categories": categories,
-                       "primary_category": _clean(e.get("primary_category")),
-                       "cache_hash": cache_hash},
+    want = min(max(limit, 1), _PER_PAGE * _MAX_PAGES)
+    while len(out) < want and pages < _MAX_PAGES:
+        params = {
+            "search_query": query,
+            "start": str(consumed),
+            "max_results": str(min(_PER_PAGE, want - len(out))),
+            "sortBy": "relevance",
+            "sortOrder": "descending",
+        }
+        resp = _get(client, ARXIV_URL, params)
+        bodies.append(resp.content)
+        pages += 1
+        try:
+            body = resp.json()
+        except ValueError:
+            body = None  # direct Atom XML or any non-JSON body: no papers
+        entries = body.get("entries", []) if isinstance(body, dict) else []
+        if not isinstance(entries, list):
+            entries = []
+        if not entries:
+            break
+        consumed += len(entries)
+        page_hash = "sha256:" + hashlib.sha256(bodies[-1]).hexdigest()
+        for e in entries:
+            if not isinstance(e, dict):
+                continue
+            title = _clean(e.get("title"))
+            aid = _clean(e.get("id"))
+            if not title or not aid:
+                continue
+            year = e.get("year")
+            year = year if isinstance(year, int) else None
+            if spec.year_from and year is not None and year < spec.year_from:
+                continue
+            authors = e.get("authors") or []
+            if not isinstance(authors, list):
+                authors = []
+            authors = tuple(a for a in (_clean(a) for a in authors[:10]) if a)
+            categories = e.get("categories") or []
+            if not isinstance(categories, list):
+                categories = []
+            categories = [_clean(c) for c in categories if _clean(c)]
+            doi = normalize_doi(e.get("doi"))
+            url = _clean(e.get("url_abs")) or (f"https://doi.org/{doi}" if doi else "")
+            oa_url = _clean(e.get("url_pdf"))
+            abstract = _clean(e.get("abstract"))
+            out.append(
+                Paper(
+                    ref=f"doi:{doi}" if doi else f"arxiv:{aid}",
+                    title=title,
+                    abstract=abstract,
+                    authors=authors,
+                    year=year,
+                    venue="arXiv",
+                    doi=doi,
+                    url=url,
+                    citations=0,  # arXiv reports no citation counts; never fabricate one
+                    source="arxiv",
+                    evidence=_evidence_tier(abstract, oa_url),
+                    oa_url=oa_url,
+                    license="",
+                    identifiers={"arxiv": aid},
+                    extra={"version": _clean(e.get("version")), "categories": categories,
+                           "primary_category": _clean(e.get("primary_category")),
+                           "cache_hash": page_hash},
+                )
             )
-        )
+            if len(out) >= want:
+                break
+        if len(entries) < int(params["max_results"]):
+            break  # short page: no more results
+    latency_ms = round((time.monotonic() - started) * 1000, 1)
+    cache_hash = "sha256:" + hashlib.sha256(b"".join(bodies)).hexdigest()
     if capture is not None:
         capture.update({"outcome": "ok", "papers": len(out), "latency_ms": latency_ms,
-                        "cache_hash": cache_hash})
+                        "cache_hash": cache_hash, "pages": pages})
     return out
 
 
@@ -342,12 +376,15 @@ def refined_query(question: str) -> str:
 def _attempt(spec: ResearchSpec, client: httpx.Client) -> tuple[list[Paper], dict]:
     providers: dict[str, dict] = {}
     papers: list[Paper] = []
+    # Each provider covers the full pool: small runs keep the legacy 25/page,
+    # hundreds-paper runs page up to the per-provider ceiling (400).
+    per_provider = min(_PER_PAGE * _MAX_PAGES, max(25, spec.max_papers))
     for name, fn in (("openalex", openalex_search), ("arxiv", arxiv_search)):
         capture: dict = {"outcome": "error", "papers": 0, "latency_ms": 0.0,
                          "cache_hash": None, "error": None}
         started = time.monotonic()
         try:
-            papers.extend(fn(spec, client, 25, capture))
+            papers.extend(fn(spec, client, per_provider, capture))
             providers[name] = capture  # fn filled outcome/latency/hash on success
         except (httpx.HTTPError, ValueError) as e:
             capture["latency_ms"] = round((time.monotonic() - started) * 1000, 1)

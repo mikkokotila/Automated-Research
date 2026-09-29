@@ -8,7 +8,8 @@ made; unit tests and CI use fixtures only.
 - Docs read: `https://help.openalex.org/api/`,
   `/api/authentication/`, `/api/filtering/`, `/api/deprecations/`.
 - Endpoint: `GET https://api.openalex.org/works` with `search` (free text),
-  `per-page` (max 100; we cap at 50), and optional
+  `per-page` (max 100; we cap at 50), `page` (we page to cover large pools,
+  8 pages max), and optional
   `filter=from_publication_date:YYYY-MM-DD` (confirmed current syntax).
 - Auth: free API key as `api_key` query parameter or `Authorization: Bearer`
   header. **The `mailto` polite pool is retired — the parameter is ignored.**
