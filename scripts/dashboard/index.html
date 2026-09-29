@@ -217,7 +217,14 @@ details.paper summary:hover { color: var(--green); }
 /* State */
 const S = { runs: [], tab: "runs", open: {}, logStream: {}, logTail: 500,
             logData: {}, researchData: {}, researchTab: {}, researchLoading: {},
-            researchLive: {}, timer: null, daemonOk: false };
+            researchLive: {}, details: {}, logSig: {}, researchSig: {},
+            timer: null, daemonOk: false };
+/* Expanded <details> survive poll re-renders: toggle events record state
+   here keyed by data-did, and every paint re-applies it. Without this the
+   5s poll rebuild collapses open sections and clamps page scroll upward. */
+function detAttrs(did) {
+  return `data-did="${esc(did)}"${S.details[did] ? " open" : ""}`;
+}
 
 /* Helpers: every interpolated value is escaped (rows carry model text). */
 function esc(s) {
@@ -356,6 +363,9 @@ async function refreshLog(key) {
   try {
     const stream = S.logStream[key] || "timeline";
     const d = await api(`/api/runs/${encodeURIComponent(key)}/log?tail=${S.logTail}&stream=all`);
+    const sig = JSON.stringify(d);
+    if (sig === S.logSig[key]) return;  // identical: repaint would only flicker
+    S.logSig[key] = sig;
     S.logData[key] = d;
     paintLog(key, stream);
   } catch (e) {
@@ -386,11 +396,15 @@ function paintLog(key, stream) {
     body = l.present ? esc((l.lines || []).join("\n")) || `<span class="muted">(empty)</span>`
       : `<span class="muted">no launcher log (run was not started by the daemon)</span>`;
   }
+  const sts = [...el.querySelectorAll("pre.log")].map(p => p.scrollTop);
   el.innerHTML = `<div class="logbar">${btn("timeline")}${btn("console")}${btn("launcher")}`
     + `<select id="tail-${esc(key)}">`
     + [100, 500, 2000].map(n => `<option value="${n}"${n === S.logTail ? " selected" : ""}>last ${n}</option>`).join("")
     + `</select>${d.live ? '<span class="st-live">●LIVE — refreshing</span>' : ""}</div>`
     + `<pre class="log">${body}</pre>`;
+  [...el.querySelectorAll("pre.log")].forEach((p, i) => {
+    if (sts[i] != null) p.scrollTop = sts[i];
+  });
   el.querySelector("select").addEventListener("change", ev => {
     S.logTail = parseInt(ev.target.value, 10);
     refreshLog(key);
@@ -403,6 +417,9 @@ async function refreshResearch(key) {
   S.researchLoading[key] = true;
   try {
     const d = await api(`/api/runs/${encodeURIComponent(key)}/research`);
+    const sig = JSON.stringify(d);
+    if (sig === S.researchSig[key]) return;  // identical: repaint would only flicker
+    S.researchSig[key] = sig;
     S.researchData[key] = d.research || {};
     S.researchLive[key] = !!d.live;
     paintResearch(key);
@@ -435,7 +452,7 @@ function researchSynthesis(d) {
   }
   return h;
 }
-function researchPapers(d) {
+function researchPapers(key, d) {
   const n = (d.papers || []).length;
   let h = `<p class="muted">${n} shown / ${esc(d.papers_total || 0)} retrieved`
     + (d.papers_truncated ? " (capped at 200 — refine the seed, not the list)" : "") + `</p>`;
@@ -446,7 +463,8 @@ function researchPapers(d) {
     const cit = p.citations ? ` cited×${esc(p.citations)}` : "";
     const abs = p.abstract ? esc(p.abstract) + (p.abstract_truncated ? " …" : "")
       : `<span class="muted">(no abstract captured)</span>`;
-    return `<details class="paper"><summary><span class="muted">${i + 1}.</span> `
+    return `<details class="paper" ${detAttrs(key + "|paper|" + i)}>`
+      + `<summary><span class="muted">${i + 1}.</span> `
       + `${esc(p.title || "(untitled)")} <span class="muted">[${meta}]</span></summary>`
       + `<div class="abs">${abs}</div>`
       + (link || doi || cit ? `<div class="abs">${link}${doi}${cit}</div>` : "")
@@ -454,7 +472,7 @@ function researchPapers(d) {
   }).join("") || `<p class="muted">no papers retrieved yet</p>`;
   return h;
 }
-function researchClaims(d) {
+function researchClaims(key, d) {
   return (d.iterations || []).map(it => {
     const v = it.validation || {};
     let h = `<h4>ITER ${esc(it.n)} [${esc(it.kind)}] — ${esc((it.claims || []).length)} claims, `
@@ -478,17 +496,19 @@ function researchClaims(d) {
       + `dangling=${esc((v.dangling_citations || []).length)}</p>`;
     if (unres) h += `<ul>${unres}</ul>`;
     if (it.review_md) {
-      h += `<details class="paper"><summary class="muted">full iter-${esc(it.n)} review prose`
+      h += `<details class="paper" ${detAttrs(key + "|review|" + it.n)}>`
+        + `<summary class="muted">full iter-${esc(it.n)} review prose`
         + (it.review_truncated ? " (truncated)" : "") + `</summary>`
         + `<pre class="log">${esc(it.review_md)}</pre></details>`;
     }
     return h;
   }).join("") || `<p class="muted">no iterations recorded yet</p>`;
 }
-function researchDecisions(d) {
+function researchDecisions(key, d) {
   let h = `<h4>ASSESSMENTS — ${(d.assessments || []).length}</h4>`
     + ((d.assessments || []).map(a =>
-      `<details class="paper"><summary>${esc(a.id)} <span class="muted">${esc(a.ts)} · `
+      `<details class="paper" ${detAttrs(key + "|assess|" + a.id)}>`
+      + `<summary>${esc(a.id)} <span class="muted">${esc(a.ts)} · `
       + `${esc(a.outcome)} · ${esc(a.calls_spent || 0)} calls</span></summary>`
       + (a.doc_markdown ? `<pre class="log">${esc(a.doc_markdown)}</pre>`
         : `<p class="muted">no assessor doc</p>`) + `</details>`
@@ -513,10 +533,16 @@ function paintResearch(key, tab) {
     + (t === tab ? ' style="border-color:var(--green);color:var(--green)"' : "") + `>${t.toUpperCase()}</button>`;
   const bodies = { synthesis: researchSynthesis, papers: researchPapers,
                    claims: researchClaims, decisions: researchDecisions };
+  const fn = bodies[tab] || researchSynthesis;
+  const body = fn === researchSynthesis ? fn(d) : fn(key, d);
+  const sts = [...el.querySelectorAll("pre.log")].map(p => p.scrollTop);
   el.innerHTML = `<div class="logbar">${btn("synthesis")}${btn("papers")}${btn("claims")}${btn("decisions")}`
     + `<button class="act" data-rs-reload="${esc(key)}">RELOAD</button>`
     + (S.researchLive[key] ? '<span class="st-live">●LIVE — partial, refreshing</span>' : "") + `</div>`
-    + `<div><p class="q">${esc(d.seed || "?")}</p>${(bodies[tab] || researchSynthesis)(d)}</div>`;
+    + `<div><p class="q">${esc(d.seed || "?")}</p>${body}</div>`;
+  [...el.querySelectorAll("pre.log")].forEach((p, i) => {
+    if (sts[i] != null) p.scrollTop = sts[i];
+  });
 }
 
 /* Other views */
@@ -655,10 +681,18 @@ document.querySelector("#runs").addEventListener("click", e => {
   S.logStream[key] = stream;
   paintLog(key, stream);
 });
+/* toggle does not bubble: capture phase records <details> state. */
+document.querySelector("#runs").addEventListener("toggle", e => {
+  const t = e.target;
+  if (!t.closest || t.tagName !== "DETAILS") return;
+  const did = t.getAttribute("data-did");
+  if (did) S.details[did] = t.open;
+}, true);
 document.querySelector("#runs").addEventListener("click", e => {
   const r = e.target.closest("[data-rs-reload]");
   if (r) {
     delete S.researchData[r.dataset.rsReload];
+    delete S.researchSig[r.dataset.rsReload];
     refreshResearch(r.dataset.rsReload);
     return;
   }
