@@ -14,7 +14,7 @@ from pathlib import Path
 
 import httpx
 
-from . import analysis, data as datamod, modeling, rank, report, retrieval, synthesize
+from . import analysis, data as datamod, fulltext, modeling, rank, report, retrieval, synthesize
 from .journal import Journal, JournalError, emit
 from .muse_client import MuseClient, RequestBlocked
 from .schedule import (ScheduleError, Scheduler, SchedulerConfig, Scope, decide)
@@ -256,7 +256,7 @@ class NoEvidence(RuntimeError):
 
 def run_review(question: str, max_papers: int, http: httpx.Client, muse: Completer, journal: Journal | None = None,
                record_dir: str | Path | None = None, selector=None,
-               budget_frac: float = 1.0) -> Iteration:
+               budget_frac: float = 1.0, max_fulltext: int = 0) -> Iteration:
     """One review step. A bandit selector swaps the retrieval query only;
     rerank, synthesis, and scoring stay anchored to the original question.
     The session degrades to fixed internally on store failure, loudly."""
@@ -301,6 +301,7 @@ def run_review(question: str, max_papers: int, http: httpx.Client, muse: Complet
     if record_dir is not None:
         report.record_retrieval(record_dir, goal, ranked, retrieval_report)
     top = pool[:spec.max_papers]
+    top, _ = fulltext.enrich(top, http, max_fulltext, journal)
     synth = synthesize.synthesize_scaled(goal, top, muse, warning)
     batches = synth.validation.get("batches", 1)
     emit(journal, "review", "synthesized",
@@ -731,7 +732,8 @@ def run_cycle(
                             selector.set_gaps(evidence_gaps)
                         budget_frac = budget.calls_remaining() / max(budget.max_calls, 1)
                         it = run_review(job.question, spec.max_papers, http, muse, journal,
-                                        record_dir, selector, budget_frac)
+                                        record_dir, selector, budget_frac,
+                                        spec.max_fulltext)
                 except (RequestBlocked, BudgetExhausted, Cancelled):
                     raise
                 except NoEvidence as e:

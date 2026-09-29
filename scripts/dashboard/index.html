@@ -172,6 +172,7 @@ details.paper summary:hover { color: var(--green); }
         <label class="chk"><input type="checkbox" id="f-maint" checked>MAINTENANCE</label>
         <label>PROFILE<select id="f-profile"><option value="dev">dev</option><option value="prod">prod</option></select></label>
         <label>MAX-PAPERS<input id="f-papers" inputmode="numeric" placeholder="5"></label>
+        <label>MAX-FULLTEXT<input id="f-fulltext" inputmode="numeric" placeholder="2"></label>
         <label>MAX-ITERATIONS<input id="f-iters" inputmode="numeric" placeholder="3"></label>
         <label>REVISE-ROUNDS<input id="f-rounds" inputmode="numeric" placeholder="1"></label>
         <label>MAX-CALLS<input id="f-calls" inputmode="numeric" placeholder="25"></label>
@@ -715,7 +716,8 @@ document.getElementById("f-go").addEventListener("click", async () => {
     if (document.getElementById("f-profile").value === "prod") rest.push("--profile", "prod");
     const nums = [["f-papers", "--max-papers"], ["f-iters", "--max-iterations"],
                   ["f-rounds", "--revise-rounds"], ["f-calls", "--max-calls"],
-                  ["f-tokens", "--max-tokens"], ["f-wall", "--wall-time-s"]];
+                  ["f-tokens", "--max-tokens"], ["f-wall", "--wall-time-s"],
+                  ["f-fulltext", "--max-fulltext"]];
     for (const [id, flag] of nums) {
       const v = document.getElementById(id).value.trim();
       if (!v) continue;

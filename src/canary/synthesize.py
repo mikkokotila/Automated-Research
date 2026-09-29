@@ -7,6 +7,7 @@ import re
 from dataclasses import dataclass, field, replace
 from typing import Protocol
 
+from .fulltext import FULLTEXT_PROMPT_CHARS
 from .papers import Paper
 
 SYSTEM = (
@@ -124,6 +125,9 @@ def build_prompt(question: str, papers: list[Paper], coverage_warning: str | boo
         lines.append(f"{p.title} — {authors} ({p.year or 'n.d.'}). {p.venue}".strip())
         if p.abstract:
             lines.append(f"    Abstract: {p.abstract[:1200]}")
+        excerpt = p.extra.get("fulltext", "")
+        if excerpt:
+            lines.append(f"    Full text excerpt: {excerpt[:FULLTEXT_PROMPT_CHARS]}")
         if p.url:
             lines.append(f"    Link: {p.url}")
         lines.append(f"--- end paper [{i}] ---")
@@ -159,7 +163,8 @@ def _normalize(text: str) -> str:
 def _span_anchored(span: str, paper: Paper) -> bool:
     if not span or len(span) > 2000:
         return False
-    haystack = _normalize(f"{paper.title}\n{paper.abstract or ''}")
+    haystack = _normalize(f"{paper.title}\n{paper.abstract or ''}\n"
+                          f"{paper.extra.get('fulltext', '')}")
     return _normalize(span) in haystack and bool(_normalize(span))
 
 

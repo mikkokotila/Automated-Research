@@ -58,6 +58,29 @@ runs on OpenAlex + arXiv only.
   reports none; never fabricated), `evidence` is `fulltext` when a PDF link
   is present, and `year_from` is applied client-side (unknown years kept).
 
+## arXiv full-text (lazy)
+
+- Route: `GET /v1/sources/arxiv-pdf?id=<arxiv-id>` (brokered only; no
+  direct-fetch fallback). Strict id validation; anything else is a 403
+  without an upstream call. Upstream failures map to 502
+  `source_unavailable`, same as the search route.
+- The broker fetches `https://arxiv.org/pdf/<id>` under the shared 3s
+  courtesy lock, checks `%PDF` magic (20MB cap), extracts text with pypdf
+  (100k-char cap with `truncated` flag), and serves JSON: `id`, `text`,
+  `pages`, `truncated`, `bytes`, `sha256`, `source_url`, `rights` (always
+  `""`: per-paper license is NOT determined — verify at `source_url`
+  before redistributing), `cache_hit`, `fetched_at`.
+- Cache: `$CANARY_FULLTEXT_CACHE` (default `/state/fulltext` on the gate's
+  persistent volume), `<id>.pdf` + `<id>.json` pairs, atomic writes,
+  oldest-first eviction over 2GB. This is the deliberate exception to the
+  no-persistent-cache rule below: arXiv PDFs are immutable per id+version,
+  so no invalidation story is needed.
+- Guest: `fulltext.enrich` attaches text to the first `--max-fulltext`
+  arXiv papers per review (default 2, 0 disables); synthesis prompts carry
+  an 8k-char excerpt and claim spans anchor against the full text. Every
+  failure degrades to abstract-only with counts in a `review/fulltext`
+  journal event. Without a broker the step is a no-op.
+
 ## Remaining access blockers
 
 - `OPENALEX_API_KEY` lives broker-side only (gate env, never guest-visible):
