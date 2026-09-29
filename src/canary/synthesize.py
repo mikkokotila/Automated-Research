@@ -22,7 +22,10 @@ SYSTEM = (
     "(\"abstract\" or \"fulltext\"), uncertainty (one sentence or \"\"), and "
     "support (\"supported\", \"partial\", \"contradicted\", or \"unsupported\"). "
     "Quote spans exactly; never invent numbers or upgrade abstract-only "
-    "material to full-text scope."
+    "material to full-text scope. Every number in a claim sentence — including "
+    "numbers inside standard terms such as type 2 diabetes — must appear "
+    "verbatim in one of that claim's quoted spans; if it does not, narrow the "
+    "claim until it does."
 )
 
 _CITE_RE = re.compile(r"\[(\d+)\]")
