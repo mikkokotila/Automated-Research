@@ -76,6 +76,30 @@ def test_request_diff_records_context_and_omissions(repo):
     assert "X = 1" in seen["user"]  # real current context, not a guess
 
 
+def test_request_diff_sends_full_file_and_marks_truncation(repo):
+    seen = {}
+
+    class Muse:
+        model = "m"
+
+        def complete(self, system, user, max_tokens=8000):
+            seen["user"] = user
+            return DIFF_OK
+
+    big = "line\n" * 4000  # 20KB: old 8KB cap would have cut it
+    (repo / "src" / "canary" / "foo.py").write_text(big, encoding="utf-8")
+    record: dict = {}
+    revmod.request_diff(prop(), Muse(), repo, record)
+    assert record["omitted"] == ""
+    assert record["bytes_included"] == len(big)
+    huge = "line\n" * 20000  # 100KB: over the cap, honestly marked
+    (repo / "src" / "canary" / "foo.py").write_text(huge, encoding="utf-8")
+    record = {}
+    revmod.request_diff(prop(), Muse(), repo, record)
+    assert record["omitted"].startswith("truncated to 60000 of")
+    assert record["bytes_included"] == 60000
+
+
 # --- adversarial table ---
 
 

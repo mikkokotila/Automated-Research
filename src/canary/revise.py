@@ -155,6 +155,10 @@ MAX_DIFF_FILES = 5
 MAX_DIFF_LINES = 300
 MAX_PROPOSALS_PER_ROUND = 3
 MAX_DIFF_ATTEMPTS = 2
+# Diff-request context: the full target file up to this many chars. prod1 p2
+# patched retrieval.py:209 blind (truncated to 8000 of 19104 chars) and died
+# in git apply twice. 60000 covers the whole current tree (~47KB max file).
+MAX_DIFF_CONTEXT_CHARS = 60000
 
 
 @dataclass
@@ -302,9 +306,10 @@ def request_diff(proposal: Proposal, client: Completer, repo: Path | None = None
             else:
                 file_sha = hashlib.sha256(raw).hexdigest()
                 text = raw.decode("utf-8", "replace")
-                if len(text) > 8000:
-                    omitted = f"truncated to 8000 of {len(text)} chars"
-                    text = text[:8000]
+                if len(text) > MAX_DIFF_CONTEXT_CHARS:
+                    omitted = (f"truncated to {MAX_DIFF_CONTEXT_CHARS} of "
+                               f"{len(text)} chars")
+                    text = text[:MAX_DIFF_CONTEXT_CHARS]
                 context = text
         except OSError:
             context = "(target unreadable)"
