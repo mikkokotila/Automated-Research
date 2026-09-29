@@ -12,7 +12,7 @@ from pathlib import Path
 
 import httpx
 
-from . import analysis, data as datamod, cycle as cyclemod, modeling, rank, report, retrieval, synthesize
+from . import analysis, data as datamod, cycle as cyclemod, fulltext, modeling, rank, report, retrieval, synthesize
 from .cycle import ResumeError
 from . import runs as runsmod
 from .revise import revise_from_journal
@@ -78,6 +78,8 @@ def review(spec: RunSpec, assess: bool = False) -> str:
     ranked = rank.rerank(rspec.question, papers, len(papers))
     report.record_retrieval(spec.out_dir, spec.question, ranked, retrieval_report)
     top = ranked[:rspec.max_papers]
+    with httpx.Client(headers={"User-Agent": "Canary/0.1"}) as http:
+        top, _ = fulltext.enrich(top, http, spec.max_fulltext, j)
     client = MuseClient(budget=RunBudget.from_spec(spec))
     synth = synthesize.synthesize_scaled(rspec.question, top, client)
     batches = synth.validation.get("batches", 1)
@@ -103,6 +105,8 @@ def main(argv: list[str] | None = None) -> int:
     r = sub.add_parser("review", help="run a cited literature review")
     r.add_argument("question", help="research question in plain words")
     r.add_argument("--max-papers", type=int, default=10)
+    r.add_argument("--max-fulltext", type=int, default=2,
+                   help="top-N arXiv papers enriched with broker PDF text (0 disables)")
     r.add_argument("--year-from", type=int, default=None)
     r.add_argument("--out", default="./out")
     r.add_argument("--assess", action="store_true",
@@ -121,6 +125,8 @@ def main(argv: list[str] | None = None) -> int:
     lo.add_argument("--max-iterations", type=int, default=3)
     lo.add_argument("--max-reseeds", type=int, default=1,
                     help="fresh-seed restarts when a leg ends with no supported claims")
+    lo.add_argument("--max-fulltext", type=int, default=2,
+                    help="top-N arXiv papers enriched with broker PDF text per review (0 disables)")
     lo.add_argument("--max-papers", type=int, default=5)
     lo.add_argument("--out", default="./out")
     lo.add_argument("--maintenance", action="store_true", help="assess and patch mid-run and post-run")
@@ -273,6 +279,7 @@ def build_spec(args) -> RunSpec | None:
         return None
     if args.cmd == "review":
         return RunSpec(question=args.question, max_papers=args.max_papers,
+                       max_fulltext=args.max_fulltext,
                        year_from=args.year_from, out_dir=args.out)
     if args.cmd == "analyze":
         question = args.question.strip() or f"what predicts {args.target}?"
@@ -282,6 +289,7 @@ def build_spec(args) -> RunSpec | None:
                    maintenance=args.maintenance, profile=args.profile,
                    revise_rounds=args.revise_rounds,
                    max_reseeds=getattr(args, "max_reseeds", 1),
+                   max_fulltext=getattr(args, "max_fulltext", 2),
                    max_model_calls=args.max_calls, max_tokens=args.max_tokens,
                    wall_time_s=args.wall_time_s, out_dir=args.out)
 

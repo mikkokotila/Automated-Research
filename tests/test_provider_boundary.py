@@ -597,3 +597,117 @@ def test_arxiv_entries_rejects_non_feeds():
     with pytest.raises(ValueError, match="not an arxiv atom feed"):
         _arxiv_entries(b"<html></html>")
     assert _arxiv_entries(b"<feed xmlns='http://www.w3.org/2005/Atom'/>") == []
+
+
+# --- arXiv full-text route ---
+
+
+def _tiny_pdf(text="Hello fulltext"):
+    """Minimal one-page PDF with computed xref offsets (no magic numbers)."""
+    objs = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200]"
+        b" /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+        None,  # content stream, filled below
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
+    stream = f"BT /F1 12 Tf 10 10 Td ({text}) Tj ET".encode()
+    objs[3] = b"<< /Length %d >>\nstream\n" % len(stream) + stream + b"\nendstream"
+    out = bytearray(b"%PDF-1.4\n")
+    offsets = []
+    for i, body in enumerate(objs, 1):
+        offsets.append(len(out))
+        out += f"{i} 0 obj\n".encode() + body + b"\nendobj\n"
+    xref_at = len(out)
+    out += f"xref\n0 {len(objs) + 1}\n0000000000 65535 f \n".encode()
+    for off in offsets:
+        out += f"{off:010d} 00000 n \n".encode()
+    out += (f"trailer\n<< /Size {len(objs) + 1} /Root 1 0 R >>\n"
+            f"startxref\n{xref_at}\n%%EOF").encode()
+    return bytes(out)
+
+
+def test_sources_arxiv_pdf_serves_text_and_caches(arxiv_canned, tmp_path, monkeypatch):
+    monkeypatch.setenv("CANARY_FULLTEXT_CACHE", str(tmp_path / "ft"))
+    url, calls, script = arxiv_canned
+    script[:] = [(200, _tiny_pdf())]
+    with httpx.Client(trust_env=False) as http:
+        base = url + "/v1/sources/arxiv-pdf?id=2601.00001v2"
+        first = http.get(base, headers=_ARXIV_AUTH)
+        assert first.status_code == 200, first.text[:200]
+        body = first.json()
+        assert body["text"] == "Hello fulltext" and body["pages"] == 1
+        assert body["cache_hit"] is False and body["truncated"] is False
+        assert body["source_url"] == "https://arxiv.org/pdf/2601.00001v2"
+        assert calls == ["https://arxiv.org/pdf/2601.00001v2"]
+        second = http.get(base, headers=_ARXIV_AUTH)
+        assert second.json()["cache_hit"] is True
+        assert second.json()["text"] == "Hello fulltext"
+    assert len(calls) == 1  # second hit served from cache, no upstream call
+
+
+def test_sources_arxiv_pdf_rejects_bad_id_without_upstream_call(arxiv_canned):
+    url, calls, _ = arxiv_canned
+    bad = ["", "../x", "https://evil/pdf/1", "10.1/x", "2601.1;rm",
+           "id=1&id=2", "hep-th/", "/etc/passwd"]
+    with httpx.Client(trust_env=False) as http:
+        for query in bad:
+            r = http.get(url + "/v1/sources/arxiv-pdf?id=" + query,
+                         headers=_ARXIV_AUTH)
+            assert r.status_code == 403, query
+        assert http.get(url + "/v1/sources/arxiv-pdf",
+                        headers=_ARXIV_AUTH).status_code == 403
+        assert http.get(url + "/v1/sources/arxiv-pdf?id=2601.00001v2").status_code == 403
+    assert calls == []
+
+
+def test_sources_arxiv_pdf_failures_map_to_502(arxiv_canned, tmp_path, monkeypatch):
+    import urllib.error
+
+    monkeypatch.setenv("CANARY_FULLTEXT_CACHE", str(tmp_path / "ft"))
+    url, _, script = arxiv_canned
+    script[:] = [(200, b"<html>not a pdf</html>"),
+                 (404, b"gone"),
+                 urllib.error.URLError("connection refused"),
+                 (200, _tiny_pdf())]
+    with httpx.Client(trust_env=False) as http:
+        base = url + "/v1/sources/arxiv-pdf?id=2601.00001v2"
+        assert http.get(base, headers=_ARXIV_AUTH).status_code == 502  # non-PDF
+        assert http.get(base, headers=_ARXIV_AUTH).status_code == 502  # upstream 404
+        assert http.get(base, headers=_ARXIV_AUTH).status_code == 502  # transport
+        assert http.get(base, headers=_ARXIV_AUTH).status_code == 200
+
+
+def test_sources_arxiv_pdf_oversize_rejected(arxiv_canned, tmp_path, monkeypatch):
+    from boundary import server as server_mod
+
+    monkeypatch.setenv("CANARY_FULLTEXT_CACHE", str(tmp_path / "ft"))
+    monkeypatch.setattr(server_mod, "_PDF_MAX_BYTES", 10)
+    url, _, script = arxiv_canned
+    script[:] = [(200, _tiny_pdf())]
+    with httpx.Client(trust_env=False) as http:
+        resp = http.get(url + "/v1/sources/arxiv-pdf?id=2601.00001v2",
+                        headers=_ARXIV_AUTH)
+    assert resp.status_code == 502
+
+
+def test_fulltext_cache_evicts_oldest_over_cap(tmp_path):
+    import time as _t
+
+    from boundary import server as server_mod
+
+    root = tmp_path / "ft"
+    root.mkdir()
+    for name, age in (("old_1", 20), ("new_2", 0)):
+        (root / f"{name}.pdf").write_bytes(b"x" * 100)
+        (root / f"{name}.json").write_text("{}")
+        stamp = _t.time() - age
+        for ext in (".pdf", ".json"):
+            p = root / f"{name}{ext}"
+            import os as _os
+            _os.utime(p, (stamp, stamp))
+    freed = server_mod._fulltext_evict(root, 150)
+    assert freed >= 100
+    assert not (root / "old_1.pdf").exists()
+    assert (root / "new_2.pdf").exists()

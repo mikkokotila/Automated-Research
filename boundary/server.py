@@ -1,6 +1,8 @@
 """Narrow authenticated HTTP interface on the private worker network."""
 import argparse
+import hashlib
 import hmac
+import io
 import json
 import os
 from pathlib import Path
@@ -15,6 +17,7 @@ import urllib.request
 from urllib.parse import parse_qs, urlsplit
 import xml.etree.ElementTree as ET
 import httpx
+from pypdf import PdfReader
 from .gateway import Gateway
 from .ledger import Ledger
 from .policy import ALLOWED_MODEL, MAX_BODY_BYTES, BoundaryError, PolicyBlocked
@@ -23,6 +26,7 @@ SOURCES = {
     "/v1/sources/openalex": ("https://api.openalex.org/works", {"search", "per-page", "page", "mailto", "filter"}),
     "/v1/sources/arxiv": ("https://export.arxiv.org/api/query",
                            {"search_query", "start", "max_results", "sortBy", "sortOrder"}),
+    "/v1/sources/arxiv-pdf": ("https://arxiv.org/pdf", {"id"}),
 }
 
 # arXiv asks for at most one request per 3 seconds; the broker enforces the
@@ -40,6 +44,84 @@ _ATOM = "http://www.w3.org/2005/Atom"
 _ARXIV_NS = "http://arxiv.org/schemas/atom"
 _NS = {"a": _ATOM, "arxiv": _ARXIV_NS}
 _ARXIV_VERSIONED_ID = re.compile(r"(\d+\.\d+)v(\d+)$")
+
+# Lazy full-text: the broker fetches arXiv PDFs, extracts text, and serves
+# JSON over the same authenticated route family. Guests never touch the
+# network; the cache on the persistent /state volume grows into exactly the
+# corpus the loop actually cites. Per-paper license is NOT determined here:
+# rights stays "" and synthesis must treat source_url as the authority.
+_PDF_MAX_BYTES = 20_000_000
+_PDF_TEXT_CHARS = 100_000
+_PDF_TIMEOUT_S = 60
+_CACHE_MAX_BYTES = 2_000_000_000
+_ARXIV_ID = re.compile(
+    r"(?:\d{4}\.\d{4,5}(?:v\d+)?|[a-z]+(?:[.\-][A-Za-z]+)*\/\d{7}(?:v\d+)?)")
+
+
+class _FulltextError(RuntimeError):
+    pass
+
+
+def _normalize_arxiv_id(raw: str) -> str:
+    aid = (raw or "").strip()
+    if not _ARXIV_ID.fullmatch(aid):
+        raise ValueError(f"not an arxiv id: {(raw or '')[:60]!r}")
+    return aid
+
+
+def _fulltext_cache_dir() -> Path:
+    return Path(os.environ.get("CANARY_FULLTEXT_CACHE", "/state/fulltext"))
+
+
+def _fulltext_evict(root: Path, cap: int = _CACHE_MAX_BYTES) -> int:
+    """Drop oldest-first PDF+meta pairs until under cap. Returns bytes freed."""
+    freed = 0
+    try:
+        entries = [(p.stat().st_mtime, p) for p in root.glob("*.pdf")]
+        total = sum(p.stat().st_size for p in root.glob("*.pdf"))
+        total += sum(p.stat().st_size for p in root.glob("*.json"))
+    except OSError:
+        return 0
+    for _, pdf in sorted(entries):
+        if total <= cap:
+            break
+        for victim in (pdf, pdf.with_suffix(".json")):
+            try:
+                size = victim.stat().st_size
+                victim.unlink()
+            except OSError:
+                continue
+            freed += size
+            total -= size
+    return freed
+
+
+def _fetch_pdf_bytes(aid: str) -> bytes:
+    """GET one arXiv PDF via stdlib urllib (same frontend quirks as the API)."""
+    url = f"https://arxiv.org/pdf/{aid}"
+    try:
+        with urllib.request.urlopen(url, timeout=_PDF_TIMEOUT_S) as resp:
+            if resp.status != 200:
+                raise _FulltextError(f"upstream {resp.status}")
+            body = resp.read(_PDF_MAX_BYTES + 1)
+    except urllib.error.HTTPError as e:
+        raise _FulltextError(f"upstream {e.code}") from e
+    except urllib.error.URLError as e:
+        raise _FulltextError("transport failed") from e
+    if len(body) > _PDF_MAX_BYTES:
+        raise _FulltextError("pdf too large")
+    if not body.startswith(b"%PDF"):
+        raise _FulltextError("not a pdf")
+    return body
+
+
+def _pdf_to_text(body: bytes) -> tuple[str, int]:
+    try:
+        reader = PdfReader(io.BytesIO(body))
+        pages = [pg.extract_text() or "" for pg in reader.pages]
+    except Exception as e:
+        raise _FulltextError(f"unparseable pdf: {type(e).__name__}") from e
+    return "\n".join(pages), len(reader.pages)
 
 
 def _collapse(text: str | None) -> str:
@@ -207,6 +289,67 @@ def make_server(gateway, access_token, address=("0.0.0.0", 8787)):
                 return
             self.reply(200, {"entries": entries})
 
+        def serve_fulltext(self, params):
+            """One arXiv PDF to text: validated id, cached, politely spaced."""
+            global _arxiv_last_upstream
+            try:
+                aid = _normalize_arxiv_id(params.get("id", ""))
+            except ValueError:
+                raise PolicyBlocked("Source parameters not allowed")
+            root = _fulltext_cache_dir()
+            pdf_path = root / f"{aid.replace('/', '_')}.pdf"
+            meta_path = pdf_path.with_suffix(".json")
+            try:
+                cached = json.loads(meta_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                cached = None
+            if (isinstance(cached, dict) and cached.get("id") == aid
+                    and pdf_path.exists()):
+                cached["cache_hit"] = True
+                self.reply(200, cached)
+                return
+            with _arxiv_lock:  # PDF fetches share the API courtesy spacing
+                wait = _ARXIV_MIN_INTERVAL_S - (time.monotonic() - _arxiv_last_upstream)
+                if wait > 0:
+                    time.sleep(wait)
+                try:
+                    body = _fetch_pdf_bytes(aid)
+                except _FulltextError:
+                    body = b""
+                _arxiv_last_upstream = time.monotonic()
+            if not body:
+                self.reply(502, {"error": "source_unavailable"})
+                return
+            try:
+                text, pages = _pdf_to_text(body)
+            except _FulltextError:
+                self.reply(502, {"error": "source_unavailable"})
+                return
+            record = {
+                "id": aid,
+                "text": text[:_PDF_TEXT_CHARS],
+                "pages": pages,
+                "truncated": len(text) > _PDF_TEXT_CHARS,
+                "bytes": len(body),
+                "sha256": hashlib.sha256(body).hexdigest(),
+                "source_url": f"https://arxiv.org/pdf/{aid}",
+                "rights": "",
+                "cache_hit": False,
+                "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            }
+            try:
+                root.mkdir(parents=True, exist_ok=True)
+                tmp_pdf = pdf_path.with_suffix(".pdf.tmp")
+                tmp_pdf.write_bytes(body)
+                tmp_pdf.replace(pdf_path)
+                tmp_meta = meta_path.with_suffix(".json.tmp")
+                tmp_meta.write_text(json.dumps(record), encoding="utf-8")
+                tmp_meta.replace(meta_path)
+                _fulltext_evict(root)
+            except OSError:
+                pass  # cache is best-effort; the record still serves
+            self.reply(200, record)
+
         def do_POST(self):
             try:
                 self.authorized()
@@ -241,6 +384,9 @@ def make_server(gateway, access_token, address=("0.0.0.0", 8787)):
                 flat = {k: v[0] for k, v in params.items()}
                 if path.path == "/v1/sources/arxiv":
                     self.serve_arxiv(url, flat)
+                    return
+                if path.path == "/v1/sources/arxiv-pdf":
+                    self.serve_fulltext(flat)
                     return
                 if path.path == "/v1/sources/openalex":
                     # Broker-held secret: guests never see the key; the worker
