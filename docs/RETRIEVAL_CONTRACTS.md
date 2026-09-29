@@ -60,10 +60,11 @@ runs on OpenAlex + arXiv only.
 
 ## Remaining access blockers
 
-- No `OPENALEX_API_KEY` is provisioned; live use runs on the anonymous
-  budget (sustained 429s on 2026-09-28 demoted it to degraded coverage
-  while arXiv carries retrieval). Provisioning a free key is the cheapest
-  reliability upgrade available.
+- `OPENALEX_API_KEY` lives broker-side only (gate env, never guest-visible):
+  the broker injects it into upstream calls when set, else runs on the
+  anonymous budget (sustained 429s on 2026-09-28 demoted it to degraded
+  coverage while arXiv carries retrieval). The worker sends `api_key`
+  itself only on direct (non-brokered) calls.
 - The brokered path (`CANARY_GATE_URL` → `/v1/sources/...`) forwards retrieval
   through the request service; broker-side provider keys and forwarding are
   unverified and out of scope for this build.

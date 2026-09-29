@@ -426,6 +426,64 @@ def arxiv_canned(book, monkeypatch):
         gate.http.close()
 
 
+@pytest.fixture
+def openalex_canned(book):
+    """Live broker whose OpenAlex upstream serves canned JSON; captures params."""
+    from boundary.server import make_server
+
+    ledger, _ = book
+    seen: list = []
+
+    def send(request):
+        seen.append(dict(request.url.params))
+        return httpx.Response(200, json={"results": []})
+
+    gate = Gateway(ledger, "fixture-provider-key", httpx.MockTransport(send))
+    server = make_server(gate, "test-access", ("127.0.0.1", 0))
+    thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.02},
+                              daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_port}", seen
+    finally:
+        server.shutdown()
+        server.server_close()
+        gate.http.close()
+
+
+def test_sources_openalex_injects_broker_key(openalex_canned, monkeypatch):
+    monkeypatch.setenv("OPENALEX_API_KEY", "oa-fixture-key")
+    url, seen = openalex_canned
+    with httpx.Client(trust_env=False) as http:
+        resp = http.get(url + "/v1/sources/openalex?search=x&per-page=5",
+                        headers=_ARXIV_AUTH)
+    assert resp.status_code == 200
+    (params,) = seen
+    assert params["api_key"] == "oa-fixture-key"
+    assert params["search"] == "x" and params["per-page"] == "5"
+
+
+def test_sources_openalex_without_key_sends_none(openalex_canned, monkeypatch):
+    monkeypatch.delenv("OPENALEX_API_KEY", raising=False)
+    url, seen = openalex_canned
+    with httpx.Client(trust_env=False) as http:
+        resp = http.get(url + "/v1/sources/openalex?search=x&per-page=5",
+                        headers=_ARXIV_AUTH)
+    assert resp.status_code == 200
+    (params,) = seen
+    assert "api_key" not in params
+
+
+def test_sources_openalex_rejects_guest_smuggled_key(openalex_canned, monkeypatch):
+    monkeypatch.setenv("OPENALEX_API_KEY", "oa-fixture-key")
+    url, seen = openalex_canned
+    with httpx.Client(trust_env=False) as http:
+        resp = http.get(url + "/v1/sources/openalex?search=x&api_key=smuggled",
+                        headers=_ARXIV_AUTH)
+    assert resp.status_code == 403  # not in the allowlist
+    assert seen == []
+
+
 def test_sources_arxiv_proxies_and_parses_atom(arxiv_canned):
     import urllib.parse
 
