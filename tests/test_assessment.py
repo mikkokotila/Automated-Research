@@ -369,3 +369,17 @@ def test_assess_prompt_without_tree_degrades_to_instruction(monkeypatch):
     assert doc.proposals == ()
     assert "Patchable files" not in muse.users[0]
     assert "Assess and propose revisions." in muse.users[0]
+
+
+def test_anti_collapse_metrics_measure_repetition_and_drift():
+    stuck = ["Results show progress [1] [1].", "Results show progress [1] [1]."]
+    m = assessmod.anti_collapse_metrics(stuck)
+    assert m["citation_diversity"] == 0.25  # 1 distinct of 4 citations
+    assert m["term_drift"] == 0.0  # identical wording
+    assert "warning: possible loop collapse" in assessmod.format_anti_collapse(m)
+    fresh = ["alpha beta gamma delta", "epsilon zeta eta theta"]
+    m2 = assessmod.anti_collapse_metrics(fresh)
+    assert m2["citation_diversity"] == 0.0  # no citations at all
+    assert m2["term_drift"] == 1.0  # disjoint vocabularies
+    assert "warning" not in assessmod.format_anti_collapse(m2)
+    assert assessmod.anti_collapse_metrics([])["anti_collapse_score"] == 0.0

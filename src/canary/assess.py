@@ -10,6 +10,8 @@ import uuid
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from collections import Counter
+from collections.abc import Sequence
 
 from .changeset import target_allowed
 from .journal import Note
@@ -31,6 +33,128 @@ SYSTEM = (
 
 CHUNK_CHARS = 6000
 INVENTORY_LIMIT = 200
+
+
+_CITATION_RE = re.compile(r"\[\s*\d+\s*\]|https?://\S+|\bdoi:\s*\S+", re.IGNORECASE)
+_WORD_RE = re.compile(r"[a-z0-9]+")
+_STOPWORDS = frozenset({
+    "the", "and", "for", "with", "that", "this", "from", "have",
+    "were", "been", "was", "will", "would", "there", "their",
+    "about", "into", "over", "after", "before", "between", "under",
+    "while", "where", "which", "when", "what", "how", "why", "can",
+    "all", "any", "our", "your", "its", "per", "via", "using",
+    "used", "also", "such", "than", "then", "them", "they", "these",
+    "those", "within",
+})
+
+
+def extract_citations(text: str) -> list[str]:
+    """Citation keys in one iteration text (bracket ids, URLs, DOIs)."""
+    found: list[str] = []
+    for m in _CITATION_RE.finditer(text or ""):
+        key = m.group(0).strip().lower().rstrip(".,);:]")
+        if key:
+            found.append(key)
+    return found
+
+
+def citation_diversity(iteration_texts: Sequence[str]) -> float:
+    """Share of distinct citations over all citations, 0..1 (1 = diverse).
+
+    Independent anti-collapse signal, separate from retrieval precision:
+    it only measures repetition of cited sources across iterations, never
+    relevance or precision. No citations at all yields 0.0.
+    """
+    total = 0
+    unique: set[str] = set()
+    for text in iteration_texts or []:
+        keys = extract_citations(text)
+        total += len(keys)
+        unique.update(keys)
+    if total == 0:
+        return 0.0
+    return len(unique) / total
+
+
+def _term_counter(text: str) -> Counter:
+    words = _WORD_RE.findall((text or "").lower())
+    return Counter(w for w in words if len(w) >= 3 and w not in _STOPWORDS)
+
+
+def _cosine_distance(a: Counter, b: Counter) -> float:
+    if not a and not b:
+        return 0.0
+    if not a or not b:
+        return 1.0
+    dot = sum(v * b.get(k, 0) for k, v in a.items())
+    na = sum(v * v for v in a.values()) ** 0.5
+    nb = sum(v * v for v in b.values()) ** 0.5
+    if na == 0.0 or nb == 0.0:
+        return 1.0
+    sim = dot / (na * nb)
+    sim = max(0.0, min(1.0, sim))
+    return 1.0 - sim
+
+
+def term_drift(iteration_texts: Sequence[str]) -> float:
+    """Mean cosine distance of term distributions, 0..1 (0 = collapsed).
+
+    Independent anti-collapse signal, separate from retrieval precision:
+    it only measures how wording drifts across iterations, never relevance.
+    """
+    texts = list(iteration_texts or [])
+    if len(texts) < 2:
+        return 0.0
+    counters = [_term_counter(t) for t in texts]
+    dists = [_cosine_distance(a, b) for a, b in zip(counters, counters[1:])]
+    if not dists:
+        return 0.0
+    return sum(dists) / len(dists)
+
+
+term_distribution_drift = term_drift
+
+
+def anti_collapse_metrics(iteration_texts: Sequence[str]) -> dict[str, float]:
+    """Independent anti-collapse metric, separate from retrieval precision.
+
+    Returns citation diversity, term-distribution drift, and their mean as
+    the anti-collapse score (higher = healthier). Low diversity together
+    with low drift signals loop collapse / metric gaming.
+    """
+    diversity = citation_diversity(iteration_texts)
+    drift = term_drift(iteration_texts)
+    score = (diversity + drift) / 2.0
+    return {
+        "citation_diversity": diversity,
+        "term_drift": drift,
+        "term_distribution_drift": drift,
+        "anti_collapse_score": score,
+    }
+
+
+collapse_metrics = anti_collapse_metrics
+
+
+def format_anti_collapse(metrics_or_texts: dict[str, float] | Sequence[str]) -> str:
+    """Markdown section surfacing the anti-collapse metric for assess output."""
+    if isinstance(metrics_or_texts, dict):
+        metrics = metrics_or_texts
+    else:
+        metrics = anti_collapse_metrics(metrics_or_texts)
+    diversity = float(metrics.get("citation_diversity", 0.0))
+    drift = float(metrics.get("term_distribution_drift", metrics.get("term_drift", 0.0)))
+    score = float(metrics.get("anti_collapse_score", (diversity + drift) / 2.0))
+    lines = [
+        "## Anti-collapse (independent of retrieval precision)",
+        "",
+        f"- citation diversity: {diversity:.3f}",
+        f"- term-distribution drift: {drift:.3f}",
+        f"- anti-collapse score: {score:.3f}",
+    ]
+    if diversity < 0.3 and drift < 0.2:
+        lines += ["", "> warning: possible loop collapse / metric gaming"]
+    return "\n".join(lines)
 
 
 class AssessmentError(Exception):
@@ -365,7 +489,15 @@ def assess_journal(notes: list[Note] | None, text: str, outcome: str, client: Co
             save_assessment(out_dir, chunk_record)
     unreviewed = [(s, e) for s, e, _ in chunks[len(covered):] if s >= 0]
     status = "failed" if (error and not covered) else ("partial" if unreviewed or error else "complete")
+    try:
+        anti_section = format_anti_collapse(
+            anti_collapse_metrics([c for _, _, c in chunks])
+        )
+    except Exception:
+        anti_section = ""
     markdown = "\n\n".join(sections)
+    if anti_section:
+        markdown = anti_section + ("\n\n" + markdown if markdown else "")
     if len(merged) > 3:
         markdown += f"\n\n(+{len(merged) - 3} further proposals kept in chunk records)"
     record = AssessmentRecord(

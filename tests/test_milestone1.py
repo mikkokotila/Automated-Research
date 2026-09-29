@@ -373,6 +373,39 @@ def test_synthesize_scaled_rejects_empty_pool():
         synthesize.synthesize_scaled("q", [], Never())
 
 
+def test_synthesize_records_grounding_coverage():
+    class Cited:
+        model = "rec"
+
+        def complete(self, system, user, max_tokens=8000):
+            return "Fine [1]."
+
+    s = synthesize.synthesize("q", [paper(), paper(title="Second")], Cited())
+    assert s.validation["coverage"] == "1/2"
+    assert s.validation["coverage_ratio"] == 0.5
+    assert "coverage_alert" not in s.validation
+    s2 = synthesize.synthesize("q", [paper(), paper(title="Second")], Cited(),
+                               coverage_threshold=0.9)
+    assert s2.validation["coverage_alert"].startswith("low coverage: cited 1/2")
+
+
+def test_evidence_less_claim_is_flagged():
+    class Bare:
+        model = "rec"
+
+        def complete(self, system, user, max_tokens=8000):
+            import json as _json
+
+            return "Claim [1].\n```claims\n" + _json.dumps([{
+                "id": "c1", "text": "Something happened.", "evidence": [],
+                "scope": "abstract", "uncertainty": "", "support": "supported"}]) + "\n```"
+
+    s = synthesize.synthesize("q", [paper()], Bare())
+    (c,) = s.claims
+    assert c.support == "unsupported"
+    assert any("missing source IDs" in r for r in s.validation["rejected"])
+
+
 def test_synthesize_appends_footer_when_model_omits_it():
     class Omitter:
         model = "rec"
