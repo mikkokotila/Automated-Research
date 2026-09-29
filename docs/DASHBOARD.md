@@ -18,7 +18,9 @@ The daemon persists across reboots (LaunchAgent). Stop it with
 
 Every run gets a name and a brief. Three ways, in order of preference:
 
-1. Dashboard UI: `+ NEW RUN` form (name, brief, launch args).
+1. Dashboard UI: `+ NEW RUN` form (name, brief, cycle fields —
+   question, maintenance, profile, max-papers/iterations, revise-rounds,
+   max-calls/tokens, wall-time-s — or a raw-args override).
 2. `canary runs start --name "..." --brief "..." -- <launcher args>`.
 3. Direct launcher use: `RUN_NAME="..." RUN_BRIEF="..." OUT=... \
    bash scripts/container_run.sh ...`.

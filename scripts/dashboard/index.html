@@ -111,6 +111,15 @@ details.launch summary:hover { color: var(--green); }
   background: var(--bg); border: 1px solid var(--faint); color: var(--ink);
   font: inherit; font-size: 12px; padding: 6px 8px; width: 100%;
 }
+.launchform select {
+  background: var(--bg); border: 1px solid var(--faint); color: var(--ink);
+  font: inherit; font-size: 12px; padding: 6px 8px;
+}
+.cyclerow { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: flex-end; }
+.cyclerow label { display: flex; flex-direction: column; gap: 4px; }
+.cyclerow input { width: 120px; }
+.cyclerow input[type="checkbox"] { width: auto; margin: 0 6px 8px 0; }
+.cyclerow .chk { flex-direction: row; align-items: center; }
 #statusline {
   position: fixed; left: 0; right: 0; bottom: 0;
   background: #070a07; border-top: 1px solid var(--line);
@@ -143,8 +152,20 @@ a { color: var(--cyan); }
       <input id="f-name" maxlength="120" placeholder="e.g. night loop — readmission seed">
       <label>BRIEF</label>
       <input id="f-brief" maxlength="2000" placeholder="what this run is for">
-      <label>LAUNCH (must start with: bash scripts/container_run.sh ...)</label>
-      <input id="f-argv" placeholder='cycle "seed?" --maintenance --repo /work --out /work/out'>
+      <label>CYCLE — QUESTION (builds the launch below; leave empty for non-cycle runs)</label>
+      <input id="f-q" maxlength="2000" placeholder="seed research question in plain words">
+      <div class="cyclerow">
+        <label class="chk"><input type="checkbox" id="f-maint" checked>MAINTENANCE</label>
+        <label>PROFILE<select id="f-profile"><option value="dev">dev</option><option value="prod">prod</option></select></label>
+        <label>MAX-PAPERS<input id="f-papers" inputmode="numeric" placeholder="5"></label>
+        <label>MAX-ITERATIONS<input id="f-iters" inputmode="numeric" placeholder="3"></label>
+        <label>REVISE-ROUNDS<input id="f-rounds" inputmode="numeric" placeholder="1"></label>
+        <label>MAX-CALLS<input id="f-calls" inputmode="numeric" placeholder="25"></label>
+        <label>MAX-TOKENS<input id="f-tokens" inputmode="numeric" placeholder="20000000"></label>
+        <label>WALL-TIME-S<input id="f-wall" inputmode="numeric" placeholder="1800"></label>
+      </div>
+      <label>ADVANCED OVERRIDE (raw args after scripts/container_run.sh — wins when non-empty)</label>
+      <input id="f-argv" placeholder='cycle "seed?" --maintenance --profile prod --max-papers 200'>
       <label>ENV (advanced, optional — one KEY=value per line: CANARY_STAGE, CANARY_TIMEOUT_S, CANARY_WHEELS)</label>
       <textarea id="f-env" rows="2" placeholder="CANARY_STAGE=dev"></textarea>
       <div><button class="act" id="f-go">LAUNCH</button></div>
@@ -491,9 +512,24 @@ document.querySelector("#runs").addEventListener("click", e => {
 document.getElementById("f-go").addEventListener("click", async () => {
   const name = document.getElementById("f-name").value.trim();
   const brief = document.getElementById("f-brief").value.trim();
-  const rest = splitArgv(document.getElementById("f-argv").value.trim());
+  let rest = splitArgv(document.getElementById("f-argv").value.trim());
   if (!name) { status("err: name is required", "err"); return; }
-  if (!rest.length) { status("err: launch command is required", "err"); return; }
+  if (!rest.length) {
+    const q = document.getElementById("f-q").value.trim();
+    if (!q) { status("err: question or launch override is required", "err"); return; }
+    rest = ["cycle", q];
+    if (document.getElementById("f-maint").checked) rest.push("--maintenance");
+    if (document.getElementById("f-profile").value === "prod") rest.push("--profile", "prod");
+    const nums = [["f-papers", "--max-papers"], ["f-iters", "--max-iterations"],
+                  ["f-rounds", "--revise-rounds"], ["f-calls", "--max-calls"],
+                  ["f-tokens", "--max-tokens"], ["f-wall", "--wall-time-s"]];
+    for (const [id, flag] of nums) {
+      const v = document.getElementById(id).value.trim();
+      if (!v) continue;
+      if (!/^\d+$/.test(v)) { status("err: " + flag + " must be an integer", "err"); return; }
+      rest.push(flag, v);
+    }
+  }
   const env = {};
   for (const line of document.getElementById("f-env").value.split("\n")) {
     const t = line.trim();
