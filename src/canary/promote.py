@@ -28,6 +28,13 @@ from pathlib import Path
 
 TERMINAL = ("accepted", "rejected", "interrupted", "rolled_back")
 COPY_IGNORES = (".git", "runs", "__pycache__", ".venv", ".pytest_cache", ".mypy_cache")
+CHECK_CMD = ["pytest", "-q"]
+CHECK_TAIL_LINES = 50
+
+
+def _tail_lines(text: str, n: int = 50) -> str:
+    lines = text.splitlines()
+    return "\n".join(lines[-n:]) if lines else ""
 
 
 class PromotionError(Exception):
@@ -231,7 +238,7 @@ def _transition(store: Store, cand: Candidate, state: str, journal=None,
                 detail: str = "") -> None:
     cand.state = state
     if detail:
-        cand.reason_detail = detail[:500]
+        cand.reason_detail = detail[:8000]
     cand.transitions.append({"at": _utcnow(), "state": state})
     store.save_candidate(cand)
     if journal is not None:
@@ -241,7 +248,7 @@ def _transition(store: Store, cand: Candidate, state: str, journal=None,
              f"{cand.id} base={cand.base_rev[:24]} cand={cand.diff_sha[:24]} {detail}"[:300])
 
 
-def evaluate(store: Store, proposal, diff: str, check_cmd: list[str],
+def evaluate(store: Store, proposal, diff: str, check_cmd: list[str] | None = None,
              assessment_id: str = "", journal=None, timeout_s: int = 600,
              crash_at: frozenset = frozenset()) -> Candidate:
     """Run one candidate through validated/applied/testing in a disposable copy.
@@ -253,6 +260,8 @@ def evaluate(store: Store, proposal, diff: str, check_cmd: list[str],
     from .revise import target_allowed
 
     started = time.monotonic()
+    if check_cmd is None:
+        check_cmd = list(CHECK_CMD)
     base_rev = store.latest_rev()
     if base_rev is None:
         raise PromotionHalt("no accepted revision: init the store first")
@@ -322,15 +331,25 @@ def evaluate(store: Store, proposal, diff: str, check_cmd: list[str],
             _transition(store, cand, "rejected", journal,
                         f"checks timed out after {timeout_s}s")
             return cand
+        combined = (proc.stdout or "") + (proc.stderr or "")
+        try:
+            log_path = store.candidates / f"{cand.id}.log"
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            log_path.write_text(combined, encoding="utf-8")
+        except OSError:
+            log_path = None
         cand.test = {"exit": proc.returncode, "timeout": False,
-                     "tail": (proc.stdout + proc.stderr)[-2000:]}
+                     "tail": combined[-2000:],
+                     "log": str(log_path) if log_path is not None else "",
+                     "cmd": list(check_cmd)}
         cand.wall_s = time.monotonic() - started
         _transition(store, cand, "testing", journal, f"exit={proc.returncode}")
         if "tested" in crash_at:
             raise _CrashSim("tested")
         if proc.returncode != 0:
+            tail = _tail_lines(combined, CHECK_TAIL_LINES)
             _transition(store, cand, "rejected", journal,
-                        f"checks failed with exit {proc.returncode}")
+                        f"checks failed with exit {proc.returncode}\n{tail}")
             return cand
         return cand  # testing passed; promotion decides separately
     finally:
