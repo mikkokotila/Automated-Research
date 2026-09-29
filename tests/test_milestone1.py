@@ -276,6 +276,11 @@ def test_build_prompt_adds_coverage_warning_and_footer_instruction():
     assert "Coverage warning" not in synthesize.build_prompt("q", [paper()])
 
 
+def test_system_prompt_requires_numbers_verbatim_in_spans():
+    assert "Every number in a claim sentence" in synthesize.SYSTEM
+    assert "must appear verbatim in one of that claim's quoted spans" in synthesize.SYSTEM
+
+
 def test_build_prompt_degraded_flag_without_detail():
     prompt = synthesize.build_prompt("q", [paper()], degraded=True)
     assert "some providers failed; sources are partial." in prompt
