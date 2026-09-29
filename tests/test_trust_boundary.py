@@ -224,6 +224,41 @@ def test_prod_profile_requires_main_branch(main_repo):
         revmod.require_prod_branch(main_repo, "staging")
 
 
+def _guest_repo(tmp_path, base_rev: str):
+    r = tmp_path / "guest-repo"
+    (r / "src").mkdir(parents=True)
+    (r / "src" / "x.py").write_text("X = 1\n", encoding="utf-8")
+    for args in (["init", "-q", "-b", "guest"], ["config", "user.email", "t@t"],
+                 ["config", "user.name", "t"], ["add", "-A"],
+                 ["commit", "-qm", f"canary guest base {base_rev}"]):
+        subprocess.run(["git", *args], cwd=r, capture_output=True, check=True)
+    return r
+
+
+def test_prod_profile_guest_checks_pinned_rev_not_branch(tmp_path, monkeypatch):
+    monkeypatch.setenv("CANARY_GUEST", "1")
+    monkeypatch.setenv("CANARY_BASE_REV", "abc123")
+    repo = _guest_repo(tmp_path, "abc123")
+    revmod.require_prod_branch(repo, "prod")  # branch `guest`, pinned rev matches
+    revmod.require_prod_branch(repo, "dev")
+
+
+def test_prod_profile_guest_refuses_without_launcher_rev(tmp_path, monkeypatch):
+    monkeypatch.setenv("CANARY_GUEST", "1")
+    monkeypatch.delenv("CANARY_BASE_REV", raising=False)
+    repo = _guest_repo(tmp_path, "abc123")
+    with pytest.raises(revmod.ContainmentBlocked, match="CANARY_BASE_REV"):
+        revmod.require_prod_branch(repo, "prod")
+
+
+def test_prod_profile_guest_refuses_rev_mismatch(tmp_path, monkeypatch):
+    monkeypatch.setenv("CANARY_GUEST", "1")
+    monkeypatch.setenv("CANARY_BASE_REV", "pinned-rev")
+    repo = _guest_repo(tmp_path, "other-rev")
+    with pytest.raises(revmod.ContainmentBlocked, match="not staged from the pinned rev"):
+        revmod.require_prod_branch(repo, "prod")
+
+
 def test_spec_rejects_unknown_profile():
     with pytest.raises(InvalidSpec, match="profile"):
         RunSpec(question="q?", profile="staging")

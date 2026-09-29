@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -101,10 +102,35 @@ def require_prod_branch(repo: str | Path, profile: str) -> None:
     origin/main before build/run. This check stops branch mistakes
     wherever worker code runs; it cannot prove remote-SHA, and
     in-guest it trusts the guest tree, so it is not the boundary.
+
+    In-guest (CANARY_GUEST=1) the branch name is meaningless: the
+    entrypoint builds a fresh repo on branch `guest` from the baked
+    image and records the host-pinned revision in the base commit
+    message ("canary guest base <rev>"). So in-guest this checks
+    provenance instead: CANARY_BASE_REV must be present (launcher-
+    injected, never baked in) and recorded in the guest base commit.
+    Missing marker, unreadable repo, or a mismatch all refuse.
     """
     if profile not in ("dev", "prod"):
         raise ContainmentBlocked(f"refusing: unknown run profile {profile!r}")
     if profile == "dev":
+        return
+    if os.environ.get("CANARY_GUEST") == "1":
+        base_rev = os.environ.get("CANARY_BASE_REV", "")
+        if not base_rev:
+            raise ContainmentBlocked(
+                "refusing: prod profile in guest requires CANARY_BASE_REV "
+                "from the launcher")
+        try:
+            subject = git(Path(repo), "log", "-1", "--format=%B").strip()
+        except Exception as e:
+            raise ContainmentBlocked(
+                f"refusing: prod profile in guest cannot read guest base: {e}"
+            ) from e
+        if base_rev not in subject:
+            raise ContainmentBlocked(
+                "refusing: guest tree was not staged from the pinned rev "
+                f"(base commit: {subject[:80]!r})")
         return
     branch = current_branch(Path(repo))
     if branch != "main":
