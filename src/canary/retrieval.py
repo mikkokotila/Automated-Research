@@ -246,95 +246,114 @@ def arxiv_search(spec: ResearchSpec, client: httpx.Client, limit: int = 25,
     Foreign shapes (other providers' payloads, direct Atom XML) yield no
     papers rather than a crash: source confusion degrades, never poisons.
     arXiv has no server-side year filter, so ``year_from`` is applied here;
-    papers with an unknown year are kept.
+    papers with an unknown year are kept. When the full conjunction finds
+    nothing, one relaxed query (3 longest question terms, still AND) runs
+    before giving up; the fallback stays inside the question's vocabulary.
     """
+    from .rank import keywords
+
     query = arxiv_query(spec.question)
     if not query:
         if capture is not None:
             capture.update({"outcome": "ok", "papers": 0, "latency_ms": 0.0,
                             "cache_hash": None})
         return []
+    queries = [query]
+    terms = keywords(spec.question)
+    if len(terms) > 3:
+        short = sorted(set(terms), key=lambda t: (-len(t), t))[:3]
+        relaxed = " AND ".join(f"all:{t}" for t in short)
+        if relaxed != query:
+            queries.append(relaxed)
     started = time.monotonic()
     bodies: list[bytes] = []
     pages = 0
-    consumed = 0  # results seen (kept or year-filtered); the start offset
+    relaxed_used = False
     out: list[Paper] = []
     want = min(max(limit, 1), _PER_PAGE * _MAX_PAGES)
-    while len(out) < want and pages < _MAX_PAGES:
-        params = {
-            "search_query": query,
-            "start": str(consumed),
-            "max_results": str(min(_PER_PAGE, want - len(out))),
-            "sortBy": "relevance",
-            "sortOrder": "descending",
-        }
-        resp = _get(client, ARXIV_URL, params)
-        bodies.append(resp.content)
-        pages += 1
-        try:
-            body = resp.json()
-        except ValueError:
-            body = None  # direct Atom XML or any non-JSON body: no papers
-        entries = body.get("entries", []) if isinstance(body, dict) else []
-        if not isinstance(entries, list):
-            entries = []
-        if not entries:
-            break
-        consumed += len(entries)
-        page_hash = "sha256:" + hashlib.sha256(bodies[-1]).hexdigest()
-        for e in entries:
-            if not isinstance(e, dict):
-                continue
-            title = _clean(e.get("title"))
-            aid = _clean(e.get("id"))
-            if not title or not aid:
-                continue
-            year = e.get("year")
-            year = year if isinstance(year, int) else None
-            if spec.year_from and year is not None and year < spec.year_from:
-                continue
-            authors = e.get("authors") or []
-            if not isinstance(authors, list):
-                authors = []
-            authors = tuple(a for a in (_clean(a) for a in authors[:10]) if a)
-            categories = e.get("categories") or []
-            if not isinstance(categories, list):
-                categories = []
-            categories = [_clean(c) for c in categories if _clean(c)]
-            doi = normalize_doi(e.get("doi"))
-            url = _clean(e.get("url_abs")) or (f"https://doi.org/{doi}" if doi else "")
-            oa_url = _clean(e.get("url_pdf"))
-            abstract = _clean(e.get("abstract"))
-            out.append(
-                Paper(
-                    ref=f"doi:{doi}" if doi else f"arxiv:{aid}",
-                    title=title,
-                    abstract=abstract,
-                    authors=authors,
-                    year=year,
-                    venue="arXiv",
-                    doi=doi,
-                    url=url,
-                    citations=0,  # arXiv reports no citation counts; never fabricate one
-                    source="arxiv",
-                    evidence=_evidence_tier(abstract, oa_url),
-                    oa_url=oa_url,
-                    license="",
-                    identifiers={"arxiv": aid},
-                    extra={"version": _clean(e.get("version")), "categories": categories,
-                           "primary_category": _clean(e.get("primary_category")),
-                           "cache_hash": page_hash},
-                )
-            )
-            if len(out) >= want:
+    for qi, query in enumerate(queries):
+        if qi > 0:
+            relaxed_used = True
+        consumed = 0  # results seen (kept or year-filtered); the start offset
+        round_papers = len(out)
+        while len(out) < want and pages < _MAX_PAGES:
+            params = {
+                "search_query": query,
+                "start": str(consumed),
+                "max_results": str(min(_PER_PAGE, want - len(out))),
+                "sortBy": "relevance",
+                "sortOrder": "descending",
+            }
+            resp = _get(client, ARXIV_URL, params)
+            bodies.append(resp.content)
+            pages += 1
+            try:
+                body = resp.json()
+            except ValueError:
+                body = None  # direct Atom XML or any non-JSON body: no papers
+            entries = body.get("entries", []) if isinstance(body, dict) else []
+            if not isinstance(entries, list):
+                entries = []
+            if not entries:
                 break
-        if len(entries) < int(params["max_results"]):
-            break  # short page: no more results
+            consumed += len(entries)
+            page_hash = "sha256:" + hashlib.sha256(bodies[-1]).hexdigest()
+            for e in entries:
+                if not isinstance(e, dict):
+                    continue
+                title = _clean(e.get("title"))
+                aid = _clean(e.get("id"))
+                if not title or not aid:
+                    continue
+                year = e.get("year")
+                year = year if isinstance(year, int) else None
+                if spec.year_from and year is not None and year < spec.year_from:
+                    continue
+                authors = e.get("authors") or []
+                if not isinstance(authors, list):
+                    authors = []
+                authors = tuple(a for a in (_clean(a) for a in authors[:10]) if a)
+                categories = e.get("categories") or []
+                if not isinstance(categories, list):
+                    categories = []
+                categories = [_clean(c) for c in categories if _clean(c)]
+                doi = normalize_doi(e.get("doi"))
+                url = _clean(e.get("url_abs")) or (f"https://doi.org/{doi}" if doi else "")
+                oa_url = _clean(e.get("url_pdf"))
+                abstract = _clean(e.get("abstract"))
+                out.append(
+                    Paper(
+                        ref=f"doi:{doi}" if doi else f"arxiv:{aid}",
+                        title=title,
+                        abstract=abstract,
+                        authors=authors,
+                        year=year,
+                        venue="arXiv",
+                        doi=doi,
+                        url=url,
+                        citations=0,  # arXiv reports no citation counts; never fabricate one
+                        source="arxiv",
+                        evidence=_evidence_tier(abstract, oa_url),
+                        oa_url=oa_url,
+                        license="",
+                        identifiers={"arxiv": aid},
+                        extra={"version": _clean(e.get("version")), "categories": categories,
+                               "primary_category": _clean(e.get("primary_category")),
+                               "cache_hash": page_hash},
+                    )
+                )
+                if len(out) >= want:
+                    break
+            if len(entries) < int(params["max_results"]):
+                break  # short page: no more results
+        if len(out) > round_papers:
+            break  # this query produced; never dilute with the relaxed one
     latency_ms = round((time.monotonic() - started) * 1000, 1)
     cache_hash = "sha256:" + hashlib.sha256(b"".join(bodies)).hexdigest()
     if capture is not None:
         capture.update({"outcome": "ok", "papers": len(out), "latency_ms": latency_ms,
-                        "cache_hash": cache_hash, "pages": pages})
+                        "cache_hash": cache_hash, "pages": pages,
+                        "query_relaxed": relaxed_used})
     return out
 
 

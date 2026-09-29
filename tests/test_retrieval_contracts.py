@@ -182,7 +182,8 @@ def test_empty_results_refine_once_with_recorded_simplification():
         seen.append(str(req.url))
         if "openalex" in str(req.url):
             return httpx.Response(200, json={"results": []})
-        if len([u for u in seen if "arxiv" in u]) == 1:
+        if len([u for u in seen if "arxiv" in u]) <= 2:
+            # round 1: full query AND relaxed fallback both empty
             return httpx.Response(200, json={"entries": []})
         return httpx.Response(200, json={"entries": [arxiv_entry(abstract="found")]})  # refined hit
 
@@ -195,7 +196,7 @@ def test_empty_results_refine_once_with_recorded_simplification():
 
     assert set(change["to"].split()) <= set(_re.findall(r"[a-z0-9]+", change["from"].lower()))
     assert rep["queries"] == [change["from"], change["to"]]
-    assert sum("arxiv" in u for u in seen) == 2  # exactly one retry round
+    assert sum("arxiv" in u for u in seen) == 3  # full + relaxed, then refined hit
 
 
 # --- evidence tiers ---
@@ -371,6 +372,43 @@ def test_arxiv_ignores_foreign_and_non_json_shapes():
         assert retrieval.arxiv_search(ResearchSpec(question="timing evidence"), client) == []
     xml = mock_client(lambda req: httpx.Response(200, text="<feed></feed>"))
     assert retrieval.arxiv_search(ResearchSpec(question="timing evidence"), xml) == []
+
+
+def test_arxiv_relaxes_to_distinctive_terms_when_full_query_empty():
+    seen = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        q = dict(req.url.params)["search_query"]
+        seen.append(q)
+        if q.count(" AND ") >= 5:
+            return httpx.Response(200, json={"entries": []})
+        return httpx.Response(200, json={"entries": [arxiv_entry(title="Relaxed hit")]})
+
+    capture: dict = {}
+    papers = retrieval.arxiv_search(
+        ResearchSpec(question="timing evidence review methods analysis results"),
+        mock_client(handler), capture=capture)
+    assert len(papers) == 1 and papers[0].title == "Relaxed hit"
+    assert capture["query_relaxed"] is True
+    assert len(seen) == 2 and seen[1].count("all:") == 3
+    assert set(seen[1].replace("all:", "").split(" AND ")) <= set(
+        "timing evidence review methods analysis results".split())
+
+
+def test_arxiv_no_relaxation_when_full_query_produces():
+    seen = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen.append(dict(req.url.params)["search_query"])
+        return httpx.Response(200, json={"entries": [arxiv_entry()] if len(seen) == 1
+                                         else []})
+
+    capture: dict = {}
+    papers = retrieval.arxiv_search(
+        ResearchSpec(question="timing evidence review methods analysis results"),
+        mock_client(handler), limit=60, capture=capture)
+    assert len(papers) == 1 and capture["query_relaxed"] is False
+    assert len(seen) == 1  # short first page stops; no relaxed query
 
 
 def test_arxiv_without_terms_skips_the_call():
