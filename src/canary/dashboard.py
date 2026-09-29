@@ -248,6 +248,184 @@ class Supervisor:
         return started
 
 
+RESEARCH_PAPERS_CAP = 200
+RESEARCH_ABSTRACT_CHARS = 1500
+RESEARCH_MD_CHARS = 12000
+RESEARCH_REVIEW_CHARS = 6000
+RESEARCH_DOC_CHARS = 6000
+RESEARCH_DETAIL_CHARS = 300
+
+
+def _read_capped(path: Path, limit: int) -> tuple[str | None, bool]:
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None, False
+    if len(text) > limit:
+        return text[:limit], True
+    return text, False
+
+
+def _load_json_file(path: Path, default):
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return default
+
+
+def _journal_detail(ev: dict) -> str:
+    return str(ev.get("detail", ev.get("Detail", "")))
+
+
+def research_bundle(bundle: str | Path) -> dict:
+    """Full research record for one run: papers, claims, synthesis, decisions.
+
+    Every read is guarded: a running or partial bundle yields present=False /
+    empty lists, never a 500. Large blobs are capped with truncated flags.
+    """
+    b = Path(bundle)
+    run = _load_json_file(b / "run.json", {})
+    if not isinstance(run, dict):
+        run = {}
+
+    synthesis_md, synthesis_truncated = _read_capped(
+        b / "synthesis.md", RESEARCH_MD_CHARS)
+
+    papers: list[dict] = []
+    papers_total = 0
+    seen_refs: set[str] = set()
+    try:
+        retrieval_lines = (b / "retrieval.jsonl").read_text(
+            encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        retrieval_lines = []
+    for line in retrieval_lines:
+        try:
+            entry = json.loads(line)
+        except ValueError:
+            continue
+        candidates = entry.get("papers", []) if isinstance(entry, dict) else []
+        if not isinstance(candidates, list):
+            continue
+        for p in candidates:
+            if not isinstance(p, dict):
+                continue
+            papers_total += 1
+            ref = str(p.get("ref") or p.get("title") or "")
+            if not ref or ref in seen_refs:
+                continue
+            seen_refs.add(ref)
+            if len(papers) >= RESEARCH_PAPERS_CAP:
+                continue
+            abstract = str(p.get("abstract", ""))
+            papers.append({
+                "ref": ref,
+                "title": str(p.get("title", "")),
+                "year": p.get("year", ""),
+                "source": str(p.get("source", "")),
+                "doi": str(p.get("doi", "")),
+                "oa_url": str(p.get("oa_url", "")),
+                "citations": p.get("citations", 0),
+                "abstract": abstract[:RESEARCH_ABSTRACT_CHARS],
+                "abstract_truncated": len(abstract) > RESEARCH_ABSTRACT_CHARS,
+            })
+
+    iterations = []
+    for path in sorted(b.glob("iterations/iter*.json")):
+        d = _load_json_file(path, {})
+        if not isinstance(d, dict):
+            continue
+        claims = []
+        for c in d.get("claims", []) if isinstance(d.get("claims"), list) else []:
+            if not isinstance(c, dict):
+                continue
+            ev_list = []
+            for e in (c.get("evidence", [])
+                      if isinstance(c.get("evidence"), list) else []):
+                if not isinstance(e, dict):
+                    continue
+                ev_list.append({
+                    "paper": e.get("paper", ""),
+                    "span": str(e.get("span", ""))[:400],
+                    "anchored": bool(e.get("anchored", False)),
+                })
+            claims.append({
+                "id": str(c.get("id", "")),
+                "text": str(c.get("text", ""))[:1000],
+                "support": str(c.get("support", "")),
+                "scope": str(c.get("scope", "")),
+                "uncertainty": str(c.get("uncertainty", ""))[:300],
+                "evidence": ev_list,
+            })
+        validation = d.get("validation", {})
+        if not isinstance(validation, dict):
+            validation = {}
+        review_md, review_truncated = _read_capped(
+            path.with_name(path.stem + "-review.md"), RESEARCH_REVIEW_CHARS)
+        titles = d.get("papers", [])
+        iterations.append({
+            "n": d.get("n", ""),
+            "kind": str(d.get("kind", "")),
+            "question": str(d.get("question", "")),
+            "papers_count": len(titles) if isinstance(titles, list) else 0,
+            "papers": [str(t) for t in titles][:100] if isinstance(titles, list) else [],
+            "claims": claims,
+            "validation": {
+                "claims_parsed": validation.get("claims_parsed", 0),
+                "batches": validation.get("batches", 0),
+                "dangling_citations": validation.get("dangling_citations", []),
+                "unresolved": [str(u)[:200] for u in
+                               validation.get("unresolved", [])][:10]
+                if isinstance(validation.get("unresolved"), list) else [],
+            },
+            "review_md": review_md,
+            "review_truncated": review_truncated,
+        })
+
+    assessments = []
+    for path in sorted(b.glob("assessments/*.json")):
+        d = _load_json_file(path, {})
+        if not isinstance(d, dict):
+            continue
+        doc = str(d.get("doc_markdown", ""))
+        if not doc:
+            sibling = path.with_suffix(".md")
+            doc, _ = _read_capped(sibling, RESEARCH_DOC_CHARS)
+            doc = doc or ""
+        assessments.append({
+            "id": str(d.get("id", path.stem)),
+            "ts": str(d.get("ts", "")),
+            "outcome": str(d.get("outcome", "")),
+            "calls_spent": d.get("calls_spent", 0),
+            "doc_markdown": doc[:RESEARCH_DOC_CHARS],
+            "doc_truncated": len(doc) > RESEARCH_DOC_CHARS,
+        })
+
+    decisions = [{"t": ev.get("ts", ""), "seq": ev.get("seq", 0),
+                  "phase": str(ev.get("phase", "")),
+                  "event": str(ev.get("event", "")),
+                  "detail": _journal_detail(ev)[:RESEARCH_DETAIL_CHARS]}
+                 for ev in runs.journal_events(b)]
+
+    usage = run.get("usage", {})
+    return {
+        "seed": run.get("seed", "?"),
+        "stopped": run.get("stopped", "?"),
+        "model": run.get("model", "?"),
+        "usage": usage if isinstance(usage, dict) else {},
+        "unanswered": [str(u) for u in run.get("unanswered", [])]
+        if isinstance(run.get("unanswered"), list) else [],
+        "synthesis_md": synthesis_md,
+        "synthesis_truncated": synthesis_truncated,
+        "papers": papers,
+        "papers_total": papers_total,
+        "papers_truncated": len(seen_refs) > len(papers),
+        "iterations": iterations,
+        "assessments": assessments,
+        "decisions": decisions,
+    }
+
+
 def merged_timeline(bundle: str | Path, tail: int = 0) -> list[dict]:
     """Journal + ops events, one time-ordered stream for the raw log view."""
     items = []
@@ -255,7 +433,7 @@ def merged_timeline(bundle: str | Path, tail: int = 0) -> list[dict]:
         items.append({"t": ev.get("ts", ""), "seq": ev.get("seq", 0),
                       "source": "journal", "phase": ev.get("phase", ""),
                       "event": ev.get("event", ""),
-                      "detail": str(ev.get("detail", ""))[:500]})
+                      "detail": _journal_detail(ev)[:500]})
     for ev in runs.ops_events(bundle):
         op = ev.get("op", "")
         kind = ev.get("kind", "")
@@ -334,6 +512,15 @@ class Handler(BaseHTTPRequestHandler):
             elif parsed.path.startswith("/api/runs/") and parsed.path.endswith("/log"):
                 key = parsed.path[len("/api/runs/"):-len("/log")]
                 self._serve_log(key, query)
+            elif parsed.path.startswith("/api/runs/") and parsed.path.endswith("/research"):
+                key = parsed.path[len("/api/runs/"):-len("/research")]
+                row = runs.get(key, self.supervisor.registry)
+                if row is None:
+                    self._send(404, {"error": f"unknown run {key}"})
+                else:
+                    self._send(200, {"key": key,
+                                     "research": research_bundle(
+                                         row.get("bundle", ""))})
             elif parsed.path.startswith("/api/runs/"):
                 key = parsed.path[len("/api/runs/"):]
                 row = next((r for r in self.supervisor.reconcile()

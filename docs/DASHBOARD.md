@@ -30,13 +30,20 @@ Without a name the launcher falls back to the output directory key.
 ## Main table
 
 One row per run: title, run id, started, ended, status, improvements
-count, loop-iteration count, log, rerun, pause.
+count, loop-iteration count, research, log, rerun, pause.
 
 - Click the **title** for the full brief plus seed, profile, model, usage,
   patch tally, container, bundle, and launch command.
 - Click **Δ** for every code change proposed: target, eval status, reason,
   and PR link once the publish bridge (#66) files it.
 - Click **LOOP** for the loop's reformulations in order with statuses.
+- **RESEARCH** opens the full research record (`/api/runs/<key>/research`,
+  cached per panel, RELOAD refetches): **SYNTHESIS** (headline answer,
+  limits, carry-forward questions), **PAPERS** (every retrieved ref with
+  title, year, source, abstract, open-access link — capped at 200 with
+  counts), **CLAIMS** (per-iteration questions, grounded claims with
+  support badges and evidence spans, validation, full review prose), and
+  **DECISIONS** (assessor docs plus the complete journal in order).
 - **LOG** opens the raw log: the merged journal+ops timeline, the
   timestamped console capture, and the launcher transcript. Live runs
   refresh every few seconds.
