@@ -84,6 +84,7 @@ class RunSpec:
     maintenance: bool = False
     profile: str = "dev"
     max_iterations: int = 3
+    max_reseeds: int = 1
     revise_rounds: int = 1
     max_model_calls: int = 25
     max_tokens: int = 20_000_000
@@ -111,6 +112,8 @@ class RunSpec:
             raise InvalidSpec("year_from must be between 1900 and 2100")
         if not 1 <= self.max_iterations <= MAX_ITERATIONS:
             raise InvalidSpec(f"max_iterations must be between 1 and {MAX_ITERATIONS}")
+        if not 0 <= self.max_reseeds <= 3:
+            raise InvalidSpec("max_reseeds must be between 0 and 3")
         if not 0 <= self.revise_rounds <= 3:
             raise InvalidSpec("revise_rounds must be between 0 and 3")
         if not 1 <= self.max_model_calls <= 10_000:
@@ -126,9 +129,9 @@ class RunSpec:
         object.__setattr__(self, "question", question)
 
     _FIELDS = ("version", "question", "csv", "target", "max_papers", "year_from",
-                 "model", "maintenance", "profile", "max_iterations", "revise_rounds",
-                 "max_model_calls", "max_tokens", "wall_time_s", "finalize_calls",
-                 "out_dir")
+                 "model", "maintenance", "profile", "max_iterations", "max_reseeds",
+                 "revise_rounds", "max_model_calls", "max_tokens", "wall_time_s",
+                 "finalize_calls", "out_dir")
 
     def to_dict(self) -> dict:
         return {f: getattr(self, f) for f in self._FIELDS}

@@ -16,10 +16,12 @@ class ScriptedMuse:
     def __init__(self):
         self.queues: dict[str, list[str]] = {
             "follow": [], "review": [], "narrate": [], "final": [],
-            "assess": [], "diff": [],
+            "assess": [], "diff": [], "reseed": [],
         }
 
     def _kind(self, system: str) -> str:
+        if "dead-ended research loop" in system:
+            return "reseed"
         if "research strategist" in system:
             return "follow"
         if "precise research assistant" in system:

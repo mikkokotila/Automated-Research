@@ -26,6 +26,7 @@ def _spec(**kw):
     {"model": "other"}, {"csv": "a.csv"}, {"target": "t"},
     {"max_papers": 0}, {"max_papers": 401}, {"year_from": 1800},
     {"max_iterations": 0}, {"max_iterations": 6}, {"revise_rounds": -1},
+    {"max_reseeds": -1}, {"max_reseeds": 4},
     {"max_model_calls": 0}, {"max_model_calls": 10_001},
     {"max_tokens": 0}, {"max_tokens": 200_000_001},
     {"wall_time_s": 0}, {"wall_time_s": 86_401}, {"finalize_calls": 6},
@@ -181,10 +182,113 @@ def test_empty_seed_evidence_is_insufficient_not_converged():
     def empty(request):
         return httpx.Response(200, json={"results": [], "data": []})
 
+    spec = _spec(max_iterations=2, max_reseeds=0)
     res = cyclemod.run_cycle("seed?", None, None, 2, 5, _seeded_muse(),
-                             httpx.Client(transport=httpx.MockTransport(empty)))
+                             httpx.Client(transport=httpx.MockTransport(empty)),
+                             spec=spec)
     assert res.stopped == "insufficient_evidence"
     assert res.iterations == () and res.unanswered == ("seed?",)
+
+
+def _reseed_http():
+    import httpx
+
+    def handler(req):
+        url = str(req.url)
+        if "openalex" in url and "dead" in url:
+            return httpx.Response(200, json={"results": []})
+        if "openalex" in url:
+            return httpx.Response(200, json={"results": [{
+                "id": "W1", "title": "Study on X", "doi": "https://doi.org/10.1/x",
+                "publication_year": 2023, "cited_by_count": 5,
+                "authorships": [{"author": {"display_name": "A. Uthor"}}],
+                "primary_location": {"source": {"display_name": "J X"}},
+                "abstract_inverted_index": {"X": [0]}}]})
+        return httpx.Response(200, json={"entries": []})
+
+    return httpx.Client(transport=httpx.MockTransport(handler))
+
+
+def _reseed_muse(pivots):
+    muse = ScriptedMuse()
+    muse.queues["reseed"] = list(pivots)
+    muse.queues["review"] = [grounded_review("R1"), grounded_review("R2")]
+    muse.queues["follow"] = ["[]"]
+    muse.queues["final"] = ["Final."]
+    return muse
+
+
+def test_reseed_pivots_when_seed_finds_nothing():
+    journal = Journal()
+    spec = _spec(max_iterations=2)
+    res = cyclemod.run_cycle("dead seed?", None, None, 2, 5,
+                             _reseed_muse(["lively pivot?"]),
+                             _reseed_http(), journal=journal, spec=spec)
+    assert res.stopped == "converged"
+    assert [i.provenance["seed"] for i in res.iterations] == ["lively pivot?"]
+    assert any(n.event == "reseed" and "lively pivot?" in n.detail
+               for n in journal.notes)
+
+
+def test_reseed_bounded_and_honest_when_pivot_also_empty():
+    import httpx
+
+    def empty(request):
+        return httpx.Response(200, json={"results": [], "entries": []})
+
+    journal = Journal()
+    spec = _spec(max_iterations=2, max_reseeds=1)
+    res = cyclemod.run_cycle("dead seed?", None, None, 2, 5,
+                             _reseed_muse(["second dead end?"]),
+                             httpx.Client(transport=httpx.MockTransport(empty)),
+                             journal=journal, spec=spec)
+    assert res.stopped == "insufficient_evidence"
+    assert res.iterations == () and res.unanswered == ("second dead end?",)
+    assert sum(n.event == "reseed" for n in journal.notes) == 1
+    assert any(n.event == "reseed-skipped" and "exhausted" in n.detail
+               for n in journal.notes)
+
+
+def test_no_reseed_when_iterations_supported():
+    journal = Journal()
+    res = cyclemod.run_cycle("seed?", None, None, 2, 5, _seeded_muse(),
+                             mock_http(), journal=journal)
+    assert res.stopped == "converged"
+    assert not any(n.event == "reseed" for n in journal.notes)
+
+
+def test_reseed_rejects_dupe_then_accepts_fresh():
+    journal = Journal()
+    spec = _spec(max_iterations=2)
+    res = cyclemod.run_cycle("dead seed?", None, None, 2, 5,
+                             _reseed_muse(["dead seed?", "lively pivot?"]),
+                             _reseed_http(), journal=journal, spec=spec)
+    assert res.stopped == "converged"
+    assert any(n.event == "reseed-rejected" for n in journal.notes)
+    assert any(n.event == "reseed" and "lively pivot?" in n.detail
+               for n in journal.notes)
+
+
+def test_reseed_state_survives_checkpoints(tmp_path):
+    import glob
+
+    journal = Journal()
+    spec = _spec(max_iterations=2)
+    cyclemod.run_cycle("dead seed?", None, None, 2, 5,
+                       _reseed_muse(["lively pivot?"]),
+                       _reseed_http(), journal=journal, spec=spec,
+                       record_dir=str(tmp_path))
+    latest = sorted(glob.glob(str(tmp_path / "checkpoints" / "*.json")))[-1]
+    state = json.load(open(latest))
+    assert state["reseeds_used"] == 1
+    assert state["seeds_tried"] == ["dead seed?", "lively pivot?"]
+    assert state["active_seed"] == "lively pivot?"
+
+
+def test_parse_reseed_skips_preamble_and_quotes():
+    assert cyclemod._parse_reseed("Here is a pivot:\n\"lively pivot?\"\n") == "lively pivot?"
+    assert cyclemod._parse_reseed("\n\n  \n") == ""
+    assert cyclemod._parse_reseed("Note:\n") == ""
 
 
 def test_nested_work_shares_one_tracker():
