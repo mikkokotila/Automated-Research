@@ -9,6 +9,7 @@ as a cost (no monetary claims are made at all).
 
 from __future__ import annotations
 
+import threading
 import time
 from dataclasses import dataclass, field
 from enum import Enum
@@ -21,9 +22,11 @@ SPEC_VERSION = 1
 QUESTION_LIMIT = 2000
 MAX_ITERATIONS = 5
 # Papers per iteration. Retrieval pages each provider to cover the pool
-# (50/page, 8 pages max) and synthesis map-reduces over the prompt cap,
-# so hundreds-paper runs are bounded, not hopeful.
-MAX_PAPERS = 400
+# (50/page, hundreds of pages max, fetched concurrently) and synthesis
+# map-reduces over the prompt cap, so ten-thousand-paper runs are
+# bounded, not hopeful. arXiv's broker courtesy spacing (~3s/page)
+# still serializes its share; OpenAlex carries the volume at scale.
+MAX_PAPERS = 25_000
 
 
 class InvalidSpec(ValueError):
@@ -169,6 +172,8 @@ class RunBudget:
     cancelled: bool = False
     deadline: float = field(default=0.0)
     clock = time.monotonic
+    _lock: threading.Lock = field(default_factory=threading.Lock,
+                                  repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if self.deadline <= 0:
@@ -194,19 +199,22 @@ class RunBudget:
 
     def reserve_call(self) -> None:
         """Spend one call slot before dispatch; attempts are never refunded."""
-        self.check()
-        self.calls += 1
+        with self._lock:
+            self.check()
+            self.calls += 1
 
     def note_usage(self, prompt_tokens: int, completion_tokens: int) -> None:
         if type(prompt_tokens) is not int or type(completion_tokens) is not int:
             raise ValueError("usage must be integers")
         if prompt_tokens < 0 or completion_tokens < 0:
             raise ValueError("usage must be non-negative")
-        self.tokens += prompt_tokens + completion_tokens
-        self.tokens_reported = True
+        with self._lock:
+            self.tokens += prompt_tokens + completion_tokens
+            self.tokens_reported = True
 
     def cancel(self) -> None:
-        self.cancelled = True
+        with self._lock:
+            self.cancelled = True
 
     def calls_remaining(self) -> int:
         return max(self.max_calls - self.calls, 0)

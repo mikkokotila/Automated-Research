@@ -73,6 +73,36 @@ def test_enrich_never_raises_and_zero_is_noop(monkeypatch):
     assert counts == {"ok": 0, "skipped": 0}
 
 
+def test_enrich_journals_elapsed_time(monkeypatch, tmp_path):
+    import json
+    import re
+
+    from canary.journal import Journal
+
+    def send(request):
+        aid = dict(request.url.params)["id"]
+        return httpx.Response(200, json={"id": aid, "text": f"TEXT-{aid}",
+                                         "pages": 1})
+    http = _gate(monkeypatch, send)
+    journal = Journal(tmp_path / "journal.jsonl", run_id="r1")
+    fulltext.enrich([_paper(), _paper()], http, 2, journal)
+    events = [json.loads(line)
+              for line in (tmp_path / "journal.jsonl").read_text().splitlines()]
+    (detail,) = [e["detail"] for e in events if e["event"] == "fulltext"]
+    assert re.fullmatch(r"enriched 2/2 in \d+\.\d+s", detail)
+
+
+def test_enrich_fills_quota_from_earliest_successes(monkeypatch):
+    def send(request):
+        return httpx.Response(200, json={"id": "x", "text": "TEXT", "pages": 1})
+    http = _gate(monkeypatch, send)
+    papers = [_paper(aid=f"good-{i}") for i in range(6)]
+    out, counts = fulltext.enrich(papers, http, 2)
+    assert counts == {"ok": 2, "skipped": 0}  # in-flight extras count as nothing
+    assert [bool(p.extra.get("fulltext")) for p in out] == [True, True, False,
+                                                            False, False, False]
+
+
 def test_span_anchored_against_fulltext():
     from canary.synthesize import _span_anchored
 

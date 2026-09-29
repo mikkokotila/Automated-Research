@@ -81,6 +81,13 @@ tr.panel td { background: var(--panel); padding: 10px 12px; }
   margin: 0 0 6px; font-size: 11px; letter-spacing: 2px;
   color: var(--faint); font-weight: 400;
 }
+/* Giant panels scroll past their row toggle: the header stays pinned so
+   CLOSE is always in view. */
+tr.panel h4 {
+  position: sticky; top: 0; background: var(--panel);
+  padding: 6px 0; z-index: 1;
+}
+tr.panel h4 button.act { margin-left: 12px; }
 .meta { display: grid; grid-template-columns: 130px 1fr; gap: 2px 12px; }
 .meta dt { color: var(--faint); }
 .meta dd { margin: 0; word-break: break-word; }
@@ -302,9 +309,11 @@ function rowHtml(r) {
   if (isOpen(r.key, "impr")) h += improvementsHtml(r);
   if (isOpen(r.key, "loop")) h += iterationsHtml(r);
   if (isOpen(r.key, "research")) h += `<tr class="panel" data-key="${key}"><td colspan="11">`
-    + `<h4>RESEARCH — ${key}</h4><div id="research-${key}">loading…</div></td></tr>`;
+    + `<h4>RESEARCH — ${key}<button class="act" data-t="research">CLOSE</button></h4>`
+    + `<div id="research-${key}">loading…</div></td></tr>`;
   if (isOpen(r.key, "log")) h += `<tr class="panel" data-key="${key}"><td colspan="11">`
-    + `<h4>RAW LOG — ${key}</h4><div id="log-${key}">loading…</div></td></tr>`;
+    + `<h4>RAW LOG — ${key}<button class="act" data-t="log">CLOSE</button></h4>`
+    + `<div id="log-${key}">loading…</div></td></tr>`;
   return h;
 }
 function briefHtml(r) {
@@ -714,14 +723,18 @@ document.getElementById("f-go").addEventListener("click", async () => {
     rest = ["cycle", q];
     if (document.getElementById("f-maint").checked) rest.push("--maintenance");
     if (document.getElementById("f-profile").value === "prod") rest.push("--profile", "prod");
-    const nums = [["f-papers", "--max-papers"], ["f-iters", "--max-iterations"],
-                  ["f-rounds", "--revise-rounds"], ["f-calls", "--max-calls"],
-                  ["f-tokens", "--max-tokens"], ["f-wall", "--wall-time-s"],
-                  ["f-fulltext", "--max-fulltext"]];
-    for (const [id, flag] of nums) {
+    const nums = [["f-papers", "--max-papers", 1, 25000],
+                  ["f-iters", "--max-iterations", 1, 5],
+                  ["f-rounds", "--revise-rounds", 0, 3],
+                  ["f-calls", "--max-calls", 1, 10000],
+                  ["f-tokens", "--max-tokens", 1, 200000000],
+                  ["f-wall", "--wall-time-s", 1, 86400],
+                  ["f-fulltext", "--max-fulltext", 0, 10]];
+    for (const [id, flag, lo, hi] of nums) {
       const v = document.getElementById(id).value.trim();
       if (!v) continue;
       if (!/^\d+$/.test(v)) { status("err: " + flag + " must be an integer", "err"); return; }
+      if (+v < lo || +v > hi) { status(`err: ${flag} must be ${lo}..${hi}`, "err"); return; }
       rest.push(flag, v);
     }
   }

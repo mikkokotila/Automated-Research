@@ -23,7 +23,7 @@ from .ledger import Ledger
 from .policy import ALLOWED_MODEL, MAX_BODY_BYTES, BoundaryError, PolicyBlocked
 
 SOURCES = {
-    "/v1/sources/openalex": ("https://api.openalex.org/works", {"search", "per-page", "page", "mailto", "filter"}),
+    "/v1/sources/openalex": ("https://api.openalex.org/works", {"search", "per-page", "page", "filter"}),
     "/v1/sources/arxiv": ("https://export.arxiv.org/api/query",
                            {"search_query", "start", "max_results", "sortBy", "sortOrder"}),
     "/v1/sources/arxiv-pdf": ("https://arxiv.org/pdf", {"id"}),
@@ -42,6 +42,7 @@ _arxiv_last_upstream = 0.0  # monotonic; guarded by _arxiv_lock
 
 _ATOM = "http://www.w3.org/2005/Atom"
 _ARXIV_NS = "http://arxiv.org/schemas/atom"
+_OPENSEARCH_NS = "http://a9.com/-/spec/opensearch/1.1/"
 _NS = {"a": _ATOM, "arxiv": _ARXIV_NS}
 _ARXIV_VERSIONED_ID = re.compile(r"(\d+\.\d+)v(\d+)$")
 
@@ -147,6 +148,16 @@ def _fetch_arxiv_upstream(url: str, params: dict) -> tuple[int, bytes]:
         except (OSError, ValueError):
             return e.code, b""
     # URLError (DNS, refused, timeout) propagates: caller maps it to 502.
+
+
+def _arxiv_total(atom: bytes) -> int | None:
+    """Advertised result total from an arXiv feed, None when absent/unparseable."""
+    try:
+        root = ET.fromstring(atom)
+    except ET.ParseError:
+        return None
+    text = (root.findtext(f"{{{_OPENSEARCH_NS}}}totalResults") or "").strip()
+    return int(text) if text.isdigit() else None
 
 
 def _arxiv_entries(atom: bytes) -> list[dict]:
@@ -287,7 +298,7 @@ def make_server(gateway, access_token, address=("0.0.0.0", 8787)):
             except ValueError:
                 self.reply(502, {"error": "source_unavailable"})
                 return
-            self.reply(200, {"entries": entries})
+            self.reply(200, {"entries": entries, "total": _arxiv_total(content)})
 
         def serve_fulltext(self, params):
             """One arXiv PDF to text: validated id, cached, politely spaced."""

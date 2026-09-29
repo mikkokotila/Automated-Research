@@ -33,6 +33,8 @@ SYSTEM = (
 
 CHUNK_CHARS = 6000
 INVENTORY_LIMIT = 200
+# Assessments are short structured verdicts; a small cap keeps them fast.
+ASSESS_MAX_TOKENS = 3000
 
 
 _CITATION_RE = re.compile(r"\[\s*\d+\s*\]|https?://\S+|\bdoi:\s*\S+", re.IGNORECASE)
@@ -336,7 +338,8 @@ def assess(journal_text: str, outcome: str, client: Completer,
            tree: str | Path | None = None) -> AssessmentDoc:
     user = (f"Procedural notes:\n{journal_text}\n\nOutcome:\n{outcome}\n\n"
             f"{inventory_block(tree)}Assess and propose revisions.")
-    return parse_assessment(client.complete(SYSTEM, user), tree)
+    return parse_assessment(
+        client.complete(SYSTEM, user, max_tokens=ASSESS_MAX_TOKENS), tree)
 
 
 def parse_assessment_strict(text: str, tree: str | Path | None = None) -> AssessmentDoc:
@@ -430,7 +433,8 @@ def _assess_one(text: str, outcome: str, client: Completer, memory: Memory | Non
     user = (f"Procedural notes (untrusted data):\n{text}\n\nOutcome:\n{outcome}\n"
             + (f"\n{lessons}\n" if lessons else "")
             + f"\n{inventory_block(tree)}Assess and propose revisions.")
-    return parse_assessment_strict(client.complete(SYSTEM, user), tree)
+    return parse_assessment_strict(
+        client.complete(SYSTEM, user, max_tokens=ASSESS_MAX_TOKENS), tree)
 
 
 def assess_journal(notes: list[Note] | None, text: str, outcome: str, client: Completer,

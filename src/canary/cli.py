@@ -7,6 +7,7 @@ import json
 import os
 import shlex
 import sys
+import time
 from dataclasses import replace
 from pathlib import Path
 
@@ -64,9 +65,11 @@ def review(spec: RunSpec, assess: bool = False) -> str:
     j = Journal(Path(spec.out_dir) / "journal.jsonl", run_id=run_id)
     emit(j, "review", "start", spec.question[:200])
     rspec = spec.research_spec()
+    started = time.monotonic()
     with httpx.Client(headers={"User-Agent": "Canary/0.1"}) as http:
         papers, retrieval_report = retrieval.retrieve_with_report(rspec, http)
-    emit(j, "review", "retrieved", f"{len(papers)} candidates")
+    emit(j, "review", "retrieved",
+         f"{len(papers)} candidates in {time.monotonic() - started:.1f}s")
     for name, outcome in retrieval_report["providers"].items():
         if outcome["outcome"] != "ok":
             emit(j, "review", "provider-failed", f"{name}: {outcome['error']}")
@@ -81,9 +84,13 @@ def review(spec: RunSpec, assess: bool = False) -> str:
     with httpx.Client(headers={"User-Agent": "Canary/0.1"}) as http:
         top, _ = fulltext.enrich(top, http, spec.max_fulltext, j)
     client = MuseClient(budget=RunBudget.from_spec(spec))
+    started = time.monotonic()
     synth = synthesize.synthesize_scaled(rspec.question, top, client)
     batches = synth.validation.get("batches", 1)
-    emit(j, "review", "synthesized", f"{len(top)} papers, cited {len(synth.cited)}"
+    calls = synth.validation.get("model_calls", 1)
+    emit(j, "review", "synthesized",
+         f"{len(top)} papers, cited {len(synth.cited)}, {calls} calls "
+         f"in {time.monotonic() - started:.1f}s"
          + (f", {batches} batches" if batches and batches > 1 else ""))
     for marker in synth.validation.get("dangling_citations", []):
         emit(j, "review", "dangling-citation", f"[{marker}] points at no paper")

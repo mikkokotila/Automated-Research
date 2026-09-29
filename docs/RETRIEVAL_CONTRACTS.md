@@ -9,15 +9,15 @@ made; unit tests and CI use fixtures only.
   `/api/authentication/`, `/api/filtering/`, `/api/deprecations/`.
 - Endpoint: `GET https://api.openalex.org/works` with `search` (free text),
   `per-page` (max 100; we cap at 50), `page` (we page to cover large pools,
-  8 pages max), and optional
+  500 pages max, fetched concurrently past page 1), and optional
   `filter=from_publication_date:YYYY-MM-DD` (confirmed current syntax).
 - Auth: free API key as `api_key` query parameter or `Authorization: Bearer`
   header. **The `mailto` polite pool is retired — the parameter is ignored.**
   We send `OPENALEX_API_KEY` when set, else run on the keyless budget.
 - Rate limits: `429` on daily-budget exhaustion or >100 req/s. Responses carry
-  usage headers and a `meta` block (not yet consumed).
-- Response fields consumed: `results[].id`, `doi` (full URL), `ids.{doi,mag,
-  pmid,pmcid}`, `title`, `authorships[].author.display_name`,
+  usage headers and a `meta` block (`meta.count` drives exact parallel paging).
+- Response fields consumed: `meta.count`, `results[].id`, `doi` (full URL),
+  `ids.{doi,mag,pmid,pmcid}`, `title`, `authorships[].author.display_name`,
   `publication_year`, `cited_by_count`, `primary_location.source.display_name`,
   `abstract_inverted_index`, `open_access.oa_status`,
   `best_oa_location.{pdf_url,landing_page_url,license}`.
@@ -44,11 +44,12 @@ runs on OpenAlex + arXiv only.
 - Rate etiquette: at most one request per 3 seconds. The broker enforces the
   spacing centrally (`serve_arxiv`); guests can never violate it.
 - Transport shape: the API returns Atom XML. The broker parses it and serves
-  `{"entries": [...]}` JSON with `id` (version stripped; `version` kept
-  separately), `title`, `abstract`, `authors`, `year`, `categories`,
-  `primary_category`, `doi` (when the record carries one), `url_abs`,
-  `url_pdf`. The guest parses that shape only — foreign shapes degrade to
-  zero papers, never a crash.
+  `{"entries": [...], "total": N}` JSON with `id` (version stripped;
+  `version` kept separately), `title`, `abstract`, `authors`, `year`,
+  `categories`, `primary_category`, `doi` (when the record carries one),
+  `url_abs`, `url_pdf`, and `total` from `opensearch:totalResults` (None
+  when the feed hides it; drives exact parallel paging). The guest parses
+  that shape only — foreign shapes degrade to zero papers, never a crash.
 - Wire client: the broker fetches upstream with stdlib urllib, not httpx.
   On 2026-09-28 httpx's compressed keep-alive requests were 406'd while
   urllib/curl passed the same URLs from the same egress within minutes;
