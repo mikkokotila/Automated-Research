@@ -119,6 +119,8 @@ def main(argv: list[str] | None = None) -> int:
     lo.add_argument("--csv", default=None, help="optional dataset for analyze iterations")
     lo.add_argument("--target", default=None, help="target column (with --csv)")
     lo.add_argument("--max-iterations", type=int, default=3)
+    lo.add_argument("--max-reseeds", type=int, default=1,
+                    help="fresh-seed restarts when a leg ends with no supported claims")
     lo.add_argument("--max-papers", type=int, default=5)
     lo.add_argument("--out", default="./out")
     lo.add_argument("--maintenance", action="store_true", help="assess and patch mid-run and post-run")
@@ -279,6 +281,7 @@ def build_spec(args) -> RunSpec | None:
                    max_iterations=args.max_iterations, max_papers=args.max_papers,
                    maintenance=args.maintenance, profile=args.profile,
                    revise_rounds=args.revise_rounds,
+                   max_reseeds=getattr(args, "max_reseeds", 1),
                    max_model_calls=args.max_calls, max_tokens=args.max_tokens,
                    wall_time_s=args.wall_time_s, out_dir=args.out)
 

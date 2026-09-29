@@ -42,6 +42,26 @@ def propose_prompt(history: str, dataset_hint: str, seed: str, gaps: list[str]) 
     lines += ["", "Propose follow-ups."]
     return "\n".join(lines)
 
+RESEED_SYSTEM = (
+    "You redirect a dead-ended research loop. The seed question below produced "
+    "no supported claims: either nothing was retrievable or nothing retrieved "
+    "was usable. Propose ONE pivot question: different vocabulary and angle, "
+    "aimed at adjacent literature that transfers to the original problem. "
+    "Answerable from paper titles and abstracts. "
+    "Reply with ONLY the question, one line, at most 500 characters."
+)
+
+
+def _parse_reseed(reply: str) -> str:
+    """First substantive line; preamble lines ending in ':' are skipped."""
+    for line in reply.splitlines():
+        line = line.strip().strip("\"'")
+        if not line or line.endswith(":"):
+            continue
+        return line
+    return ""
+
+
 SYNTHESIS_SYSTEM = (
     "You are a senior researcher. Synthesize the iteration findings below into a "
     "final report: headline answer, supporting evidence per iteration, limits, "
@@ -514,6 +534,11 @@ def run_cycle(
     bad_proposes = 0
     evidence_gaps = [g for it in iterations for g in _harvest_gaps(it)]
     synthesis = ""
+    # Reseed legs: each seed gets max_iterations; hard budgets bind the total.
+    active_seed = resumed.get("active_seed", question) if resumed else question
+    seeds_tried = list(resumed.get("seeds_tried", [question])) if resumed else [question]
+    reseeds_used = int(resumed.get("reseeds_used", 0)) if resumed else 0
+    seed_iters = int(resumed.get("seed_iters", len(iterations))) if resumed else 0
     if maintenance and repo_root is None:
         emit(journal, "cycle", "revise-disabled", "maintenance needs repo_root")
     emit(journal, "cycle", "start", f"seed={question[:150]} max_iter={spec.max_iterations}")
@@ -530,136 +555,223 @@ def run_cycle(
                  "failed_q": failed_q, "budget": budget.to_dict(),
                  "scheduler": sched.to_dict(), "scope": scope.to_dict(),
                  "restart_pending": restart_pending,
+                 "active_seed": active_seed, "seeds_tried": seeds_tried,
+                 "reseeds_used": reseeds_used, "seed_iters": seed_iters,
                  "journal_len": len(journal) if journal else 0}
         report.write_checkpoint(record_dir, state)
         oplog.mark_checkpoint(next_seq)
         next_seq += 1
 
-    try:
-        _checkpoint()  # seq 0: even a crashed-first-iteration run resumes
-        while len(iterations) < spec.max_iterations:
-            budget.check()  # refuse new dispatch at every step
-            if not pending:  # propose only once queued work drains
-                history = "\n\n---\n\n".join(f"[iter {i.n}] {i.summary}" for i in iterations)
-                hint = f"{csv} (target {target})" if csv else "none — reviews only"
-                diagnosis = "malformed"
-                followups: list[Followup] = []
-                for attempt in range(2):  # malformed proposals get one retry
-                    try:
-                        reply = muse.complete(
-                            FOLLOWUP_SYSTEM,
-                            propose_prompt(history, hint, question, evidence_gaps))
-                    except (RequestBlocked, BudgetExhausted, Cancelled):
-                        raise
-                    except Exception as e:
-                        emit(journal, "cycle", "propose-failed",
-                             f"{type(e).__name__}: {str(e)[:200]}")
-                        break
-                    followups, diagnosis = _parse_followups(reply)
-                    if diagnosis != "malformed":
-                        break
-                    emit(journal, "cycle", "propose-malformed", f"attempt={attempt + 1}")
-                if not csv:  # no dataset: only reviews are executable
-                    followups = [f for f in followups if f.kind == "review"]
-                    if diagnosis == "ok" and not followups:
-                        diagnosis = "empty"
-                if diagnosis == "malformed":
-                    bad_proposes += 1
-                    if bad_proposes >= 2:  # provider speaks no usable JSON: stop honestly
-                        stopped = StopReason.FAILED
-                        emit(journal, "cycle", "propose-unusable",
-                             "two consecutive malformed propose rounds")
-                        break
-                    continue  # re-propose once more; pending is empty so this decides now
-                bad_proposes = 0
-                fresh: list[Followup] = []
-                parent = f"iter{len(iterations)}" if iterations else "seed"
-                for f in followups:
-                    key = normalize(f.question)
-                    if key not in seen:
-                        seen.add(key)
-                        fresh.append(replace_followup_parent(f, parent))
-                        emit(journal, "cycle", "proposed",
-                             f"{f.question[:120]} parent={parent} gap={f.gap[:120]}")
-                if not fresh:  # nothing new: converged is honest only on a clean []
-                    if diagnosis == "empty":
-                        stopped = StopReason.CONVERGED
-                    else:  # reproposed only known questions: novelty is exhausted
-                        stopped = StopReason.REPEATED_QUESTION
-                        emit(journal, "cycle", "repeated-question",
-                             f"{len(followups)} proposals, all already seen")
-                    break
-                pending.extend(fresh)
-                _checkpoint()  # proposed work is durable before any of it runs
-            if pending and budget.calls_remaining() <= spec.finalize_calls:
-                stopped = StopReason.BUDGET_EXHAUSTED  # hold back finalization
-                emit(journal, "cycle", "finalize-reserve",
-                     f"holding {spec.finalize_calls} calls for the final report")
-                break
-            job = pending.pop(0)
+    def _try_reseed(trigger: str) -> bool:
+        """Start a fresh-seed leg when the needle did not move. Bounded."""
+        nonlocal seed_iters, pending, failed_q, active_seed, seeds_tried
+        nonlocal reseeds_used, evidence_gaps
+        negative = not iterations or not _iteration_supported(iterations[-1])
+        if reseeds_used >= spec.max_reseeds:
+            emit(journal, "cycle", "reseed-skipped",
+                 f"{trigger}: reseeds exhausted ({reseeds_used}/{spec.max_reseeds})")
+            return False
+        if not negative:
+            emit(journal, "cycle", "reseed-skipped",
+                 f"{trigger}: last iteration supported")
+            return False
+        if budget.calls_remaining() <= spec.finalize_calls:
+            emit(journal, "cycle", "reseed-skipped",
+                 f"{trigger}: calls nearly out")
+            return False
+        history = "\n\n---\n\n".join(f"[iter {i.n}] {i.summary}" for i in iterations[-6:])
+        prompt = (f"Dead-ended seed: {active_seed}\n"
+                  f"Seeds already tried: {seeds_tried}\n"
+                  f"Failure: {trigger}\n"
+                  f"Iterations:\n{history or '(none)'}\n"
+                  "Propose the pivot question.")
+        new_q: str | None = None
+        for attempt in range(2):  # malformed pivots get one retry
             try:
-                if job.kind == "analyze" and csv and target:
-                    it = run_analyze(job.question, csv, target, muse, journal, record_dir)
-                else:
-                    if selector is not None:
-                        selector.set_gaps(evidence_gaps)
-                    budget_frac = budget.calls_remaining() / max(budget.max_calls, 1)
-                    it = run_review(job.question, spec.max_papers, http, muse, journal,
-                                    record_dir, selector, budget_frac)
+                reply = muse.complete(RESEED_SYSTEM, prompt)
             except (RequestBlocked, BudgetExhausted, Cancelled):
                 raise
-            except NoEvidence as e:
-                failed_q = job.question
-                stopped = StopReason.FAILED if iterations else StopReason.INSUFFICIENT_EVIDENCE
-                emit(journal, "cycle", "no-evidence", str(e)[:200])
-                break
             except Exception as e:
-                stopped = StopReason.FAILED
-                failed_q = job.question
-                emit(journal, "cycle", "failed", str(e)[:300])
+                emit(journal, "cycle", "reseed-failed",
+                     f"{type(e).__name__}: {str(e)[:200]}")
+                return False
+            cand = _parse_reseed(reply)
+            if cand and len(cand) <= 500 and normalize(cand) not in seen:
+                new_q = cand
                 break
-            it.n = len(iterations) + 1
-            iterations.append(it)
-            if record_dir is not None:
-                report.write_iteration(record_dir, it)
-            _checkpoint()  # iterations, pending, seen, budgets — all durable
-            bad_proposes = 0
-            evidence_gaps.extend(_harvest_gaps(it))
-            emit(journal, "cycle", "iter-done", f"n={it.n} kind={it.kind}")
-            sched.note_iteration(_iteration_supported(it), len(evidence_gaps))
-            decision = decide(sched)
-            emit(journal, "schedule", "decide", f"{decision.action}: {decision.reason}")
-            if decision.action == "stop":
-                stopped = StopReason(decision.reason)
-                emit(journal, "cycle", stopped.value.replace("_", "-"),
-                     f"scheduler stop: {decision.reason} "
-                     f"(no_progress={sched.no_progress})")
-                break
-            if decision.action == "assess":  # interleaved maintenance, then maybe restart
-                calls_before = budget.calls
-                mid = _mid_run_revise(
-                    journal, it, repo_root, muse, check_cmd, budget,
-                    str(Path(record_dir) / "assessments") if record_dir else None)
-                sched.note_revision(mid.kept, mid.attempted,
-                                    budget.calls - calls_before, mid.assessed)
-                if mid.kept > 0 and sched.config.restart_on_revision:
-                    # The tree changed under already-imported modules: halt for a
-                    # fresh worker. Continuing here would run stale code silently.
-                    restart_pending = _accepted_rev(repo_root)
-                    if restart_pending is None:
-                        stopped = StopReason.FAILED
-                        emit(journal, "cycle", "restart-unknown",
-                             "accepted a patch but no accepted revision is recorded")
+            emit(journal, "cycle", "reseed-rejected", f"attempt={attempt + 1}")
+        if new_q is None:
+            emit(journal, "cycle", "reseed-unusable", "two malformed pivot proposals")
+            return False
+        dropped = [j.question for j in pending if j.kind != "analyze"]
+        kept_analyze = [j for j in pending if j.kind == "analyze"]
+        reseeds_used += 1
+        seeds_tried.append(new_q)
+        seen.add(normalize(new_q))
+        pending = [Followup(question=new_q, kind="review", rationale="reseed")] + kept_analyze
+        failed_q = None
+        seed_iters = 0
+        active_seed = new_q
+        evidence_gaps = []
+        sched.no_progress = 0
+        sched.iters_since_assess = 0
+        sched.gaps_open = 0
+        emit(journal, "cycle", "reseed",
+             f"leg={reseeds_used} trigger={trigger} dropped_reviews={len(dropped)} "
+             f"q={new_q[:150]}")
+        _checkpoint()
+        return True
+
+    try:
+        _checkpoint()  # seq 0: even a crashed-first-iteration run resumes
+        finished = False
+        while not finished:
+            reseeded = False
+            while seed_iters < spec.max_iterations:
+                budget.check()  # refuse new dispatch at every step
+                if not pending:  # propose only once queued work drains
+                    history = "\n\n---\n\n".join(f"[iter {i.n}] {i.summary}" for i in iterations)
+                    hint = f"{csv} (target {target})" if csv else "none — reviews only"
+                    diagnosis = "malformed"
+                    followups: list[Followup] = []
+                    for attempt in range(2):  # malformed proposals get one retry
+                        try:
+                            reply = muse.complete(
+                                FOLLOWUP_SYSTEM,
+                                propose_prompt(history, hint, question, evidence_gaps))
+                        except (RequestBlocked, BudgetExhausted, Cancelled):
+                            raise
+                        except Exception as e:
+                            emit(journal, "cycle", "propose-failed",
+                                 f"{type(e).__name__}: {str(e)[:200]}")
+                            break
+                        followups, diagnosis = _parse_followups(reply)
+                        if diagnosis != "malformed":
+                            break
+                        emit(journal, "cycle", "propose-malformed", f"attempt={attempt + 1}")
+                    if not csv:  # no dataset: only reviews are executable
+                        followups = [f for f in followups if f.kind == "review"]
+                        if diagnosis == "ok" and not followups:
+                            diagnosis = "empty"
+                    if diagnosis == "malformed":
+                        bad_proposes += 1
+                        if bad_proposes >= 2:  # provider speaks no usable JSON: stop honestly
+                            stopped = StopReason.FAILED
+                            emit(journal, "cycle", "propose-unusable",
+                                 "two consecutive malformed propose rounds")
+                            finished = True
+                            break
+                        continue  # re-propose once more; pending is empty so this decides now
+                    bad_proposes = 0
+                    fresh: list[Followup] = []
+                    parent = f"iter{len(iterations)}" if iterations else "seed"
+                    for f in followups:
+                        key = normalize(f.question)
+                        if key not in seen:
+                            seen.add(key)
+                            fresh.append(replace_followup_parent(f, parent))
+                            emit(journal, "cycle", "proposed",
+                                 f"{f.question[:120]} parent={parent} gap={f.gap[:120]}")
+                    if not fresh:  # nothing new: converged is honest only on a clean []
+                        if diagnosis == "empty":
+                            stopped = StopReason.CONVERGED
+                        else:  # reproposed only known questions: novelty is exhausted
+                            stopped = StopReason.REPEATED_QUESTION
+                            emit(journal, "cycle", "repeated-question",
+                                 f"{len(followups)} proposals, all already seen")
+                        finished = True
                         break
-                    emit(journal, "cycle", "restart-required",
-                         f"accepted {restart_pending}; halting for a fresh worker")
-                    _checkpoint()
-                    unanswered = tuple(j.question for j in pending)
-                    return CycleResult(tuple(iterations), "", muse.model,
-                                       StopReason.RESTART_REQUIRED, unanswered,
-                                       budget.usage_summary())
-            if len(iterations) >= spec.max_iterations:
-                stopped = StopReason.BUDGET_EXHAUSTED if pending else StopReason.CONVERGED
+                    pending.extend(fresh)
+                    _checkpoint()  # proposed work is durable before any of it runs
+                if pending and budget.calls_remaining() <= spec.finalize_calls:
+                    stopped = StopReason.BUDGET_EXHAUSTED  # hold back finalization
+                    emit(journal, "cycle", "finalize-reserve",
+                         f"holding {spec.finalize_calls} calls for the final report")
+                    finished = True
+                    break
+                job = pending.pop(0)
+                try:
+                    if job.kind == "analyze" and csv and target:
+                        it = run_analyze(job.question, csv, target, muse, journal, record_dir)
+                    else:
+                        if selector is not None:
+                            selector.set_gaps(evidence_gaps)
+                        budget_frac = budget.calls_remaining() / max(budget.max_calls, 1)
+                        it = run_review(job.question, spec.max_papers, http, muse, journal,
+                                        record_dir, selector, budget_frac)
+                except (RequestBlocked, BudgetExhausted, Cancelled):
+                    raise
+                except NoEvidence as e:
+                    failed_q = job.question
+                    emit(journal, "cycle", "no-evidence", str(e)[:200])
+                    if _try_reseed("no-evidence"):
+                        reseeded = True
+                        break
+                    stopped = (StopReason.FAILED if iterations
+                               else StopReason.INSUFFICIENT_EVIDENCE)
+                    finished = True
+                    break
+                except Exception as e:
+                    stopped = StopReason.FAILED
+                    failed_q = job.question
+                    emit(journal, "cycle", "failed", str(e)[:300])
+                    finished = True
+                    break
+                it.n = len(iterations) + 1
+                it.provenance["seed"] = active_seed
+                iterations.append(it)
+                seed_iters += 1
+                if record_dir is not None:
+                    report.write_iteration(record_dir, it)
+                _checkpoint()  # iterations, pending, seen, budgets — all durable
+                bad_proposes = 0
+                evidence_gaps.extend(_harvest_gaps(it))
+                emit(journal, "cycle", "iter-done", f"n={it.n} kind={it.kind}")
+                sched.note_iteration(_iteration_supported(it), len(evidence_gaps))
+                decision = decide(sched)
+                emit(journal, "schedule", "decide", f"{decision.action}: {decision.reason}")
+                if decision.action == "stop":
+                    stopped = StopReason(decision.reason)
+                    emit(journal, "cycle", stopped.value.replace("_", "-"),
+                         f"scheduler stop: {decision.reason} "
+                         f"(no_progress={sched.no_progress})")
+                    if (decision.reason == StopReason.NO_PROGRESS.value
+                            and _try_reseed("no-progress")):
+                        reseeded = True
+                        break
+                    finished = True
+                    break
+                if decision.action == "assess":  # interleaved maintenance, then maybe restart
+                    calls_before = budget.calls
+                    mid = _mid_run_revise(
+                        journal, it, repo_root, muse, check_cmd, budget,
+                        str(Path(record_dir) / "assessments") if record_dir else None)
+                    sched.note_revision(mid.kept, mid.attempted,
+                                        budget.calls - calls_before, mid.assessed)
+                    if mid.kept > 0 and sched.config.restart_on_revision:
+                        # The tree changed under already-imported modules: halt for a
+                        # fresh worker. Continuing here would run stale code silently.
+                        restart_pending = _accepted_rev(repo_root)
+                        if restart_pending is None:
+                            stopped = StopReason.FAILED
+                            emit(journal, "cycle", "restart-unknown",
+                                 "accepted a patch but no accepted revision is recorded")
+                            break
+                        emit(journal, "cycle", "restart-required",
+                             f"accepted {restart_pending}; halting for a fresh worker")
+                        _checkpoint()
+                        unanswered = tuple(j.question for j in pending)
+                        return CycleResult(tuple(iterations), "", muse.model,
+                                           StopReason.RESTART_REQUIRED, unanswered,
+                                           budget.usage_summary())
+                if seed_iters >= spec.max_iterations:
+                    stopped = StopReason.BUDGET_EXHAUSTED if pending else StopReason.CONVERGED
+            if finished:
+                break
+            if reseeded:
+                continue  # fresh leg already queued; skip leg-end evaluation
+            if not _try_reseed("leg-end"):
+                break
         if not iterations:
             if failed_q is None:  # dry start: converged on nothing is not convergence
                 stopped = StopReason.INSUFFICIENT_EVIDENCE
