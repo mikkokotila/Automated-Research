@@ -530,10 +530,13 @@ def test_degraded_run_flags_missing_coverage_footer(tmp_path):
     it, journal = run(grounded_review("R"))
     assert "degraded coverage: openalex failed" in (it.provenance["coverage_warning"] or "")
     assert any(n.event == "coverage-warning" for n in journal.notes)
-    assert any(n.event == "coverage-footer-missing" for n in journal.notes)
+    assert any(n.event == "coverage-footer-appended" for n in journal.notes)
+    assert not any(n.event == "coverage-footer-missing" for n in journal.notes)
+    assert "incomplete coverage" in it.detail.lower()
 
     _, journal2 = run(grounded_review("R") + "\n\nIncomplete coverage of the evidence.")
     assert not any(n.event == "coverage-footer-missing" for n in journal2.notes)
+    assert not any(n.event == "coverage-footer-appended" for n in journal2.notes)
 
 
 def test_cycle_with_bandit_freezes_scope_and_cannot_promote(tmp_path):

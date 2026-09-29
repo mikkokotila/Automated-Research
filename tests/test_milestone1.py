@@ -322,6 +322,29 @@ def test_synthesize_threads_coverage_warning_to_prompt():
     assert "Coverage warning: degraded coverage: x failed" in seen[0]
 
 
+def test_ensure_coverage_footer_appends_only_when_degraded_and_missing():
+    out = synthesize.ensure_coverage_footer("Review.", coverage_warning="x failed")
+    assert out.startswith("Review.") and synthesize.has_coverage_footer(out)
+    keep = "Review. Incomplete coverage of the sources."
+    assert synthesize.ensure_coverage_footer(keep, coverage_warning="x failed") == keep
+    assert synthesize.ensure_coverage_footer("Review.") == "Review."
+    assert synthesize.ensure_coverage_footer("Review.", degraded=True).endswith(
+        synthesize.COVERAGE_FOOTER)
+
+
+def test_synthesize_appends_footer_when_model_omits_it():
+    class Omitter:
+        model = "rec"
+
+        def complete(self, system, user, max_tokens=8000):
+            return "Fine [1]."
+
+    s = synthesize.synthesize("q", [paper()], Omitter(), "degraded coverage: x failed")
+    assert synthesize.has_coverage_footer(s.text)
+    s2 = synthesize.synthesize("q", [paper()], Omitter())
+    assert not synthesize.has_coverage_footer(s2.text)
+
+
 # --- report ---
 
 
