@@ -242,8 +242,13 @@ def make_server(gateway, access_token, address=("0.0.0.0", 8787)):
                 if path.path == "/v1/sources/arxiv":
                     self.serve_arxiv(url, flat)
                     return
-                response = gateway.http.get(url, params={k:v[0] for k,v in params.items()},
-                                            timeout=30)
+                if path.path == "/v1/sources/openalex":
+                    # Broker-held secret: guests never see the key; the worker
+                    # sends api_key only on direct (non-brokered) calls.
+                    oa_key = os.environ.get("OPENALEX_API_KEY", "")
+                    if oa_key and "api_key" not in flat:
+                        flat["api_key"] = oa_key
+                response = gateway.http.get(url, params=flat, timeout=30)
                 if response.status_code != 200:
                     self.reply(response.status_code if response.status_code in (400,429) else 502,
                                {"error": "source_unavailable"})

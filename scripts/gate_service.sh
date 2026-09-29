@@ -19,11 +19,14 @@ case "${1:-}" in
     # the key. Explicit environment always wins; the broker still receives
     # the key solely via process environment (never baked, committed, or
     # worker-visible). Absent both, the guard below still fails closed.
-    if [ -z "${MUSE_API_KEY:-}" ] && [ -f ./.env ]; then
+    if [ -f ./.env ] && { [ -z "${MUSE_API_KEY:-}" ] || [ -z "${OPENALEX_API_KEY:-}" ]; }; then
+      _explicit_muse="${MUSE_API_KEY:-}"
       set -a
       # shellcheck disable=SC1091
       . ./.env
       set +a
+      if [ -n "$_explicit_muse" ]; then MUSE_API_KEY="$_explicit_muse"; fi
+      unset _explicit_muse
     fi
     : "${MUSE_API_KEY:?Supply a fresh authorized credential; do not use archived keys}"
     docker volume inspect "$VOLUME" >/dev/null
@@ -33,7 +36,7 @@ case "${1:-}" in
     docker network inspect canary-private >/dev/null 2>&1 || docker network create --internal canary-private >/dev/null
     test "$(docker network inspect -f '{{.Internal}}' canary-private)" = true
     docker network inspect canary-egress >/dev/null 2>&1 || docker network create canary-egress >/dev/null
-    docker create --name canary-gate --network canary-private --network-alias canary-gate       --restart unless-stopped --read-only --tmpfs /tmp:rw,size=64m       --cap-drop ALL --security-opt no-new-privileges --pids-limit 128 --memory 512m --cpus 1       --mount type=volume,src="$VOLUME",dst=/state       -e MUSE_API_KEY -e SEMANTIC_SCHOLAR_API_KEY "$IMAGE" serve >/dev/null
+    docker create --name canary-gate --network canary-private --network-alias canary-gate       --restart unless-stopped --read-only --tmpfs /tmp:rw,size=64m       --cap-drop ALL --security-opt no-new-privileges --pids-limit 128 --memory 512m --cpus 1       --mount type=volume,src="$VOLUME",dst=/state       -e MUSE_API_KEY -e OPENALEX_API_KEY "$IMAGE" serve >/dev/null
     docker network connect canary-egress canary-gate
     docker start canary-gate >/dev/null
     echo "Service started. No host ports are published; ledger survives worker restarts."
