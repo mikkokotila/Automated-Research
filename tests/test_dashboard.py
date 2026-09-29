@@ -303,3 +303,57 @@ def test_pause_unpause_live_container(server, monkeypatch):
                        capture_output=True, timeout=30)
     row = _wait_for(c, key, "failed", timeout=120)
     assert row["status"] == "failed"  # stopped mid-run: honest non-zero exit
+
+
+def test_research_endpoint_serves_papers_claims_synthesis(server, tmp_path):
+    bundle = tmp_path / "r1"
+    (bundle / "iterations").mkdir(parents=True)
+    (bundle / "assessments").mkdir(parents=True)
+    (bundle / "run.json").write_text(json.dumps({
+        "seed": "seed?", "stopped": "converged", "model": "stub",
+        "usage": {"model_calls": 3, "tokens": 99},
+        "unanswered": ["next?"]}))
+    (bundle / "synthesis.md").write_text("# head\n\n**Headline answer:** yes.\n")
+    (bundle / "retrieval.jsonl").write_text(
+        json.dumps({"question": "seed?", "papers": [
+            {"ref": "arxiv:1", "title": "T1", "year": 2026, "source": "arxiv",
+             "doi": "", "oa_url": "https://example.test/1",
+             "abstract": "abstract one"},
+            {"ref": "arxiv:1", "title": "T1", "year": 2026, "source": "arxiv",
+             "doi": "", "oa_url": "https://example.test/1",
+             "abstract": "abstract one"}]}) + "\n")
+    (bundle / "iterations" / "iter1.json").write_text(json.dumps({
+        "n": 1, "kind": "review", "question": "seed?",
+        "papers": ["T1"],
+        "claims": [{"id": "c1", "text": "claim one", "support": "supported",
+                    "scope": "abstract", "uncertainty": "",
+                    "evidence": [{"paper": 1, "span": "span one"}]}],
+        "validation": {"claims_parsed": 1, "batches": 1}}))
+    (bundle / "iterations" / "iter1-review.md").write_text("# review\n\nbody\n")
+    (bundle / "assessments" / "a1.json").write_text(json.dumps({
+        "id": "a1", "ts": "2026-09-28T08:02:00+00:00",
+        "outcome": "mid-run", "doc_markdown": "## worked\n- x\n"}))
+    (bundle / "journal.jsonl").write_text(
+        '{"seq": 1, "ts": "t", "phase": "cycle", "event": "start",'
+        ' "Detail": "seed=seed?"}\n')
+    runs.adopt_bundle(bundle, path=server["registry"])
+    r = server["client"].get("/api/runs/r1/research")
+    assert r.status_code == 200, r.text
+    d = r.json()["research"]
+    assert d["seed"] == "seed?" and d["stopped"] == "converged"
+    assert "Headline answer" in d["synthesis_md"]
+    assert d["papers_total"] == 2 and len(d["papers"]) == 1  # deduped by ref
+    assert d["papers"][0]["abstract"] == "abstract one"
+    assert d["iterations"][0]["claims"][0]["text"] == "claim one"
+    assert "body" in d["iterations"][0]["review_md"]
+    assert d["assessments"][0]["id"] == "a1"
+    assert d["decisions"][0]["detail"] == "seed=seed?"  # Detail normalized
+    assert d["unanswered"] == ["next?"]
+
+
+def test_research_endpoint_missing_bundle_is_empty_not_500(server):
+    runs.register_start("k9", "n", "b", bundle="/nonexistent",
+                        path=server["registry"])
+    r = server["client"].get("/api/runs/k9/research")
+    assert r.status_code == 200
+    assert server["client"].get("/api/runs/nope/research").status_code == 404
