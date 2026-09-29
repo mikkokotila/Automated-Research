@@ -36,8 +36,11 @@ class Gateway:
                     "max_completion_tokens": data["max_tokens"], "stream": False, "n": 1})
         except httpx.HTTPError as exc:
             # No known completion time or usage: retain the full reservation forever.
+            # Transport blips (not quota) killed two runs in 18h; a 30s hint lets
+            # the worker ride through ~90s outages across its attempts.
             self.ledger.note_outcome({"kind": "failure", "error": "transport"})
-            raise ProviderFailure("Provider transport failed; reservation retained") from exc
+            raise ProviderFailure("Provider transport failed; reservation retained",
+                                  retry_after=30) from exc
         if response.status_code in (401, 403):
             self.ledger.halt("provider_access_denied")
             self.ledger.note_outcome({"kind": "denied", "status": response.status_code})

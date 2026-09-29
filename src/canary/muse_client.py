@@ -10,8 +10,11 @@ from .spec import DEFAULT_MODEL, RunBudget  # re-exported; single locked value
 BASE_URL = "https://api.meta.ai/v1"  # identity, not a worker destination
 KEY_VARS = ("MUSE_API_KEY", "MODEL_API_KEY", "META_API_KEY")
 TIMEOUT_S = 330
-MAX_ATTEMPTS = 3
-BACKOFF_S = (2.0, 5.0)
+MAX_ATTEMPTS = 4
+# Length-exhaustion escalation keeps its own cap: past the output ceiling a
+# retry repeats the identical budget, so one same-budget retry stays enough.
+LENGTH_ATTEMPTS = 3
+BACKOFF_S = (2.0, 5.0, 15.0)
 # Worker-owned ceiling for completion-budget escalation. The broker enforces
 # its own per-call cap; this mirror only stops the worker asking for more.
 MAX_OUTPUT_ESCALATION = 32768
@@ -95,7 +98,7 @@ class MuseClient:
             text = body.get("text", "").strip()
             if text:
                 return text
-            if body.get("finish_reason") == "length" and attempt < MAX_ATTEMPTS - 1:
+            if body.get("finish_reason") == "length" and attempt < LENGTH_ATTEMPTS - 1:
                 # Reasoning burned the whole completion budget: escalate once
                 # per attempt instead of dying (live Issue #49). No sleep:
                 # this is under-provisioning, not rate pressure.
