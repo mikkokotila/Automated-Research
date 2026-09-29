@@ -79,8 +79,10 @@ def review(spec: RunSpec, assess: bool = False) -> str:
     report.record_retrieval(spec.out_dir, spec.question, ranked, retrieval_report)
     top = ranked[:rspec.max_papers]
     client = MuseClient(budget=RunBudget.from_spec(spec))
-    synth = synthesize.synthesize(rspec.question, top, client)
-    emit(j, "review", "synthesized", f"{len(top)} papers, cited {len(synth.cited)}")
+    synth = synthesize.synthesize_scaled(rspec.question, top, client)
+    batches = synth.validation.get("batches", 1)
+    emit(j, "review", "synthesized", f"{len(top)} papers, cited {len(synth.cited)}"
+         + (f", {batches} batches" if batches and batches > 1 else ""))
     for marker in synth.validation.get("dangling_citations", []):
         emit(j, "review", "dangling-citation", f"[{marker}] points at no paper")
     for problem in synth.validation.get("rejected", []):

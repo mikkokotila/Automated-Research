@@ -315,6 +315,64 @@ def test_ensure_coverage_footer_appends_only_when_degraded_and_missing():
         synthesize.COVERAGE_FOOTER)
 
 
+def _claims_block(*items):
+    import json as _json
+
+    return "```claims\n" + _json.dumps([
+        {"id": cid, "text": text, "evidence": [{"paper": n, "span": span}],
+         "scope": "abstract", "uncertainty": "", "support": "supported"}
+        for cid, text, n, span in items]) + "\n```"
+
+
+def test_synthesize_scaled_single_shot_under_cap():
+    class Solo:
+        model = "rec"
+        calls = 0
+
+        def complete(self, system, user, max_tokens=8000):
+            type(self).calls += 1
+            return "Fine [1]."
+
+    s = synthesize.synthesize_scaled("q", [paper()], Solo())
+    assert Solo.calls == 1 and s.validation["batches"] == 1
+    assert s.cited == (1,)
+
+
+def test_synthesize_scaled_map_reduces_over_cap(monkeypatch):
+    monkeypatch.setattr(synthesize, "MAX_PROMPT_CHARS", 2000)
+    papers = [paper(title=f"Study {i} on widgets",
+                   abstract=f"Abstract {i} widgets. " * 30)
+              for i in range(10)]
+
+    class Batched:
+        model = "rec"
+
+        def complete(self, system, user, max_tokens=8000):
+            if system == synthesize.REDUCE_SYSTEM:
+                return "Merged [1] [10]."
+            return f"Batch. [1].\n{_claims_block(('c1', 'Widgets studied.', 1, 'widgets'))}"
+
+    s = synthesize.synthesize_scaled("q widgets", papers, Batched())
+    assert s.validation["batches"] == 5
+    assert s.text.startswith("Merged")
+    assert s.cited == (1, 10)
+    # every batch claim remapped into the global paper list
+    assert len(s.claims) == 5
+    assert [c.id for c in s.claims] == [f"c1@b{i + 1}" for i in range(5)]
+    assert [c.evidence[0].paper for c in s.claims] == [1, 3, 5, 7, 9]
+
+
+def test_synthesize_scaled_rejects_empty_pool():
+    class Never:
+        model = "rec"
+
+        def complete(self, system, user, max_tokens=8000):
+            raise AssertionError("must not call")
+
+    with pytest.raises(ValueError, match="no papers"):
+        synthesize.synthesize_scaled("q", [], Never())
+
+
 def test_synthesize_appends_footer_when_model_omits_it():
     class Omitter:
         model = "rec"
