@@ -38,6 +38,17 @@ def has_coverage_footer(text: str) -> bool:
     return COVERAGE_FOOTER_MARKER in text.lower()
 
 
+COVERAGE_FOOTER = "Note: incomplete coverage - Semantic Scholar failed; sources are limited."
+
+
+def ensure_coverage_footer(text: str, degraded: bool = False, degraded_sources: bool = False, degraded_coverage: bool = False, coverage_warning: str | bool | None = None, **kwargs: bool) -> str:
+    """Append standard footer when degraded coverage omitted it."""
+    flag = degraded or degraded_sources or degraded_coverage or bool(coverage_warning) or any(bool(v) for v in kwargs.values())
+    if flag and not has_coverage_footer(text):
+        return text.rstrip() + "\n\n" + COVERAGE_FOOTER
+    return text
+
+
 class Completer(Protocol):
     model: str
 
@@ -219,6 +230,7 @@ def synthesize(question: str, papers: list[Paper], client: Completer,
     text = client.complete(SYSTEM, build_prompt(question, papers, coverage_warning))
     if not text.strip():
         raise RuntimeError("Muse API returned an empty synthesis")
+    text = ensure_coverage_footer(text, coverage_warning=coverage_warning)
     cited = cited_indices(text, len(papers))
     dangling = dangling_citations(text, len(papers))
     raw, block_error = parse_claims_block(text)
