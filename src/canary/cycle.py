@@ -215,6 +215,34 @@ def _harvest_gaps(it: Iteration) -> list[str]:
                         f"({claim.get('support')})")
     return gaps
 
+_CITATION_RE = re.compile(r"\[(\d+)\]")
+
+
+def _cited_ids(iterations: list[Iteration]) -> set[int]:
+    """Union of synthesis-cited source IDs across completed iterations."""
+    ids: set[int] = set()
+    for it in iterations:
+        for v in it.provenance.get("cited", []):
+            try:
+                ids.add(int(v))
+            except (TypeError, ValueError):
+                continue
+    return ids
+
+
+def _references_uncited(f: Followup, cited: set[int]) -> bool:
+    """True when a candidate cites a source ID never cited by synthesis."""
+    if not cited:
+        return False
+    refs: set[int] = set()
+    for text in (f.question, f.rationale, f.gap):
+        for m in _CITATION_RE.findall(text or ""):
+            try:
+                refs.add(int(m))
+            except ValueError:
+                continue
+    return bool(refs - cited)
+
 
 def propose(history: str, dataset_hint: str, client: Completer, seed: str = "",
             gaps: list[str] | None = None) -> list[Followup]:
@@ -307,7 +335,7 @@ def run_review(question: str, max_papers: int, http: httpx.Client, muse: Complet
                         for c in synth.claims if c.support != "supported" or c.uncertainty)
     if caveats:
         summary += f"\nCaveats: {caveats[:600]}"
-    prov = {"kind": "review", "papers": [p.title for p in top], "model": synth.model,
+    prov = {"kind": "review", "papers": [p.title for p in top], "model": synth.model, "cited": list(synth.cited),
             "coverage_warning": warning, "claims": [asdict(c) for c in synth.claims],
             "validation": synth.validation}
     if decision is not None and selector is not None:
@@ -665,7 +693,12 @@ def run_cycle(
                     bad_proposes = 0
                     fresh: list[Followup] = []
                     parent = f"iter{len(iterations)}" if iterations else "seed"
+                    cited = _cited_ids(iterations)
                     for f in followups:
+                        if _references_uncited(f, cited):
+                            emit(journal, "cycle", "dropped-ungrounded",
+                                 f.question[:120])
+                            continue
                         key = normalize(f.question)
                         if key not in seen:
                             seen.add(key)
@@ -704,6 +737,18 @@ def run_cycle(
                 except NoEvidence as e:
                     failed_q = job.question
                     emit(journal, "cycle", "no-evidence", str(e)[:200])
+                    if pending and seed_iters < spec.max_iterations:
+                        grounded = _cited_ids(iterations)
+                        kept = []
+                        for q in pending:
+                            if _references_uncited(q, grounded):
+                                emit(journal, "cycle", "dropped-ungrounded",
+                                     q.question[:120])
+                            else:
+                                kept.append(q)
+                        pending[:] = kept
+                        if pending:
+                            continue
                     if _try_reseed("no-evidence"):
                         reseeded = True
                         break

@@ -29,12 +29,20 @@ from pathlib import Path
 TERMINAL = ("accepted", "rejected", "interrupted", "rolled_back")
 COPY_IGNORES = (".git", "runs", "__pycache__", ".venv", ".pytest_cache", ".mypy_cache")
 CHECK_CMD = ["pytest", "-q"]
-CHECK_TAIL_LINES = 50
+CHECK_TAIL_LINES = 100
 
 
 def _tail_lines(text: str, n: int = 50) -> str:
     lines = text.splitlines()
     return "\n".join(lines[-n:]) if lines else ""
+
+def _pytest_short_summary(text: str, max_lines: int = 50) -> str:
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        if "short test summary info" in line.lower():
+            return "\n".join(lines[i:i + max_lines])
+    failed = [ln for ln in lines if ln.startswith("FAILED") or ln.startswith("ERROR")]
+    return "\n".join(failed[-max_lines:]) if failed else ""
 
 
 class PromotionError(Exception):
@@ -348,8 +356,13 @@ def evaluate(store: Store, proposal, diff: str, check_cmd: list[str] | None = No
             raise _CrashSim("tested")
         if proc.returncode != 0:
             tail = _tail_lines(combined, CHECK_TAIL_LINES)
-            _transition(store, cand, "rejected", journal,
-                        f"checks failed with exit {proc.returncode}\n{tail}")
+            summary = _pytest_short_summary(combined)
+            log_ref = str(log_path) if log_path is not None else cand.test.get("log", "")
+            detail = f"checks failed with exit {proc.returncode} log={log_ref}"
+            if summary:
+                detail += f"\n{summary}"
+            detail += f"\n{tail}"
+            _transition(store, cand, "rejected", journal, detail)
             return cand
         return cand  # testing passed; promotion decides separately
     finally:
