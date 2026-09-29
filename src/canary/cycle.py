@@ -239,9 +239,20 @@ def run_review(question: str, max_papers: int, http: httpx.Client, muse: Complet
                                     for p in retrieval_report["providers"].values())})
         raise NoEvidence("no papers found for this question")
     ranked = rank.rerank(goal, papers, len(papers))
+    need = min(3, len(rank.keywords(goal)))
+    engaged = [p for p in ranked if len(rank.matched_terms(goal, p)) >= need] \
+        if need else list(ranked)
+    pool = engaged or ranked  # nothing engages: degrade to unfiltered top-N, loudly
+    retrieval_report["precision"] = {"engaged": len(engaged),
+                                     "candidates": len(ranked),
+                                     "min_terms": need,
+                                     "fallback_unfiltered": not engaged}
+    emit(journal, "review", "precision-filter",
+         f"{len(engaged)}/{len(ranked)} engage >= {need} question terms"
+         + ("" if engaged else "; fallback to unfiltered top-N"))
     if record_dir is not None:
         report.record_retrieval(record_dir, goal, ranked, retrieval_report)
-    top = ranked[:spec.max_papers]
+    top = pool[:spec.max_papers]
     synth = synthesize.synthesize(goal, top, muse, warning)
     emit(journal, "review", "synthesized", f"{len(top)} papers, cited {len(synth.cited)}")
     if warning and not synthesize.has_coverage_footer(synth.text):
