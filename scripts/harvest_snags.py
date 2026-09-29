@@ -15,6 +15,8 @@ import sys
 from pathlib import Path
 
 CITED_RE = re.compile(r"Cited:\s*(\d+)\s*/\s*(\d+)", re.IGNORECASE)
+ENGAGED_RE = re.compile(r"(\d+)\s*/\s*(\d+)\s+engage\s*>=\s*(\d+)",
+                        re.IGNORECASE)
 
 
 def _read_jsonl(path: Path):
@@ -74,17 +76,52 @@ def harvest(bundle: Path) -> list[dict]:
     add("validation", "validator rejected claims",
         by_event.get("claim-rejected", []))
 
-    # 4. per-iteration citation yield (retrieval precision signal)
+    # 4. retrieval precision (engaged/candidates from the retrieval
+    #    report). Cited/reviewed is model selectivity, not retrieval
+    #    quality: selective citation of an engaged pool is correct (#101).
+    prec_rows: list[tuple[str, int, int, int | None, bool]] = []
+    for row in _read_jsonl(bundle / "retrieval.jsonl"):
+        prec = (row.get("report") or {}).get("precision") or {}
+        try:
+            engaged, candidates = int(prec["engaged"]), int(prec["candidates"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        need = prec.get("min_terms")
+        prec_rows.append((str(row.get("question", "?"))[:80], engaged,
+                         candidates, need if isinstance(need, int) else None,
+                         bool(prec.get("fallback_unfiltered"))))
+    if not prec_rows:
+        # legacy bundles predate retrieval.jsonl; the journal carries
+        # the same numbers as precision-filter events
+        for d in by_event.get("precision-filter", []):
+            m = ENGAGED_RE.search(d)
+            if m:
+                prec_rows.append(("?", int(m.group(1)), int(m.group(2)),
+                                 int(m.group(3)),
+                                 "fallback to unfiltered" in d))
+    for label, engaged, candidates, need, fallback in prec_rows:
+        ratio = (engaged / candidates) if candidates else 0.0
+        if candidates and ratio < 0.5:
+            need_txt = f" >= {need} question terms" \
+                if need is not None else ""
+            add("precision",
+                f"retrieval precision low for '{label}': "
+                f"{engaged}/{candidates} engaged "
+                f"({ratio:.0%} below 50% bar)"
+                + ("; fallback to unfiltered top-N" if fallback else ""),
+                [f"engaged {engaged} of {candidates} candidates{need_txt}"])
+
+    # 4b. model citation behavior (secondary signal): only total
+    #     non-citation is a snag; anything else is legitimate selectivity
     for md in sorted(glob.glob(str(bundle / "iterations" / "iter*-review.md"))):
         text = Path(md).read_text(encoding="utf-8", errors="replace")[:800]
         m = CITED_RE.search(text)
         if m:
             cited, total = int(m.group(1)), int(m.group(2))
-            if total and cited / total < 0.5:
-                add("precision",
-                    f"{Path(md).stem}: cited {cited}/{total} "
-                    f"({cited / total:.0%} below 50% bar)",
-                    [f"cited {cited} of {total} reviewed papers"])
+            if total and not cited:
+                add("model",
+                    f"{Path(md).stem}: cited none of {total} reviewed papers",
+                    [f"cited 0 of {total} reviewed papers"])
 
     # 5. maintenance candidates that did not land
     for cand in sorted(glob.glob(str(bundle / "assessments" / "candidates" / "*.json"))):
