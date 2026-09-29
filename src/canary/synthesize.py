@@ -44,6 +44,7 @@ _NUM_RE = re.compile(r"\d+(?:\.\d+)?%?")
 MAX_PROMPT_CHARS = 120_000
 SUPPORT_VALUES = ("supported", "partial", "contradicted", "unsupported")
 COVERAGE_FOOTER_MARKER = "incomplete coverage"
+COVERAGE_THRESHOLD = 0.5
 
 
 def has_coverage_footer(text: str) -> bool:
@@ -94,6 +95,23 @@ class Synthesis:
     model: str
     claims: tuple[Claim, ...] = ()
     validation: dict = field(default_factory=dict)
+
+
+def check_coverage(cited: tuple[int, ...] | list[int] | int, total: int,
+                   threshold: float = COVERAGE_THRESHOLD) -> dict:
+    """Cited/total grounding coverage; warns below threshold (advisory only).
+
+    The ratio is telemetry for validation records, not a verdict: selective
+    citation of a large engaged pool is correct model behavior, not failure.
+    """
+    n = len(cited) if not isinstance(cited, int) else int(cited)
+    formatted = f"{n}/{total}"
+    ratio = (n / total) if total else 0.0
+    warning = None
+    if ratio < threshold:
+        warning = f"low coverage: cited {formatted} below threshold {threshold}"
+    return {"cited": n, "total": total, "formatted": formatted,
+            "ratio": ratio, "warning": warning, "threshold": threshold}
 
 
 def build_prompt(question: str, papers: list[Paper], coverage_warning: str | bool | None = None, degraded_sources: bool = False, degraded: bool = False, truncate: bool = True) -> str:
@@ -193,6 +211,8 @@ def validate_claims(raw: list[dict], papers: list[Paper]) -> tuple[tuple[Claim, 
             continue
         evidence: list[Evidence] = []
         problems: list[str] = []
+        if not isinstance(ev_raw, list) or len(ev_raw) == 0:
+            problems.append(f"claim {cid}: missing source IDs (no evidence)")
         for ev in ev_raw:
             if not isinstance(ev, dict) or not isinstance(ev.get("paper"), int):
                 problems.append("evidence needs an integer paper index")
@@ -239,7 +259,8 @@ def validate_claims(raw: list[dict], papers: list[Paper]) -> tuple[tuple[Claim, 
 
 
 def synthesize(question: str, papers: list[Paper], client: Completer,
-               coverage_warning: str | None = None) -> Synthesis:
+               coverage_warning: str | None = None,
+               coverage_threshold: float = COVERAGE_THRESHOLD) -> Synthesis:
     if not papers:
         raise ValueError("no papers to synthesize")
     text = client.complete(SYSTEM, build_prompt(question, papers, coverage_warning))
@@ -251,6 +272,7 @@ def synthesize(question: str, papers: list[Paper], client: Completer,
     cited = cited_indices(text, len(papers))
     dangling = dangling_citations(text, len(papers))
     raw, block_error = parse_claims_block(text)
+    coverage = check_coverage(cited, len(papers), coverage_threshold)
     if raw is None:
         validation: dict = {
             "claims_parsed": 0,
@@ -260,11 +282,23 @@ def synthesize(question: str, papers: list[Paper], client: Completer,
             "rejected": [block_error] if block_error else [],
             "unresolved": ["no claims declared; citation markers only"],
             "footer_appended": footer_appended,
+            "coverage": coverage["formatted"],
+            "coverage_ratio": coverage["ratio"],
+            "coverage_threshold": coverage["threshold"],
         }
+        if coverage["warning"]:
+            validation["coverage_alert"] = coverage["warning"]
+            validation["unresolved"] = [*validation["unresolved"], coverage["warning"]]
         return Synthesis(text=text, cited=cited, model=client.model, validation=validation)
     claims, validation = validate_claims(raw, papers)
     validation["dangling_citations"] = list(dangling)
     validation["footer_appended"] = footer_appended
+    validation["coverage"] = coverage["formatted"]
+    validation["coverage_ratio"] = coverage["ratio"]
+    validation["coverage_threshold"] = coverage["threshold"]
+    if coverage["warning"]:
+        validation["coverage_alert"] = coverage["warning"]
+        validation["unresolved"] = [*validation.get("unresolved", []), coverage["warning"]]
     return Synthesis(text=text, cited=cited, model=client.model, claims=claims,
                      validation=validation)
 
@@ -279,7 +313,8 @@ def _remap_claim(claim: Claim, offset: int, batch_tag: str) -> Claim:
 
 
 def synthesize_scaled(question: str, papers: list[Paper], client: Completer,
-                      coverage_warning: str | None = None) -> Synthesis:
+                      coverage_warning: str | None = None,
+                      coverage_threshold: float = COVERAGE_THRESHOLD) -> Synthesis:
     """Synthesize any pool size: single-shot under the cap, else map-reduce.
 
     Over MAX_PROMPT_CHARS the pool splits into batches that each fit; every
@@ -292,7 +327,7 @@ def synthesize_scaled(question: str, papers: list[Paper], client: Completer,
         raise ValueError("no papers to synthesize")
     full = build_prompt(question, papers, coverage_warning, truncate=False)
     if len(full) <= MAX_PROMPT_CHARS:
-        single = synthesize(question, papers, client, coverage_warning)
+        single = synthesize(question, papers, client, coverage_warning, coverage_threshold)
         single.validation["batches"] = 1
         return single
     per_paper = max(len(full) // len(papers), 1)
@@ -302,7 +337,8 @@ def synthesize_scaled(question: str, papers: list[Paper], client: Completer,
             truncate=False)) > MAX_PROMPT_CHARS:
         batch_size //= 2  # uneven papers: shrink until a batch truly fits
     batches = [papers[i:i + batch_size] for i in range(0, len(papers), batch_size)]
-    partials = [synthesize(question, b, client, coverage_warning) for b in batches]
+    partials = [synthesize(question, b, client, coverage_warning, coverage_threshold)
+                for b in batches]
     claims: list[Claim] = []
     rejected: list[str] = []
     for bi, ps in enumerate(partials):
@@ -327,6 +363,7 @@ def synthesize_scaled(question: str, papers: list[Paper], client: Completer,
     merged = guarded
     cited = cited_indices(merged, len(papers))
     dangling = dangling_citations(merged, len(papers))
+    coverage = check_coverage(cited, len(papers), coverage_threshold)
     validation = {
         "claims_parsed": len(claims),
         "citation_validity": "markers resolved against the provided papers",
@@ -337,6 +374,12 @@ def synthesize_scaled(question: str, papers: list[Paper], client: Completer,
         "dangling_citations": list(dangling),
         "footer_appended": footer_appended,
         "batches": len(batches),
+        "coverage": coverage["formatted"],
+        "coverage_ratio": coverage["ratio"],
+        "coverage_threshold": coverage["threshold"],
     }
+    if coverage["warning"]:
+        validation["coverage_alert"] = coverage["warning"]
+        validation["unresolved"] = [*validation["unresolved"], coverage["warning"]]
     return Synthesis(text=merged, cited=cited, model=client.model,
                      claims=tuple(claims), validation=validation)
