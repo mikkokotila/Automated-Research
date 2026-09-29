@@ -107,6 +107,16 @@ def test_resolve_token_and_repo(repo, monkeypatch):
     assert ghmod.resolve_repo(repo) == "x/y"
 
 
+def test_run_git_matches_run_semantics_without_zombies(tmp_path):
+    r = ghmod.run_git(["git", "--version"], cwd=tmp_path, timeout=30)
+    assert r.returncode == 0 and "git version" in r.stdout
+    with pytest.raises(subprocess.CalledProcessError):
+        ghmod.run_git(["git", "rev-parse", "no-such-ref"], cwd=tmp_path,
+                      timeout=30, check=True)
+    with pytest.raises(subprocess.TimeoutExpired):
+        ghmod.run_git(["sleep", "30"], cwd=tmp_path, timeout=0.2)
+
+
 # --- issues + PRs ---
 
 

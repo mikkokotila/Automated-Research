@@ -23,6 +23,63 @@ BOT_EMAIL = "canary-bot@users.noreply.github.com"
 COMMIT_STAGE_PREFIXES = ("src/canary/", "runs/")
 
 
+def run_git(
+    args: list[str],
+    cwd: str | Path | None = None,
+    timeout: float = 30,
+    check: bool = False,
+    stdin=None,
+) -> subprocess.CompletedProcess[str]:
+    """Run a git command without leaving zombie child processes.
+
+    Uses ``Popen`` as a context-manager plus ``communicate(timeout=...)``
+    with an explicit ``wait()`` in a ``finally`` block so the child is
+    always reaped, even on timeouts or other errors.
+    """
+    if stdin is None:
+        stdin = subprocess.DEVNULL
+    with subprocess.Popen(
+        args,
+        cwd=cwd,
+        stdin=stdin,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    ) as proc:
+        try:
+            stdout, stderr = proc.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+            try:
+                stdout, stderr = proc.communicate(timeout=5)
+            except Exception:
+                stdout, stderr = "", ""
+            raise
+        except BaseException:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+            try:
+                proc.communicate(timeout=5)
+            except Exception:
+                pass
+            raise
+        finally:
+            try:
+                proc.wait()
+            except Exception:
+                pass
+        rc = proc.returncode
+    completed = subprocess.CompletedProcess(args, rc, stdout, stderr)
+    if check and rc != 0:
+        raise subprocess.CalledProcessError(rc, args, output=stdout, stderr=stderr)
+    return completed
+
+
 def resolve_token(env: dict | None = None) -> str:
     env = env if env is not None else os.environ
     token = env.get("GITHUB_TOKEN", "")
@@ -35,10 +92,7 @@ def resolve_repo(repo_root: str | Path | None = None) -> str:
     if os.environ.get("GITHUB_REPO"):
         return os.environ["GITHUB_REPO"]
     if repo_root is not None:
-        r = subprocess.run(
-            ["git", "remote", "get-url", "origin"], cwd=repo_root,
-            capture_output=True, text=True, timeout=30, stdin=subprocess.DEVNULL,
-        )
+        r = run_git(["git", "remote", "get-url", "origin"], cwd=repo_root, timeout=30)
         if r.returncode == 0:
             m = re.search(r"github\.com[/:]([^/\s]+/[^/\s]+?)(?:\.git)?\s*$", r.stdout.strip())
             if m:
@@ -192,9 +246,11 @@ class GitHub:
 
 def commit_stage_list(repo: Path) -> list[str]:
     """Only code patches and run artifacts may ride the auto-PR. Nothing else."""
-    r = subprocess.run(
-        ["git", "status", "--porcelain", "--", "src", "runs", "tests"], cwd=repo,
-        capture_output=True, text=True, timeout=30, stdin=subprocess.DEVNULL, check=True,
+    r = run_git(
+        ["git", "status", "--porcelain", "--", "src", "runs", "tests"],
+        cwd=repo,
+        timeout=30,
+        check=True,
     )
     files: list[str] = []
     for line in r.stdout.splitlines():
@@ -216,12 +272,13 @@ def commit_and_push(repo: str | Path, branch: str, message: str, token: str) -> 
     if not files:
         raise RuntimeError("nothing to commit")
     base = ["git", "-c", f"user.name={BOT_NAME}", "-c", f"user.email={BOT_EMAIL}"]
-    subprocess.run(base + ["checkout", "-b", branch], cwd=repo, capture_output=True, text=True, timeout=60, check=True)
-    subprocess.run(base + ["add", "--"] + files, cwd=repo, capture_output=True, text=True, timeout=60, check=True)
-    subprocess.run(base + ["commit", "-m", message], cwd=repo, capture_output=True, text=True, timeout=60, check=True)
-    push = subprocess.run(
+    run_git(base + ["checkout", "-b", branch], cwd=repo, timeout=60, check=True)
+    run_git(base + ["add", "--"] + files, cwd=repo, timeout=60, check=True)
+    run_git(base + ["commit", "-m", message], cwd=repo, timeout=60, check=True)
+    push = run_git(
         ["git", "-c", f"http.extraheader=AUTHORIZATION: bearer {token}", "push", "-u", "origin", branch],
-        cwd=repo, capture_output=True, text=True, timeout=300, stdin=subprocess.DEVNULL,
+        cwd=repo,
+        timeout=300,
     )
     if push.returncode != 0:
         raise RuntimeError(f"push failed: {push.stderr.strip()[-300:]}")
