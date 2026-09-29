@@ -20,6 +20,10 @@ DEFAULT_MODEL = "muse-spark-1.3-contributor"
 SPEC_VERSION = 1
 QUESTION_LIMIT = 2000
 MAX_ITERATIONS = 5
+# Papers per iteration. Retrieval pages each provider to cover the pool
+# (50/page, 8 pages max) and synthesis map-reduces over the prompt cap,
+# so hundreds-paper runs are bounded, not hopeful.
+MAX_PAPERS = 400
 
 
 class InvalidSpec(ValueError):
@@ -59,8 +63,8 @@ class ResearchSpec:
             raise ValueError("question must be non-empty")
         if len(question) > 2000:
             raise ValueError("question must be at most 2000 characters")
-        if not 1 <= self.max_papers <= 50:
-            raise ValueError("max_papers must be between 1 and 50")
+        if not 1 <= self.max_papers <= MAX_PAPERS:
+            raise ValueError(f"max_papers must be between 1 and {MAX_PAPERS}")
         if self.year_from is not None and not 1900 <= self.year_from <= 2100:
             raise ValueError("year_from must be between 1900 and 2100")
         object.__setattr__(self, "question", question)
@@ -101,8 +105,8 @@ class RunSpec:
             raise InvalidSpec("profile must be 'dev' or 'prod'")
         if bool(self.csv) != bool(self.target):
             raise InvalidSpec("csv and target must be given together")
-        if not 1 <= self.max_papers <= 50:
-            raise InvalidSpec("max_papers must be between 1 and 50")
+        if not 1 <= self.max_papers <= MAX_PAPERS:
+            raise InvalidSpec(f"max_papers must be between 1 and {MAX_PAPERS}")
         if self.year_from is not None and not 1900 <= self.year_from <= 2100:
             raise InvalidSpec("year_from must be between 1900 and 2100")
         if not 1 <= self.max_iterations <= MAX_ITERATIONS:

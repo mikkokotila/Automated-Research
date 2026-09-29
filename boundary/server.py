@@ -20,7 +20,7 @@ from .ledger import Ledger
 from .policy import ALLOWED_MODEL, MAX_BODY_BYTES, BoundaryError, PolicyBlocked
 
 SOURCES = {
-    "/v1/sources/openalex": ("https://api.openalex.org/works", {"search", "per-page", "mailto", "filter"}),
+    "/v1/sources/openalex": ("https://api.openalex.org/works", {"search", "per-page", "page", "mailto", "filter"}),
     "/v1/sources/arxiv": ("https://export.arxiv.org/api/query",
                            {"search_query", "start", "max_results", "sortBy", "sortOrder"}),
 }
